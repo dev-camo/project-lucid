@@ -378,11 +378,11 @@ Shader "HardLight/Environment/HL_Env_Standard_Lit"
                 #endif
                 #endif
 
-                // As the generated pass: alpha test clips the graph alpha, transparency keeps it, and
-                // opaque surfaces use 1; the surface alpha is then saturated.
+                // Retain the generated pass's alpha-to-coverage sharpening before surface saturation.
+                // Transparency uses graph alpha; opaque surfaces without alpha testing use 1.
                 #if defined(_ALPHATEST_ON)
                 half alpha = HLEnvAlpha(uv);
-                AlphaDiscard(alpha, _Alpha_Clip);
+                alpha = AlphaDiscard(alpha, _Alpha_Clip);
                 #elif defined(_SURFACE_TYPE_TRANSPARENT)
                 half alpha = HLEnvAlpha(uv);
                 #else

@@ -649,7 +649,7 @@ namespace ProjectLucid.Tests
                     if (pass == 0)
                     {
                         // Read actual production InputData and graph albedo before lighting, without retyping their initialization.
-                        string initialized = "                // As the generated pass: alpha test clips the graph alpha, transparency keeps it, and";
+                        string initialized = "                // Retain the generated pass's alpha-to-coverage sharpening before surface saturation.";
                         body = ReplaceOnce(body, initialized, initialized + @"
                 #if defined(_WRITE_RENDERING_LAYERS)
                 outRenderingLayers = 0;
