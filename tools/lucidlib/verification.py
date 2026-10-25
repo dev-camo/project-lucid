@@ -8907,7 +8907,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetToggleMissionTests." + name 
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetSdtLevelTests." + name for name in (
     "SetupPublishesTheNumberTheGroupIgnoredProgressAndTheDefaultMessage",
-    "SetupPublishesTheDisplayNameWhenNumericalNamesAreOff",
+    "SetupPublishesTheActNameWhenNumericalNamesAreOff",
     "ALockedLevelHidesEveryRewardStateWithoutAskingTheMissionManager",
     "AnUnmetRewardRequirementShowsOneRestrictionWithTheRemainingCount",
     "RefreshingReusesTheRestrictionContainerAndUpdatesItsCount",

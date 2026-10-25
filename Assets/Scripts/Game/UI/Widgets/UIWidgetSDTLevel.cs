@@ -112,11 +112,11 @@ namespace HardlightProject
             Unlock();
         }
 
-        // 0x06003837 (0x6A0050)
+        // 0x06003837 (0x6A0050): text names read ActName (+0x24 at 0x6A00DD).
         private void UpdateBinders()
         {
             GameplayLevelDefinition levelDefinition = m_parameters.LevelDefinition;
-            LevelName.Value = m_useNumericalName ? m_parameters.LevelNumericalName.ToString() : StringTable.GetString(levelDefinition.DisplayName);
+            LevelName.Value = m_useNumericalName ? m_parameters.LevelNumericalName.ToString() : StringTable.GetString(levelDefinition.ActName);
             IsNextLevel.Value = m_parameters.IsNextLevel;
             m_fillImage.fillAmount = Mathf.Clamp01(GetProgressionPercent(m_rewardType, m_parameters.LevelProgress));
             ProgressionCollectable levelOrbs = m_parameters.LevelProgress.ProgressGroupsIgnored.GetValueOrDefault(m_rewardType);

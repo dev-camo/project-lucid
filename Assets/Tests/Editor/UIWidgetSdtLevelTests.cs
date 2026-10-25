@@ -23,7 +23,8 @@ namespace ProjectLucid.Tests
     // gives the toggle's transition an empty settings list so that queuing a state transition is a no-op.
     public sealed class UIWidgetSdtLevelTests
     {
-        private const string FormatXOfY = "of", PlayPrevious = "play previous", NeedRewards = "need rewards", DisplayName = "Level display name";
+        private const string FormatXOfY = "of", PlayPrevious = "play previous", NeedRewards = "need rewards", DisplayName = "Level display name",
+            ActName = "Level act name";
 
         private sealed class Scene
         {
@@ -47,7 +48,8 @@ namespace ProjectLucid.Tests
         }
 
         private static string LevelJson(bool boss = false, bool alwaysUnlocked = false, string rewardRequirements = "") =>
-            "{\"m_displayName\":" + (int)Strings.CULTURE_NUMBER_MILLIONS + ",\"m_requirements\":[],\"m_isBossLevel\":" + (boss ? "true" : "false") +
+            "{\"m_displayName\":" + (int)Strings.CULTURE_NUMBER_MILLIONS + ",\"m_actName\":" + (int)Strings.CULTURE_NUMBER_BILLIONS +
+            ",\"m_requirements\":[],\"m_isBossLevel\":" + (boss ? "true" : "false") +
             ",\"m_alwaysUnlocked\":" + (alwaysUnlocked ? "true" : "false") + ",\"m_rewardRequirements\":[" + rewardRequirements + "]}";
 
         private static string Requirement(int count) => "{\"RewardType\":" + (int)CollectableType.Orb + ",\"Count\":" + count + "}";
@@ -59,6 +61,7 @@ namespace ProjectLucid.Tests
                 { Strings.LEVEL_SELECT_PLAY_PREVIOUS_LEVEL, PlayPrevious },
                 { Strings.MENU_ACT_REWARD_REQUIREMENT, NeedRewards },
                 { Strings.CULTURE_NUMBER_MILLIONS, DisplayName },
+                { Strings.CULTURE_NUMBER_BILLIONS, ActName },
             }, () =>
             {
                 Owned owned = world.Owned;
@@ -128,6 +131,7 @@ namespace ProjectLucid.Tests
 
                 Assert.That(scene.Widget.FormatXOfY.Value, Is.EqualTo(FormatXOfY));
                 Assert.That(scene.Widget.LevelName.Value, Is.EqualTo("7"));
+                Assert.That(scene.Level.ActName, Is.Not.EqualTo(scene.Level.DisplayName));
                 Assert.That(scene.Widget.IsNextLevel.Value, Is.True);
                 Assert.That(scene.Fill.fillAmount, Is.EqualTo(0.75f));
                 Assert.That(scene.Widget.LevelOrbsCollected.Value, Is.EqualTo(3));
@@ -140,15 +144,18 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Native 0x6A00DD reads m_actName +0x24, not m_displayName +0x20; zone_1_ftue is the shipped text-mode instance.
+        // These distinct keys and texts are arbitrary fixture values, not shipped localization content.
         [Test]
-        public void SetupPublishesTheDisplayNameWhenNumericalNamesAreOff()
+        public void SetupPublishesTheActNameWhenNumericalNamesAreOff()
         {
             Run((owned, scene) =>
             {
                 Set(scene.Widget, "m_useNumericalName", false); // Reflection: serialized option
                 SetProgress(scene, 0, 1);
                 scene.Widget.Setup(scene.Parameters(number: 7));
-                Assert.That(scene.Widget.LevelName.Value, Is.EqualTo(DisplayName));
+                Assert.That(scene.Widget.LevelName.Value, Is.EqualTo(ActName));
+                Assert.That(scene.Widget.LevelName.Value, Is.Not.EqualTo(DisplayName));
             });
         }
 
