@@ -3,11 +3,13 @@ import hashlib
 import json
 import os
 import shutil
+import signal
 from pathlib import Path
 import struct
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 import uuid
@@ -343,6 +345,135 @@ class PlayerCodeTests(unittest.TestCase):
             result = playercode.run_player_code(self.root, self.work, "macos")
         self.assertEqual("compiled", result["status"], result)
         self.assertEqual(1, len(launches))
+
+    def test_default_subprocess_facade_owns_a_session_and_preserves_exception_types(self):
+        for name in ("SubprocessError", "TimeoutExpired", "CalledProcessError"):
+            self.assertIs(getattr(subprocess, name), getattr(playercode.subprocess, name))
+        command = [sys.executable, "-c", "import sys; print('owned stdout'); sys.exit(3)"]
+        with patch.object(bootstrap.subprocess, "Popen", wraps=subprocess.Popen) as launch:
+            result = playercode.subprocess.run(command, timeout=30, capture_output=True, text=True)
+        self.assertEqual((3, "owned stdout\n", ""), (result.returncode, result.stdout, result.stderr))
+        self.assertEqual(command, result.args)
+        launch.assert_called_once()
+        self.assertTrue(launch.call_args.kwargs.get("start_new_session", False))
+
+    def _editor_tree_releases_lock_after_stop(self, completion):
+        # Inert Python processes exercise the real launcher and command lock. The child and
+        # grandchild ignore SIGTERM, so killing only the Editor cannot satisfy the assertion.
+        pids = self.root / "editor-tree"
+        pids.mkdir()
+        self.editor.write_text(
+            "#!" + sys.executable + "\n"
+            "import json, os, signal, subprocess, sys, time\n"
+            "from pathlib import Path\n"
+            "root = Path(" + repr(str(pids)) + ")\n"
+            "role = sys.argv[1] if sys.argv[1] in ('child', 'grandchild') else 'editor'\n"
+            "if role != 'editor': signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+            "marker = root / (role + '.json')\n"
+            "pending = marker.with_suffix('.tmp')\n"
+            "pending.write_text(json.dumps({'pid': os.getpid(), 'pgid': os.getpgrp()}))\n"
+            "pending.replace(marker)\n"
+            "if role != 'grandchild':\n"
+            "    subprocess.Popen([sys.executable, __file__, 'child' if role == 'editor' else 'grandchild'])\n"
+            "if role == 'editor':\n"
+            "    deadline = time.monotonic() + 10\n"
+            "    while not (root / 'grandchild.json').exists():\n"
+            "        if time.monotonic() >= deadline: raise RuntimeError('grandchild did not start')\n"
+            "        time.sleep(0.01)\n"
+            "    print('tree ready', flush=True)\n"
+            + ("    sys.exit(0)\n" if completion == "success" else "") +
+            "time.sleep(60)\n")
+        self.editor.chmod(0o700)
+        lock = self.work / "locks/player-code.lock"
+        real_run, real_popen, real_rmdir = subprocess.run, subprocess.Popen, Path.rmdir
+        default_run = playercode.subprocess.run
+        interrupted = KeyboardInterrupt("owned Editor interruption")
+        raised, at_release, leaders = [], [], []
+
+        def stopped(pid):
+            state = real_run(["ps", "-o", "stat=", "-p", str(pid)],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+            return not state or state.startswith("Z")
+
+        def spawn(command, **options):
+            process = real_popen(command, **options)
+            if command[0] == str(self.editor):
+                leaders.append(process)
+                if completion == "interrupt":
+                    def interrupt(*args, **kwargs):
+                        deadline = time.monotonic() + 10
+                        while not (pids / "grandchild.json").exists():
+                            self.assertLess(time.monotonic(), deadline, "grandchild did not start")
+                            time.sleep(0.01)
+                        raise interrupted
+                    process.communicate = interrupt
+            return process
+
+        def invoke(command, **options):
+            self.assertEqual({"timeout", "stdout", "stderr"}, set(options))
+            self.assertEqual(1800, options["timeout"])
+            options["timeout"] = 3 if completion == "timeout" else 30
+            try:
+                result = default_run(command, **options)
+            except BaseException as error:
+                raised.append(error)
+                raise
+            if completion == "success":
+                self.assertEqual(0, result.returncode)
+                return self.emit(command)
+            return result
+
+        def release(path):
+            if path == lock:
+                self.assertTrue(path.is_dir())
+                at_release.append({role: stopped(json.loads((pids / (role + ".json")).read_text())["pid"])
+                                   for role in ("editor", "child", "grandchild")})
+            return real_rmdir(path)
+
+        try:
+            with patch.object(playercode.subprocess, "run", side_effect=invoke), \
+                    patch.object(subprocess, "Popen", side_effect=spawn), \
+                    patch.object(Path, "rmdir", release):
+                if completion == "success":
+                    result = playercode.run_player_code(self.root, self.work, "macos")
+                    self.assertEqual("compiled", result["status"])
+                else:
+                    error_type = subprocess.TimeoutExpired if completion == "timeout" else KeyboardInterrupt
+                    with self.assertRaises(error_type) as caught:
+                        playercode.run_player_code(self.root, self.work, "macos")
+                    self.assertEqual(1, len(raised))
+                    self.assertIs(raised[0], caught.exception)
+                    if completion == "interrupt":
+                        self.assertIs(interrupted, caught.exception)
+                    self.assertEqual(self.old, self.latest.read_bytes())
+            self.assertEqual([{"editor": True, "child": True, "grandchild": True}], at_release,
+                             "the command lock was released while an owned process still ran")
+            self.assertFalse(lock.exists())
+        finally:
+            # Also clean the deliberately failing pre-fix control; never signal the runner's group.
+            for marker in pids.glob("*.json"):
+                identity = json.loads(marker.read_text())
+                try:
+                    if not stopped(identity["pid"]) and os.getpgid(identity["pid"]) == identity["pgid"]:
+                        os.kill(identity["pid"], signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            for process in leaders:
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=10)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX ownership; Windows descendants are tracked in #458")
+    def test_editor_timeout_stops_child_and_grandchild_before_releasing_lock(self):
+        self._editor_tree_releases_lock_after_stop("timeout")
+
+    @unittest.skipUnless(os.name == "posix", "POSIX ownership; Windows descendants are tracked in #458")
+    def test_editor_interruption_stops_child_and_grandchild_before_releasing_lock(self):
+        self._editor_tree_releases_lock_after_stop("interrupt")
+
+    @unittest.skipUnless(os.name == "posix", "POSIX ownership; Windows descendants are tracked in #458")
+    def test_editor_success_stops_surviving_descendants_before_releasing_lock(self):
+        self._editor_tree_releases_lock_after_stop("success")
 
     def test_noisy_successful_editor_retains_console_in_owned_logs(self):
         result = self.run_noisy_editor(0)

@@ -9,11 +9,22 @@ from pathlib import Path
 import re
 import stat
 import struct
-import subprocess
+import subprocess as _subprocess
 import uuid
 
-from .bootstrap import managed_path, validate_work_dir, write_json
+from .bootstrap import managed_path, run_owned, validate_work_dir, write_json
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
+
+
+class _OwnedSubprocess:
+    # Local launches own their tree; CI replaces this facade with its Editor sandbox.
+    run = staticmethod(run_owned)
+    SubprocessError = _subprocess.SubprocessError
+    TimeoutExpired = _subprocess.TimeoutExpired
+    CalledProcessError = _subprocess.CalledProcessError
+
+
+subprocess = _OwnedSubprocess()
 
 TARGETS = {"macos": ("osxuniversal", "StandaloneOSX"),
            "windows": ("win64", "StandaloneWindows64"),
@@ -468,7 +479,7 @@ def run_player_code(repo_root, work_dir, target):
                 (console / "editor-stderr.log").open("xb") as stderr:
             # CI replaces this module's subprocess with its Editor sandbox (bubblewrap in its
             # own session, with the licensing pipe), so the Editor must launch through
-            # subprocess.run here and nowhere else; run_owned would bypass the sandbox.
+            # subprocess.run here; calling run_owned directly would bypass the sandbox.
             result = subprocess.run(command, timeout=1800, stdout=stdout, stderr=stderr)
         if result.returncode or not pending.is_file():
             return {"status": "failed", "exit_code": result.returncode or 1, "log": str(log),
