@@ -325,6 +325,34 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ImportedKeywordContextTests." + name
     "KeywordMismatchesAreRejectedInEitherContext",
 ))
 
+# Complete authored TransformRotator serialization and binding admission (#554).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.TransformRotatorAuthoredTests." + name for name in (
+    "EveryAuthoredDocumentRetainsOriginalValuesAndReferencesAcrossInactiveRoundtrip",
+    "PreparedAssetsHaveTheExactVerifiedTransformRotatorBinding",
+    "OriginalLookupMissLeavesNullAcrossRealInactiveRoundtrip",
+    "MissingBindingFailsAtItsOwnAdmissionBoundary",
+    "OriginalCorpusRejectsMissingExtraAndReorderedFields",
+    "AssignedDuplicateContentCategoriesKeepTheirDistinctAssetIdentities",
+    "LookupAdmissionRejectsWrongClassGuidAndDestroyedCacheWithoutRepair",
+    "ConfigurationSnapshotDetectsCacheMutationWithoutRepair",
+    "OccupiedConfigurationAdmissionPreservesGenuineSystemAndObservers(False)",
+    "OccupiedConfigurationAdmissionPreservesGenuineSystemAndObservers(True)",
+    "ConfigurationObserverFailureRetainsHandleCustodyAndAttemptsRelease(False)",
+    "ConfigurationObserverFailureRetainsHandleCustodyAndAttemptsRelease(True)",
+    "ConfigurationAddRejectsAbsentOrReleasedCustodyBeforeAutoRegistration(False)",
+    "ConfigurationAddRejectsAbsentOrReleasedCustodyBeforeAutoRegistration(True)",
+    "RepeatedRegistrationCannotReplaceTheExistingLeaseCustody",
+    'OwnedRoundtripFailureAttemptsEveryReleaseAndPreservesPrimary("configuration",False)',
+    'OwnedRoundtripFailureAttemptsEveryReleaseAndPreservesPrimary("folder",False)',
+    'OwnedRoundtripFailureAttemptsEveryReleaseAndPreservesPrimary("import",False)',
+    'OwnedRoundtripFailureAttemptsEveryReleaseAndPreservesPrimary("load",False)',
+    'OwnedRoundtripFailureAttemptsEveryReleaseAndPreservesPrimary("save",False)',
+    'OwnedRoundtripFailureAttemptsEveryReleaseAndPreservesPrimary("reload",False)',
+    'OwnedRoundtripFailureAttemptsEveryReleaseAndPreservesPrimary("import",True)',
+    'OwnedRoundtripFailureAttemptsEveryReleaseAndPreservesPrimary("none",True)',
+    'OwnedRoundtripFailureAttemptsEveryReleaseAndPreservesPrimary("none",False)',
+))
+
 # Exact loaded HideIf boxed String null evidence (#550).
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.LoadedHideIfAttributeBlobTests." + name for name in (
     "TransformRotatorHideIfRetainsItsOriginalRawStringNull",

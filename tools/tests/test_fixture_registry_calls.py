@@ -48,6 +48,8 @@ ALLOWED = {
     "Assets/Editor/RecoveredProof/SystemConfigurationVerification.cs": (3, OWNED),
     "Assets/Editor/RecoveredProof/SystemRefVerification.cs": (1, OWNED),
     "Assets/Editor/RecoveredProof/TimeSchedulerVerification.cs": (4, OWNED),
+    # Exact live-row admission precedes AddConfig; handle custody survives observer throws.
+    "Assets/Editor/RecoveredProof/TransformRotatorBindingVerification.cs": (2, OWNED),
     "Assets/Editor/RecoveredProof/UIOriginalLeafVerification.cs": (1, OWNED),
     "Assets/Tests/CoroutineScrollShared/OriginalCoroutineEngineVerification.cs": (1, PROOF),
     "Assets/Tests/Editor/AppRatingRequesterBossTests.cs": (2, OWNED),
