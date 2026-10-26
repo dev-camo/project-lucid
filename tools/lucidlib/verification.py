@@ -325,6 +325,16 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ImportedKeywordContextTests." + name
     "KeywordMismatchesAreRejectedInEitherContext",
 ))
 
+# Exact loaded HideIf boxed String null evidence (#550).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.LoadedHideIfAttributeBlobTests." + name for name in (
+    "TransformRotatorHideIfRetainsItsOriginalRawStringNull",
+    "InventoryPublishesHideIfRawEvidenceWithoutChangingAttributeOrder",
+    "HideIfReaderRequiresTheMembersOwnUniqueRowAndExactOverload",
+    "HideIfBlobRejectsOtherNullTypesEmptyValuesAndMalformedEncoding",
+    "LoadedModuleEvidenceRejectsMissingPathsAndMismatchedIdentity",
+    "SameNamedAttributeFromAnotherAssemblyIsRejected",
+))
+
 # Original FastAction null conversion and checked mutation order (#469).
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFastActionNullListenerTests." + name for name in (
     "NullListenerReturnsTheSameInstanceForTheSelfType",
