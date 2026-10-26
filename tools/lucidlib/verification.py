@@ -6620,6 +6620,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplinePositionerTes
     "SerializedLayoutKeepsTheFieldOrderAndAttributes",
     "SetPercentAndSetDistanceReportNothingInEditMode",
 ))
+# Retained absent-spline control beside the strengthened private-target guard oracle (#522).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalDreamteckSplineProjectorTests.LateRunWithoutASplineKeepsTheZeroResult",
+)
+
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineProjectorTests." + name for name in (
     "FreshProjectorKeepsTheShippedDefaults",
     "ResetTargetsTheOwnTransform",

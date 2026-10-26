@@ -474,13 +474,85 @@ namespace ProjectLucid.Tests
             Assert.That(Read<Vector3>(projector, "lastPosition"), Is.EqualTo(new Vector3(1E-5f, 0f, 0f)), "projected, not skipped");
         }
 
-        // LateRun 0x4cbc80 reads the project target through its getter (the own transform stands in) but CalculateProjection
-        // 0x4cbeb0 returns at once for an empty field: such a projector only remembers where it was.
+        // Original CalculateProjection 0x0600031a/0x4cbeb0 guards the private field; Reset fills it, so establish null
+        // after all setup. LateRun 0x06000316/0x4cbc80 stores the getter-fallback position before that early return (#522).
         [Test]
         public void LateRunWithoutAProjectTargetOnlyRemembersThePosition()
         {
+            SplineComputer computer = NewLine();
+            SplineProjector projector = NewProjector(computer, NewTarget(new Vector3(4f, 0f, 2f)));
+            GameObject mover = NewObject("motion target");
+            projector.targetObject = mover;
+            projector.RebuildImmediate();
+            projector.transform.position = new Vector3(3f, 0f, 1f);
+            Vector3 motionPosition = new Vector3(9f, 8f, 7f);
+            Quaternion motionRotation = Quaternion.Euler(15f, 25f, 35f);
+            Vector3 motionScale = new Vector3(2f, 3f, 4f);
+            mover.transform.SetPositionAndRotation(motionPosition, motionRotation);
+            mover.transform.localScale = motionScale;
+            motionRotation = mover.transform.rotation;
+            SplineSample sentinel = new SplineSample
+            {
+                position = new Vector3(87f, 4f, 5f),
+                up = Vector3.right,
+                forward = Vector3.down,
+                color = new Color(0.25f, 0.5f, 0.75f, 0.125f),
+                size = 2.5f,
+                percent = 0.875
+            };
+            Vector3 previousPosition = new Vector3(-7f, -8f, -9f);
+            Write(projector, "_result", sentinel);
+            Write(projector, "lastPosition", previousPosition);
+            Write(projector, "_projectTarget", null);
+            Assert.That(Read<Transform>(projector, "_projectTarget"), Is.Null, "the actual private-field precondition");
+            Assert.That(projector.projectTarget, Is.SameAs(projector.transform), "the public getter still falls back");
+            Assert.That(projector.spline, Is.SameAs(computer), "missing spline cannot explain the early return");
+            Assert.That(projector.autoProject, Is.True);
+
+            void AssertPreserved()
+            {
+                SplineSample actual = projector.result;
+                Assert.That(actual.position, Is.EqualTo(sentinel.position));
+                Assert.That(actual.up, Is.EqualTo(sentinel.up));
+                Assert.That(actual.forward, Is.EqualTo(sentinel.forward));
+                Assert.That(actual.color, Is.EqualTo(sentinel.color));
+                Assert.That(actual.size, Is.EqualTo(sentinel.size));
+                Assert.That(actual.percent, Is.EqualTo(sentinel.percent));
+                Assert.That(mover.transform.position, Is.EqualTo(motionPosition));
+                Assert.That(mover.transform.rotation, Is.EqualTo(motionRotation));
+                Assert.That(mover.transform.localScale, Is.EqualTo(motionScale));
+                Assert.That(Read<Transform>(projector, "_projectTarget"), Is.Null);
+            }
+
+            Assert.DoesNotThrow(() => projector.CalculateProjection());
+            AssertPreserved();
+            Assert.That(Read<Vector3>(projector, "lastPosition"), Is.EqualTo(previousPosition), "direct guard returns before the final position store");
+            Assert.DoesNotThrow(() => Invoke(projector, "LateRun"));
+            AssertPreserved();
+            Assert.That(Read<Vector3>(projector, "lastPosition"), Is.EqualTo(new Vector3(3f, 0f, 1f)), "LateRun remembers the getter fallback before projection");
+
+            // Restore a real target, then reseed after the setter/rebuild so LateRun itself must project.
+            projector.projectTarget = projector.transform;
+            projector.RebuildImmediate();
+            Write(projector, "_result", sentinel);
+            Write(projector, "lastPosition", previousPosition);
+            mover.transform.position = motionPosition;
+            Assert.That(Read<Transform>(projector, "_projectTarget"), Is.SameAs(projector.transform));
+            Assert.DoesNotThrow(() => Invoke(projector, "LateRun"));
+            // NewLine is 20 units: the closest point (3,0,0) is 3/20 along it.
+            Assert.That(projector.result.percent, Is.EqualTo(0.15).Within(1e-4));
+            Near(projector.result.position, new Vector3(3f, 0f, 0f), "present target projects onto the real line");
+            Near(mover.transform.position, new Vector3(3f, 0f, 0f), "present target applies motion");
+            Assert.That(Read<Vector3>(projector, "lastPosition"), Is.EqualTo(new Vector3(3f, 0f, 1f)));
+        }
+
+        // Retain the former case's zero-result/no-throw coverage under its actual absent-spline precondition (#522).
+        [Test]
+        public void LateRunWithoutASplineKeepsTheZeroResult()
+        {
             SplineProjector projector = NewObject("projector").AddComponent<SplineProjector>();
             projector.transform.position = new Vector3(3f, 0f, 1f);
+            Assert.That(projector.spline, Is.Null);
             Invoke(projector, "LateRun");
             Assert.That(Read<Vector3>(projector, "lastPosition"), Is.EqualTo(new Vector3(3f, 0f, 1f)));
             Assert.That(projector.result.percent, Is.EqualTo(0.0));
