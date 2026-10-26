@@ -199,13 +199,16 @@ namespace ProjectLucid
             Type type = attribute.AttributeType;
             ConstructorInfo constructor = attribute.Constructor;
             Type[] signature = constructor.GetParameters().Select(p => p.ParameterType).ToArray();
-            if (type.FullName != "Hardlight.ShowIfAttribute" || type.Assembly.GetName().Name != "HLUnityCore.Runtime" ||
+            // TransformRotator's original HideIf CAD (ctor 0x06000f20 / 0x1B1BFA0)
+            // contains a String null; require each member's disk blob to recover that tag.
+            if ((type.FullName != "Hardlight.ShowIfAttribute" && type.FullName != "Hardlight.HideIfAttribute") ||
+                type.Assembly.GetName().Name != "HLUnityCore.Runtime" ||
                 !signature.SequenceEqual(new[] { typeof(string), typeof(object) }) ||
                 attribute.ConstructorArguments.Count != 2 || attribute.NamedArguments.Count != 0 ||
                 attribute.ConstructorArguments[0].ArgumentType != typeof(string) ||
                 !(attribute.ConstructorArguments[0].Value is string) ||
                 attribute.ConstructorArguments[1].ArgumentType != typeof(object) || attribute.ConstructorArguments[1].Value != null)
-                throw new InvalidDataException("Attribute is outside the exact boxed-null ShowIf contract.");
+                throw new InvalidDataException("Attribute is outside the exact boxed-null ShowIf/HideIf contract.");
 
             string readerPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(EditorApplication.applicationContentsPath, "Managed", "Unity.Cecil.dll"));
             string readerHash = Hash(File.ReadAllBytes(readerPath));
