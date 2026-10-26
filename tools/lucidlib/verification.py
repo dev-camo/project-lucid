@@ -226,6 +226,51 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.RecoveredBehaviorTests.CharStandardCompilesEveryPassForDirect3D",
     "ProjectLucid.Tests.RecoveredBehaviorTests.CharStandardGpuOutputMatchesDecodedSurfaceCases",
 )
+# Environment, hub, sky, gameplay and boss shader compilation and surface output (#448).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (
+    "EnvZone2GooCompilesEveryPassForDirect3D",
+    "EnvZone2GooGpuOutputMatchesDecodedSurfaceCases",
+    "EnvStandardTriPlanarCompilesEveryPassForDirect3D",
+    "EnvStandardTriPlanarGpuOutputMatchesDecodedSurfaceCases",
+    "EnvZone5TrackCompilesEveryPassForDirect3D",
+    "EnvZone5TrackGpuOutputMatchesDecodedSurfaceCases",
+    "EnvStandardUnlitCompilesEveryPassForDirect3D",
+    "EnvStandardUnlitGpuOutputMatchesDecodedSurfaceCases",
+    "HubStandardUnlitCompilesEveryPassForDirect3D",
+    "HubStandardUnlitGpuOutputMatchesDecodedSurfaceCases",
+    "SkyboxPortalCompilesEveryPassForDirect3D",
+    "SkyboxPortalGpuOutputMatchesDecodedSurfaceCases",
+    "GameplayTimedPlatformCompilesEveryPassForDirect3D",
+    "GameplayTimedPlatformGpuOutputMatchesDecodedSurfaceCases",
+    "CharBoss03BodyBlobsCompilesEveryPassForDirect3D",
+    "CharBoss03BodyBlobsGpuOutputMatchesDecodedSurfaceCases"))
+# Batch-two shader portability to the Linux player (#448).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (
+    "EnvZone2GooCompilesEveryPassForOpenGL",
+    "EnvStandardTriPlanarCompilesEveryPassForOpenGL",
+    "EnvZone5TrackCompilesEveryPassForOpenGL",
+    "EnvStandardUnlitCompilesEveryPassForOpenGL",
+    "HubStandardUnlitCompilesEveryPassForOpenGL",
+    "SkyboxPortalCompilesEveryPassForOpenGL",
+    "GameplayTimedPlatformCompilesEveryPassForOpenGL",
+    "CharBoss03BodyBlobsCompilesEveryPassForOpenGL",
+))
+# Batch-two original keyword tables, stage types and decoded unlit vertex payloads (#448).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.RecoveredShaderBatchTwoContractTests." + name for name in (
+    "EnvZone2GooKeywordScopesAndPassMasksMatchOriginal",
+    "EnvStandardTriPlanarKeywordScopesAndPassMasksMatchOriginal",
+    "EnvZone5TrackKeywordScopesAndPassMasksMatchOriginal",
+    "EnvStandardUnlitKeywordScopesAndPassMasksMatchOriginal",
+    "HubStandardUnlitKeywordScopesAndPassMasksMatchOriginal",
+    "SkyboxPortalKeywordScopesAndPassMasksMatchOriginal",
+    "GameplayTimedPlatformKeywordScopesAndPassMasksMatchOriginal",
+    "CharBoss03BodyBlobsKeywordScopesAndPassMasksMatchOriginal",
+    "EnvStandardUnlitVaryingsKeepDecodedVertexOutputs",
+    "HubStandardUnlitVaryingsKeepDecodedVertexOutputs",
+    "SkyboxPortalVaryingsKeepDecodedVertexOutputs",
+    "GameplayTimedPlatformVaryingsKeepDecodedVertexOutputs",
+    "CharBoss03BodyBlobsVaryingsKeepDecodedVertexOutputs",
+))
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
 
 # Preserve literal host filename characters in content identity (#509).
@@ -11129,4 +11174,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Editor.Tests.InputSystemControllerProvider
     "PollReadsEveryGamepadControlInGameControllerLayout",
     "SourceKeepsTheOriginalCastForGameControllerProvidersAndWithTheAdaptersOff",
     "MonitorFixtureReleasesEveryBindingCloneItCreates",
+))
+# Distinct per-instance rendering-layer readback from real renderers (#516).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.RenderingLayerInstancingTests." + name for name in (
+    "EnvUnlitForwardWritesEachInstancesRenderingLayers",
+    "TrackDepthNormalsWritesEachInstancesRenderingLayers",
+    "RenderRestoresANondefaultGlobalMipBias",
+    "FixtureCleanupFailureKeepsThePrimaryFailure",
 ))

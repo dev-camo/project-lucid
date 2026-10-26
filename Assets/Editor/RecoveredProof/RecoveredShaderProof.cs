@@ -56,6 +56,46 @@ namespace ProjectLucid
             return compiled;
         }
 
+        // Constant-presence evidence for a pass that writes rendering layers under GPU instancing: its instanced
+        // fragment compiles for Direct3D 11 against unity_RenderingLayerArray (instancing_options renderinglayer)
+        // rather than only the per-draw unity_RenderingLayer, and the non-instanced fragment, the control, has only
+        // the per-draw value. This checks compilation, not output: RenderingLayerInstancingTests reads back distinct
+        // per-instance masks from real renderers where the pass makes that output observable.
+        public static void RequireInstancedRenderingLayers(Shader shader, params int[] passes)
+        {
+            ShaderData.Subshader subshader = ShaderUtil.GetShaderData(shader).GetSerializedSubshader(0);
+            foreach (int p in passes)
+            {
+                ShaderData.Pass pass = subshader.GetPass(p);
+                // The fragment's constant names, struct members included (instanced properties are members of the
+                // per-instance struct array).
+                List<string> Constants(params string[] keywords)
+                {
+                    ShaderData.VariantCompileInfo info = pass.CompileVariant(ShaderType.Fragment, keywords,
+                        ShaderCompilerPlatform.D3D, BuildTarget.StandaloneWindows64);
+                    Require(shader.name, info.Success, "pass " + pass.Name + " fragment [" + string.Join(" ", keywords) + "] compiles");
+                    var names = new List<string>();
+                    void Add(ShaderData.ConstantInfo[] fields)
+                    {
+                        if (fields == null) return;
+                        foreach (ShaderData.ConstantInfo field in fields)
+                        {
+                            names.Add(field.Name);
+                            Add(field.StructFields);
+                        }
+                    }
+                    foreach (ShaderData.ConstantBufferInfo buffer in info.ConstantBuffers) Add(buffer.Fields);
+                    return names;
+                }
+                List<string> instanced = Constants("INSTANCING_ON", "_WRITE_RENDERING_LAYERS");
+                Require(shader.name, instanced.Contains("unity_RenderingLayerArray"),
+                    "pass " + pass.Name + ": the instanced fragment reads each instance's rendering layers; constants: " + string.Join(" ", instanced));
+                List<string> single = Constants("_WRITE_RENDERING_LAYERS");
+                Require(shader.name, !single.Contains("unity_RenderingLayerArray") && single.Contains("unity_RenderingLayer"),
+                    "pass " + pass.Name + ": the non-instanced fragment reads the per-draw rendering layers; constants: " + string.Join(" ", single));
+            }
+        }
+
         public static void Require(string shaderName, bool condition, string message)
         {
             if (!condition) throw new InvalidOperationException(shaderName + " verification failed: " + message);
@@ -134,6 +174,7 @@ namespace ProjectLucid
         private readonly Dictionary<string, Vector4> vectors = new Dictionary<string, Vector4>();
         private readonly Dictionary<string, float> floats = new Dictionary<string, float>();
         private readonly Dictionary<string, Texture> textures = new Dictionary<string, Texture>();
+        private readonly Dictionary<string, Matrix4x4> matrices = new Dictionary<string, Matrix4x4>();
         private readonly string previousPipeline;
         private readonly RenderTexture previousTarget;
 
@@ -255,6 +296,55 @@ namespace ProjectLucid
         {
             foreach (string name in names)
                 if (!textures.ContainsKey(name)) textures[name] = Shader.GetGlobalTexture(name);
+        }
+
+        public void SaveMatrices(params string[] names)
+        {
+            foreach (string name in names)
+                if (!matrices.ContainsKey(name)) matrices[name] = Shader.GetGlobalMatrix(name);
+        }
+
+        // Publishes a 1 x 32 camera depth texture that holds scene eye depth lowerEye on the lower screen rows (read
+        // at y 8) and upperEye on the upper ones (y 24), encoded for the rig camera as it now stands (orthographic
+        // linear or perspective) and the platform's depth direction, with the globals URP derives from that camera:
+        // _ZBufferParams, unity_OrthoParams, the view matrix and the inverse view-projection. Opposite rows differ
+        // so that a wrong screen-UV flip reads the other depth. Texture rows are screen rows, as in URP's depth
+        // texture; draw with SceneDepthProjection so the shader sees the target's real flip. Turns WriteOrthoParams off.
+        // _ProjectionParams as URP publishes them for the rig target: x is -1 where the projection is flipped into
+        // render textures (UV origin at the top).
+        public Vector4 SceneDepthProjection => new Vector4(SystemInfo.graphicsUVStartsAtTop ? -1 : 1, Camera.nearClipPlane,
+            Camera.farClipPlane, 1 / Camera.farClipPlane);
+
+        public void PublishSceneDepth(float lowerEye, float upperEye)
+        {
+            SaveTextures("_CameraDepthTexture");
+            SaveVectors("_ZBufferParams", "unity_OrthoParams");
+            SaveMatrices("unity_MatrixV", "unity_MatrixInvVP");
+            float near = Camera.nearClipPlane, far = Camera.farClipPlane;
+            bool reversed = SystemInfo.usesReversedZBuffer;
+            float x = reversed ? far / near - 1 : 1 - far / near, y = reversed ? 1 : far / near;
+            var zBuffer = new Vector4(x, y, x / far, y / far);
+            float Raw(float eye)
+            {
+                if (!Camera.orthographic) return (1 / eye - zBuffer.w) / zBuffer.z;
+                float linear = (eye - near) / (far - near);
+                return reversed ? 1 - linear : linear;
+            }
+            var depth = Own(new Texture2D(1, 32, TextureFormat.RGBAFloat, false, true)
+                { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp });
+            var rows = new Color[32];
+            for (int row = 0; row < rows.Length; row++) rows[row] = new Color(Raw(row < 16 ? lowerEye : upperEye), 0, 0, 0);
+            depth.SetPixels(rows);
+            depth.Apply(false, false);
+            Shader.SetGlobalTexture("_CameraDepthTexture", depth);
+            Shader.SetGlobalVector("_ZBufferParams", zBuffer);
+            WriteOrthoParams = false;
+            Shader.SetGlobalVector("unity_OrthoParams", new Vector4(Camera.orthographicSize, Camera.orthographicSize, 0,
+                Camera.orthographic ? 1 : 0));
+            // URP publishes these itself; the immediate GL setup does not promise the inverse.
+            Matrix4x4 view = Camera.worldToCameraMatrix;
+            Shader.SetGlobalMatrix("unity_MatrixV", view);
+            Shader.SetGlobalMatrix("unity_MatrixInvVP", (GL.GetGPUProjectionMatrix(Camera.projectionMatrix, true) * view).inverse);
         }
 
         public Texture2D Texels(params Color[] colors)
@@ -390,6 +480,7 @@ namespace ProjectLucid
             foreach (var pair in vectors) Shader.SetGlobalVector(pair.Key, pair.Value);
             foreach (var pair in floats) Shader.SetGlobalFloat(pair.Key, pair.Value);
             foreach (var pair in textures) Shader.SetGlobalTexture(pair.Key, pair.Value);
+            foreach (var pair in matrices) Shader.SetGlobalMatrix(pair.Key, pair.Value);
             Shader.globalRenderPipeline = previousPipeline;
             RenderTexture.active = previousTarget;
             if (target != null) target.Release();

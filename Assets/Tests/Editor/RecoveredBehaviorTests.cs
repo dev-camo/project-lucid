@@ -1190,6 +1190,150 @@ namespace ProjectLucid.Tests
             CharStandardVerification.Run();
         }
 
+        [Test]
+        public void EnvZone2GooCompilesEveryPassForDirect3D()
+        {
+            EnvZone2GooVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone2GooCompilesEveryPassForOpenGL()
+        {
+            EnvZone2GooVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone2GooGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone2GooVerification.Run();
+        }
+
+        [Test]
+        public void EnvStandardTriPlanarCompilesEveryPassForDirect3D()
+        {
+            EnvStandardTriPlanarVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvStandardTriPlanarCompilesEveryPassForOpenGL()
+        {
+            EnvStandardTriPlanarVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvStandardTriPlanarGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvStandardTriPlanarVerification.Run();
+        }
+
+        [Test]
+        public void EnvZone5TrackCompilesEveryPassForDirect3D()
+        {
+            EnvZone5TrackVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone5TrackCompilesEveryPassForOpenGL()
+        {
+            EnvZone5TrackVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone5TrackGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone5TrackVerification.Run();
+        }
+
+        [Test]
+        public void EnvStandardUnlitCompilesEveryPassForDirect3D()
+        {
+            EnvStandardUnlitVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvStandardUnlitCompilesEveryPassForOpenGL()
+        {
+            EnvStandardUnlitVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvStandardUnlitGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvStandardUnlitVerification.Run();
+        }
+
+        [Test]
+        public void HubStandardUnlitCompilesEveryPassForDirect3D()
+        {
+            HubStandardUnlitVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void HubStandardUnlitCompilesEveryPassForOpenGL()
+        {
+            HubStandardUnlitVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void HubStandardUnlitGpuOutputMatchesDecodedSurfaceCases()
+        {
+            HubStandardUnlitVerification.Run();
+        }
+
+        [Test]
+        public void SkyboxPortalCompilesEveryPassForDirect3D()
+        {
+            SkyboxPortalVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void SkyboxPortalCompilesEveryPassForOpenGL()
+        {
+            SkyboxPortalVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void SkyboxPortalGpuOutputMatchesDecodedSurfaceCases()
+        {
+            SkyboxPortalVerification.Run();
+        }
+
+        [Test]
+        public void GameplayTimedPlatformCompilesEveryPassForDirect3D()
+        {
+            GameplayTimedPlatformVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void GameplayTimedPlatformCompilesEveryPassForOpenGL()
+        {
+            GameplayTimedPlatformVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void GameplayTimedPlatformGpuOutputMatchesDecodedSurfaceCases()
+        {
+            GameplayTimedPlatformVerification.Run();
+        }
+
+        [Test]
+        public void CharBoss03BodyBlobsCompilesEveryPassForDirect3D()
+        {
+            CharBoss03BodyBlobsVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharBoss03BodyBlobsCompilesEveryPassForOpenGL()
+        {
+            CharBoss03BodyBlobsVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void CharBoss03BodyBlobsGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharBoss03BodyBlobsVerification.Run();
+        }
+
         // The shared tables the two enum-string verifiers write through the genuine
         // GetString miss path: three of the ActorDefinitionVerification tables (all
         // of them are checked by ActorVerifiersLeaveTheirCachedEnumTablesAsFound)
