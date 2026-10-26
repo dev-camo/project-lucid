@@ -249,8 +249,35 @@ def _builtin_struct_specs():
                     None),),
         "candidates": (),
     }
+    # Shipped CoreModule Color 0x02000137 / Vector4 0x02000145 and the installed
+    # module agree on these complete declarations, including nonserialized rows.
+    color_spec = {
+        "attributes": tuple(sorted((
+            header("Runtime/Math/Color.h"),
+            (shared, "UnityEngine.NativeClassAttribute", (("primitive", "IL2CPP_TYPE_STRING", "ColorRGBAf"),), ()),
+            ("mscorlib", "System.Reflection.DefaultMemberAttribute", (("primitive", "IL2CPP_TYPE_STRING", "Item"),), ()),
+            required), key=repr)),
+        "fields": tuple((name, 6, single, (), None) for name in ("r", "g", "b", "a")),
+        "candidates": ("r", "g", "b", "a"),
+    }
+    vector4 = ("named", "UnityEngine.CoreModule", "UnityEngine.Vector4")
+    vector4_spec = {
+        "attributes": tuple(sorted((
+            ("UnityEngine.CoreModule", "Unity.IL2CPP.CompilerServices.Il2CppEagerStaticClassConstructionAttribute", (), ()),
+            header("Runtime/Math/Vector4.h"),
+            (shared, "UnityEngine.NativeClassAttribute", (("primitive", "IL2CPP_TYPE_STRING", "Vector4f"),), ()),
+            ("mscorlib", "System.Reflection.DefaultMemberAttribute", (("primitive", "IL2CPP_TYPE_STRING", "Item"),), ()),
+            required), key=repr)),
+        "fields": (("kEpsilon", 32854, single, (), 1e-5),) +
+                  tuple((name, 6, single, (), None) for name in ("x", "y", "z", "w")) +
+                  tuple((name, 49, vector4, (), None) for name in (
+                      "zeroVector", "oneVector", "positiveInfinityVector", "negativeInfinityVector")),
+        "candidates": ("x", "y", "z", "w"),
+    }
     return {("UnityEngine.CoreModule", "UnityEngine.Vector3"): vector3_spec,
-            ("UnityEngine.CoreModule", "UnityEngine.LayerMask"): layer_mask_spec}
+            ("UnityEngine.CoreModule", "UnityEngine.LayerMask"): layer_mask_spec,
+            ("UnityEngine.CoreModule", "UnityEngine.Color"): color_spec,
+            ("UnityEngine.CoreModule", "UnityEngine.Vector4"): vector4_spec}
 
 
 _BUILTIN_STRUCTS = _builtin_struct_specs()
@@ -698,9 +725,10 @@ class _Comparison:
     def _unity_2022_builtin_value(self, key):
         """Apply only Unity 2022.3.54f1's observed explicit builtin struct rules.
 
-        UnityEngineTypePredicates lists Vector2, Vector3 and LayerMask under
-        types that should have had Serializable; UnitySerializationLogic
-        separately uses that list for inline value eligibility (the installed
+        UnityEngineTypePredicates explicitly lists Vector2, Vector3, LayerMask,
+        Color and Vector4 as types that should have had Serializable. Its
+        installed predicate and eligibility call chain were inspected statically.
+        UnitySerializationLogic uses that list for inline value eligibility (the installed
         serializer reports WillUnitySerialize for URP's Vector3 and LayerMask
         fields). Do not infer eligibility for other structs. This predicate
         never alters fields, flags, references or input records.
