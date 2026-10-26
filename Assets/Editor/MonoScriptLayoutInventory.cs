@@ -291,7 +291,8 @@ namespace ProjectLucid.Editor
                 var parameters = attribute.Constructor.GetParameters();
                 var parameterTypes = parameters.Select(p => TypeReference(p.ParameterType)).ToArray();
                 var arguments = attribute.ConstructorArguments.Select(AttributeValue).ToArray();
-                if (attribute.AttributeType.FullName == "Hardlight.ShowIfAttribute" &&
+                if ((attribute.AttributeType.FullName == "Hardlight.ShowIfAttribute" ||
+                     attribute.AttributeType.FullName == "Hardlight.HideIfAttribute") &&
                     attribute.AttributeType.Assembly.GetName().Name == "HLUnityCore.Runtime" &&
                     parameters.Select(p => p.ParameterType).SequenceEqual(new[] { typeof(string), typeof(object) }) &&
                     attribute.ConstructorArguments.Count == 2 &&
