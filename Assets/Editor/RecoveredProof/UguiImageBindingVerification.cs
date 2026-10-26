@@ -428,7 +428,8 @@ namespace ProjectLucid
                 });
             // Original 0x02000219 (physical loaded tokens may differ).
             CheckEventType("UnityEngine.CoreModule", "UnityEngine.Events.UnityEventBase", 1056897, "mscorlib:System.Object",
-                new string[] { "UnityEngine.CoreModule:UnityEngine.Scripting.UsedByNativeCodeAttribute()" }, new EventField[] {
+                // Original attribute type scope is SharedInternalsModule, independent of the event owner assembly.
+                new string[] { "UnityEngine.SharedInternalsModule:UnityEngine.Scripting.UsedByNativeCodeAttribute()" }, new EventField[] {
                     new EventField("m_Calls", 1, "UnityEngine.CoreModule:UnityEngine.Events.InvokableCallList", null, Array.Empty<string>()),
                     new EventField("m_PersistentCalls", 1, "UnityEngine.CoreModule:UnityEngine.Events.PersistentCallGroup", null, new string[] { "UnityEngine.CoreModule:UnityEngine.SerializeField()", "UnityEngine.CoreModule:UnityEngine.Serialization.FormerlySerializedAsAttribute(System.String:m_PersistentListeners)" }),
                     new EventField("m_CallsDirty", 1, "mscorlib:System.Boolean", null, Array.Empty<string>())

@@ -285,7 +285,7 @@ namespace ProjectLucid.Tests.Editor
                 Assert.That(prepared.input_fingerprint.sha256, Is.EqualTo(export.input_fingerprint.sha256));
                 Bindings proof = prepared.script_bindings;
                 Assert.That(proof, Is.Not.Null); Assert.That(proof.status, Is.EqualTo("verified_layout")); Assert.That(proof.references_modified, Is.True);
-                AssertOwners(proof); Assert.That(proof.assets, Is.Not.Null); Assert.That(proof.assets.Length, Is.EqualTo(811));
+                AssertOwners(proof); Assert.That(proof.assets, Is.Not.Null);
                 Assert.That(proof.source_fingerprint, Is.EqualTo(ProjectLucid.Editor.LucidArtifactIdentity.Fingerprint(root, false)), "Preparation must belong to this complete current source.");
                 observed.SourceRoot = root; observed.SourceFingerprint = proof.source_fingerprint;
                 Assert.That(IsHash(proof.comparison_sha256), Is.True);
@@ -293,6 +293,7 @@ namespace ProjectLucid.Tests.Editor
                 Assert.That(Path.GetFullPath(prepared.recovered_path), Is.EqualTo(Path.GetFullPath(Path.Combine(root, "Assets/Recovered"))));
                 AssetMap map = JsonUtility.FromJson<AssetMap>(observed.Text(work, export.asset_map_path));
                 Assert.That(map, Is.Not.Null); Assert.That(map.assets, Is.Not.Null);
+                OriginalBindingRosterAssertions.AssertAssets(ExpectedOwners, map.assets.Select(a => (a.path, a.guid, a.script_references)), proof.assets.Select(a => a.path));
                 Binding binding = proof.bindings.Single(b => b.assembly == "Game.Runtime" && b.full_name == typeof(DataDefinitions).FullName);
                 Assert.That(binding.maintained_path, Is.EqualTo(SourcePath));
                 Assert.That(binding.exported_guid, Is.EqualTo(ExportedScriptGuid)); Assert.That(binding.exported_file_id, Is.EqualTo(11500000));
@@ -473,11 +474,14 @@ namespace ProjectLucid.Tests.Editor
 
         private static void AssertOwners(Bindings proof)
         {
-            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(42));
+            // The separate Image rule extends, rather than replaces, the exact original 42-owner roster.
+            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(43));
+            Assert.AreEqual(1, proof.bindings.Count(b => b != null && b.assembly == "UnityEngine.UI" && b.full_name == "UnityEngine.UI.Image"));
             var actual = new HashSet<string>(StringComparer.Ordinal);
             foreach (Binding binding in proof.bindings)
             {
                 Assert.That(binding, Is.Not.Null); string owner = binding.assembly + "::" + binding.full_name;
+                if (owner == OriginalBindingRosterAssertions.ImageOwner) continue;
                 Assert.That(actual.Add(owner), Is.True, "No duplicate binding owner: " + owner);
             }
             CollectionAssert.AreEquivalent(ExpectedOwners, actual, "Exact owner roster; groups remain outside this admission.");

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
 using Hardlight;
@@ -372,8 +373,9 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(export.input_fingerprint.sha256, prepared.input_fingerprint.sha256, "Immutable supplied release identity.");
             ImportBindings proof = prepared.script_bindings;
             Assert.IsNotNull(proof); Assert.AreEqual("verified_layout", proof.status); Assert.IsTrue(proof.references_modified);
-            Assert.IsNotNull(proof.bindings); Assert.AreEqual(42, proof.bindings.Length);
-            Assert.IsNotNull(proof.assets); Assert.AreEqual(811, proof.assets.Length);
+            // The separate Image rule extends, rather than replaces, the exact original 42-owner roster.
+            Assert.IsNotNull(proof.bindings); Assert.AreEqual(43, proof.bindings.Length);
+            Assert.IsNotNull(proof.assets);
             var expectedOwners = new HashSet<string>(new[] {
                 "Game.Runtime::HardlightProject.LevelStartPositionDefinition",
                 "Game.Runtime::HardlightProject.LevelDefinition",
@@ -417,11 +419,13 @@ namespace ProjectLucid.Tests
                 "Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.XRSystemData",
                 "Game.Runtime::HardlightProject.UIBlurRenderFeature",
                 "HLUnityCore.Runtime::Hardlight.ScalableFeature" }, StringComparer.Ordinal);
+            Assert.AreEqual(1, proof.bindings.Count(b => b != null && b.assembly == "UnityEngine.UI" && b.full_name == "UnityEngine.UI.Image"));
             var actualOwners = new HashSet<string>(StringComparer.Ordinal);
             foreach (ImportBinding item in proof.bindings)
             {
                 Assert.IsNotNull(item);
                 string owner = item.assembly + "::" + item.full_name;
+                if (owner == OriginalBindingRosterAssertions.ImageOwner) continue;
                 Assert.IsTrue(expectedOwners.Contains(owner), "Unexpected exact binding owner: " + owner);
                 Assert.IsTrue(actualOwners.Add(owner), "Duplicate exact binding owner: " + owner);
             }
@@ -432,6 +436,7 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(System.IO.Path.GetFullPath(System.IO.Path.Combine(root, "Assets/Recovered")), System.IO.Path.GetFullPath(prepared.recovered_path));
             ImportMap mapping = JsonUtility.FromJson<ImportMap>(System.IO.File.ReadAllText(CheckedPath(work, export.asset_map_path)));
             Assert.IsNotNull(mapping); Assert.IsNotNull(mapping.assets);
+            OriginalBindingRosterAssertions.AssertAssets(expectedOwners, mapping.assets.Select(a => (a.path, a.guid, a.script_references)), proof.assets.Select(a => a.path));
             Type[] types = { typeof(ActiveRuntimeConfiguration), typeof(RuntimeConfiguration), typeof(GameLevels) };
             string[] assemblies = { "HLUnityCore.Runtime", "HLUnityCore.Runtime", "Game.Runtime" };
             string[] paths = {
