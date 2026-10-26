@@ -1059,6 +1059,48 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void ImportedTextureCheckRejectsWrongOrMissingBindings()
+        {
+            // The #538 identity check accepts the original binding and rejects another texture's GUID, a
+            // property the importer cannot bind, a NonModifiableTextureData property whose binding row is absent,
+            // and an existing asset path that does not load as a texture.
+            const string path = "Assets/Shaders/Recovered/HL_Gameplay_Dream_Orb.shader";
+            const string noise = "_SampleTexture2D_a7a00c3b42cd409295935933b2dd6395_Texture_1_Texture2D";
+            UnityEngine.Shader shader = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Shader>(path);
+            Assert.That(shader, Is.Not.Null);
+            RecoveredShaderProof.RequireImportedTexture(shader, path, noise, "737b0c6c5bbc2af4198c74848846235c");
+            Assert.Throws<System.InvalidOperationException>(() =>
+                RecoveredShaderProof.RequireImportedTexture(shader, path, noise, "f172343386ff2dd4aa174ce383a732af"));
+            Assert.Throws<System.InvalidOperationException>(() =>
+                RecoveredShaderProof.RequireImportedTexture(shader, path, "_Matcap_Tex", "737b0c6c5bbc2af4198c74848846235c"));
+            const string corePath = "Assets/Shaders/Recovered/HL_UI_Core_Loop_Transition.shader";
+            UnityEngine.Shader core = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Shader>(corePath);
+            Assert.That(core, Is.Not.Null);
+            Assert.Throws<System.InvalidOperationException>(() => RecoveredShaderProof.RequireImportedTexture(core, corePath,
+                "_SampleTexture2D_a7a00c3b42cd409295935933b2dd6395_Texture_1_Texture2D", "737b0c6c5bbc2af4198c74848846235c"));
+
+            // Missing row: the real Dream Orb .meta text with only the noise row taken out, in memory. The property
+            // is still declared NonModifiableTextureData, so only the binding check can reject it.
+            string meta = System.IO.File.ReadAllText(path + ".meta").Replace("\r\n", "\n");
+            var row = new System.Text.RegularExpressions.Regex(@"\n  - " + noise + @": \{[^}]*\}");
+            Assert.That(row.Matches(meta).Count, Is.EqualTo(1));
+            string withoutRow = row.Replace(meta, "");
+            int index = shader.FindPropertyIndex(noise);
+            Assert.That(index >= 0 && (shader.GetPropertyFlags(index) & UnityEngine.Rendering.ShaderPropertyFlags.NonModifiableTextureData) != 0, Is.True);
+            RecoveredShaderProof.RequireImportedTexture(shader, path, noise, "737b0c6c5bbc2af4198c74848846235c", meta, "", _ => null);
+            var missing = Assert.Throws<System.InvalidOperationException>(() => RecoveredShaderProof.RequireImportedTexture(
+                shader, path, noise, "737b0c6c5bbc2af4198c74848846235c", withoutRow, "", _ => null));
+            Assert.That(missing.Message, Does.Contain("is bound once"));
+
+            // Existing path that is not a texture: the shader's own asset, through the real loader. The GUID-only
+            // path (no asset for the GUID) is still accepted above.
+            var unloadable = Assert.Throws<System.InvalidOperationException>(() => RecoveredShaderProof.RequireImportedTexture(
+                shader, path, noise, "737b0c6c5bbc2af4198c74848846235c", meta, path,
+                UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Texture>));
+            Assert.That(unloadable.Message, Does.Contain("loads as a texture"));
+        }
+
+        [Test]
         public void PfxAlphaBlendAddCompilesEveryPassForDirect3D()
         {
             PfxAlphaBlendAddVerification.CompileForWindows();
@@ -1189,6 +1231,926 @@ namespace ProjectLucid.Tests
         {
             CharStandardVerification.Run();
         }
+
+        [Test]
+        public void EnvZone2GooCompilesEveryPassForDirect3D()
+        {
+            EnvZone2GooVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone2GooCompilesEveryPassForOpenGL()
+        {
+            EnvZone2GooVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone2GooGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone2GooVerification.Run();
+        }
+
+        [Test]
+        public void EnvStandardTriPlanarCompilesEveryPassForDirect3D()
+        {
+            EnvStandardTriPlanarVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvStandardTriPlanarCompilesEveryPassForOpenGL()
+        {
+            EnvStandardTriPlanarVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvStandardTriPlanarGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvStandardTriPlanarVerification.Run();
+        }
+
+        [Test]
+        public void EnvZone5TrackCompilesEveryPassForDirect3D()
+        {
+            EnvZone5TrackVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone5TrackCompilesEveryPassForOpenGL()
+        {
+            EnvZone5TrackVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone5TrackGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone5TrackVerification.Run();
+        }
+
+        [Test]
+        public void EnvStandardUnlitCompilesEveryPassForDirect3D()
+        {
+            EnvStandardUnlitVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvStandardUnlitCompilesEveryPassForOpenGL()
+        {
+            EnvStandardUnlitVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvStandardUnlitGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvStandardUnlitVerification.Run();
+        }
+
+        [Test]
+        public void HubStandardUnlitCompilesEveryPassForDirect3D()
+        {
+            HubStandardUnlitVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void HubStandardUnlitCompilesEveryPassForOpenGL()
+        {
+            HubStandardUnlitVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void HubStandardUnlitGpuOutputMatchesDecodedSurfaceCases()
+        {
+            HubStandardUnlitVerification.Run();
+        }
+
+        [Test]
+        public void SkyboxPortalCompilesEveryPassForDirect3D()
+        {
+            SkyboxPortalVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void SkyboxPortalCompilesEveryPassForOpenGL()
+        {
+            SkyboxPortalVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void SkyboxPortalGpuOutputMatchesDecodedSurfaceCases()
+        {
+            SkyboxPortalVerification.Run();
+        }
+
+        [Test]
+        public void GameplayTimedPlatformCompilesEveryPassForDirect3D()
+        {
+            GameplayTimedPlatformVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void GameplayTimedPlatformCompilesEveryPassForOpenGL()
+        {
+            GameplayTimedPlatformVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void GameplayTimedPlatformGpuOutputMatchesDecodedSurfaceCases()
+        {
+            GameplayTimedPlatformVerification.Run();
+        }
+
+        [Test]
+        public void CharBoss03BodyBlobsCompilesEveryPassForDirect3D()
+        {
+            CharBoss03BodyBlobsVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharBoss03BodyBlobsCompilesEveryPassForOpenGL()
+        {
+            CharBoss03BodyBlobsVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void CharBoss03BodyBlobsGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharBoss03BodyBlobsVerification.Run();
+        }
+
+        [Test]
+        public void CharGhostedEyeCompilesEveryPassForDirect3D()
+        {
+            CharGhostedEyeVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharGhostedEyeCompilesEveryPassForOpenGL()
+        {
+            CharGhostedEyeVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void CharGhostedEyeGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharGhostedEyeVerification.Run();
+        }
+
+        [Test]
+        public void CharEyeCompilesEveryPassForDirect3D()
+        {
+            CharEyeVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharEyeCompilesEveryPassForOpenGL()
+        {
+            CharEyeVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void CharEyeGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharEyeVerification.Run();
+        }
+
+        [Test]
+        public void GameplayDreamOrbCompilesEveryPassForDirect3D()
+        {
+            GameplayDreamOrbVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void GameplayDreamOrbCompilesEveryPassForOpenGL()
+        {
+            GameplayDreamOrbVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void GameplayDreamOrbGpuOutputMatchesDecodedSurfaceCases()
+        {
+            GameplayDreamOrbVerification.Run();
+        }
+
+        [Test]
+        public void ParticleDreamCompilesEveryPassForDirect3D()
+        {
+            ParticleDreamVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void ParticleDreamCompilesEveryPassForOpenGL()
+        {
+            ParticleDreamVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void ParticleDreamGpuOutputMatchesDecodedSurfaceCases()
+        {
+            ParticleDreamVerification.Run();
+        }
+
+        [Test]
+        public void SkyTrippyCompilesEveryPassForDirect3D()
+        {
+            SkyTrippyVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void SkyTrippyCompilesEveryPassForOpenGL()
+        {
+            SkyTrippyVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void SkyTrippyGpuOutputMatchesDecodedSurfaceCases()
+        {
+            SkyTrippyVerification.Run();
+        }
+
+        [Test]
+        public void ParticleAnimMeshBallSpinCompilesEveryPassForDirect3D()
+        {
+            ParticleAnimMeshBallSpinVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void ParticleAnimMeshBallSpinCompilesEveryPassForOpenGL()
+        {
+            ParticleAnimMeshBallSpinVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void ParticleAnimMeshBallSpinGpuOutputMatchesDecodedSurfaceCases()
+        {
+            ParticleAnimMeshBallSpinVerification.Run();
+        }
+
+        [Test]
+        public void EnvWaterfallCompilesEveryPassForDirect3D()
+        {
+            EnvWaterfallVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvWaterfallCompilesEveryPassForOpenGL()
+        {
+            EnvWaterfallVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvWaterfallGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvWaterfallVerification.Run();
+        }
+
+        [Test]
+        public void EnvFoliageWindCompilesEveryPassForDirect3D()
+        {
+            EnvFoliageWindVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvFoliageWindCompilesEveryPassForOpenGL()
+        {
+            EnvFoliageWindVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvFoliageWindGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvFoliageWindVerification.Run();
+        }
+
+        [Test]
+        public void EnvSplatmapCompilesEveryPassForDirect3D()
+        {
+            EnvSplatmapVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvSplatmapCompilesEveryPassForOpenGL()
+        {
+            EnvSplatmapVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvSplatmapGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvSplatmapVerification.Run();
+        }
+
+        [Test]
+        public void EnvZone2BarrierCompilesEveryPassForDirect3D()
+        {
+            EnvZone2BarrierVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone2BarrierCompilesEveryPassForOpenGL()
+        {
+            EnvZone2BarrierVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone2BarrierGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone2BarrierVerification.Run();
+        }
+
+        [Test]
+        public void UIDreamEffectCompilesEveryPassForDirect3D()
+        {
+            UIDreamEffectVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void UIDreamEffectCompilesEveryPassForOpenGL()
+        {
+            UIDreamEffectVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void UIDreamEffectGpuOutputMatchesDecodedSurfaceCases()
+        {
+            UIDreamEffectVerification.Run();
+        }
+
+        [Test]
+        public void EnvCloudsCompilesEveryPassForDirect3D()
+        {
+            EnvCloudsVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvCloudsCompilesEveryPassForOpenGL()
+        {
+            EnvCloudsVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvCloudsGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvCloudsVerification.Run();
+        }
+
+        [Test]
+        public void GameplayLaserCompilesEveryPassForDirect3D()
+        {
+            GameplayLaserVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void GameplayLaserCompilesEveryPassForOpenGL()
+        {
+            GameplayLaserVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void GameplayLaserGpuOutputMatchesDecodedSurfaceCases()
+        {
+            GameplayLaserVerification.Run();
+        }
+
+        [Test]
+        public void CharBoss4EggmanCompilesEveryPassForDirect3D()
+        {
+            CharBoss4EggmanVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharBoss4EggmanCompilesEveryPassForOpenGL()
+        {
+            CharBoss4EggmanVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void CharBoss4EggmanGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharBoss4EggmanVerification.Run();
+        }
+
+        [Test]
+        public void EnvCrowdCompilesEveryPassForDirect3D()
+        {
+            EnvCrowdVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvCrowdCompilesEveryPassForOpenGL()
+        {
+            EnvCrowdVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvCrowdGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvCrowdVerification.Run();
+        }
+
+        [Test]
+        public void EnvZone1CliffsCompilesEveryPassForDirect3D()
+        {
+            EnvZone1CliffsVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone1CliffsCompilesEveryPassForOpenGL()
+        {
+            EnvZone1CliffsVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone1CliffsGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone1CliffsVerification.Run();
+        }
+
+        [Test]
+        public void UICoreLoopTransitionCompilesEveryPassForDirect3D()
+        {
+            UICoreLoopTransitionVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void UICoreLoopTransitionCompilesEveryPassForOpenGL()
+        {
+            UICoreLoopTransitionVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void UICoreLoopTransitionGpuOutputMatchesDecodedSurfaceCases()
+        {
+            UICoreLoopTransitionVerification.Run();
+        }
+
+        [Test]
+        public void EnvZone4HologramCompilesEveryPassForDirect3D()
+        {
+            EnvZone4HologramVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone4HologramCompilesEveryPassForOpenGL()
+        {
+            EnvZone4HologramVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone4HologramGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone4HologramVerification.Run();
+        }
+
+        [Test]
+        public void CharBoss02GooCompilesEveryPassForDirect3D()
+        {
+            CharBoss02GooVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharBoss02GooCompilesEveryPassForOpenGL()
+        {
+            CharBoss02GooVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void CharBoss02GooGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharBoss02GooVerification.Run();
+        }
+
+        [Test]
+        public void ParticleSmokeMeshCompilesEveryPassForDirect3D()
+        {
+            ParticleSmokeMeshVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void ParticleSmokeMeshCompilesEveryPassForOpenGL()
+        {
+            ParticleSmokeMeshVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void ParticleSmokeMeshGpuOutputMatchesDecodedSurfaceCases()
+        {
+            ParticleSmokeMeshVerification.Run();
+        }
+
+        [Test]
+        public void EnvZone1WaterCompilesEveryPassForDirect3D()
+        {
+            EnvZone1WaterVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone1WaterCompilesEveryPassForOpenGL()
+        {
+            EnvZone1WaterVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone1WaterGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone1WaterVerification.Run();
+        }
+
+        [Test]
+        public void EnvZone3SpikesCompilesEveryPassForDirect3D()
+        {
+            EnvZone3SpikesVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone3SpikesCompilesEveryPassForOpenGL()
+        {
+            EnvZone3SpikesVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone3SpikesGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone3SpikesVerification.Run();
+        }
+
+        [Test]
+        public void EnvZone4CloudPlaneCompilesEveryPassForDirect3D()
+        {
+            EnvZone4CloudPlaneVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone4CloudPlaneCompilesEveryPassForOpenGL()
+        {
+            EnvZone4CloudPlaneVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone4CloudPlaneGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone4CloudPlaneVerification.Run();
+        }
+
+        [Test]
+        public void EnvZone4BackgroundWindowsCompilesEveryPassForDirect3D()
+        {
+            EnvZone4BackgroundWindowsVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone4BackgroundWindowsCompilesEveryPassForOpenGL()
+        {
+            EnvZone4BackgroundWindowsVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone4BackgroundWindowsGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone4BackgroundWindowsVerification.Run();
+        }
+
+        [Test]
+        public void HubMatcapUnlitCompilesEveryPassForDirect3D()
+        {
+            HubMatcapUnlitVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void HubMatcapUnlitCompilesEveryPassForOpenGL()
+        {
+            HubMatcapUnlitVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void HubMatcapUnlitGpuOutputMatchesDecodedSurfaceCases()
+        {
+            HubMatcapUnlitVerification.Run();
+        }
+
+        [Test]
+        public void GameplayDreamBarrierCompilesEveryPassForDirect3D()
+        {
+            GameplayDreamBarrierVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void GameplayDreamBarrierCompilesEveryPassForOpenGL()
+        {
+            GameplayDreamBarrierVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void GameplayDreamBarrierGpuOutputMatchesDecodedSurfaceCases()
+        {
+            GameplayDreamBarrierVerification.Run();
+        }
+
+        [Test]
+        public void GameplayDashRingLightCompilesEveryPassForDirect3D()
+        {
+            GameplayDashRingLightVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void GameplayDashRingLightCompilesEveryPassForOpenGL()
+        {
+            GameplayDashRingLightVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void GameplayDashRingLightGpuOutputMatchesDecodedSurfaceCases()
+        {
+            GameplayDashRingLightVerification.Run();
+        }
+
+        [Test]
+        public void ShockwaveNightmareCompilesEveryPassForDirect3D()
+        {
+            ShockwaveNightmareVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void ShockwaveNightmareCompilesEveryPassForOpenGL()
+        {
+            ShockwaveNightmareVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void ShockwaveNightmareGpuOutputMatchesDecodedSurfaceCases()
+        {
+            ShockwaveNightmareVerification.Run();
+        }
+
+        [Test]
+        public void ParticleTrailVertexoffsetCompilesEveryPassForDirect3D()
+        {
+            ParticleTrailVertexoffsetVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void ParticleTrailVertexoffsetCompilesEveryPassForOpenGL()
+        {
+            ParticleTrailVertexoffsetVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void ParticleTrailVertexoffsetGpuOutputMatchesDecodedSurfaceCases()
+        {
+            ParticleTrailVertexoffsetVerification.Run();
+        }
+
+        [Test]
+        public void GameplayElectricityCompilesEveryPassForDirect3D()
+        {
+            GameplayElectricityVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void GameplayElectricityCompilesEveryPassForOpenGL()
+        {
+            GameplayElectricityVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void GameplayElectricityGpuOutputMatchesDecodedSurfaceCases()
+        {
+            GameplayElectricityVerification.Run();
+        }
+
+        [Test]
+        public void ParticleScreenDistortionCompilesEveryPassForDirect3D()
+        {
+            ParticleScreenDistortionVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void ParticleScreenDistortionCompilesEveryPassForOpenGL()
+        {
+            ParticleScreenDistortionVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void ParticleScreenDistortionGpuOutputMatchesDecodedSurfaceCases()
+        {
+            ParticleScreenDistortionVerification.Run();
+        }
+
+        [Test]
+        public void EnvZone2GooPipesCompilesEveryPassForDirect3D()
+        {
+            EnvZone2GooPipesVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone2GooPipesCompilesEveryPassForOpenGL()
+        {
+            EnvZone2GooPipesVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone2GooPipesGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone2GooPipesVerification.Run();
+        }
+
+        [Test]
+        public void EnvZone5GooCompilesEveryPassForDirect3D()
+        {
+            EnvZone5GooVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void EnvZone5GooCompilesEveryPassForOpenGL()
+        {
+            EnvZone5GooVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void EnvZone5GooGpuOutputMatchesDecodedSurfaceCases()
+        {
+            EnvZone5GooVerification.Run();
+        }
+
+        [Test]
+        public void CharAriemStarsCompilesEveryPassForDirect3D()
+        {
+            CharAriemStarsVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharAriemStarsCompilesEveryPassForOpenGL()
+        {
+            CharAriemStarsVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void CharAriemStarsGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharAriemStarsVerification.Run();
+        }
+
+        [Test]
+        public void CharBoss4EggmanMoustacheCompilesEveryPassForDirect3D()
+        {
+            CharBoss4EggmanMoustacheVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharBoss4EggmanMoustacheCompilesEveryPassForOpenGL()
+        {
+            CharBoss4EggmanMoustacheVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void CharBoss4EggmanMoustacheGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharBoss4EggmanMoustacheVerification.Run();
+        }
+
+        [Test]
+        public void GameplayLightningBoltCompilesEveryPassForDirect3D()
+        {
+            GameplayLightningBoltVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void GameplayLightningBoltCompilesEveryPassForOpenGL()
+        {
+            GameplayLightningBoltVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void GameplayLightningBoltGpuOutputMatchesDecodedSurfaceCases()
+        {
+            GameplayLightningBoltVerification.Run();
+        }
+
+        [Test]
+        public void SkyDreamEffectPanningCompilesEveryPassForDirect3D()
+        {
+            SkyDreamEffectPanningVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void SkyDreamEffectPanningCompilesEveryPassForOpenGL()
+        {
+            SkyDreamEffectPanningVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void SkyDreamEffectPanningGpuOutputMatchesDecodedSurfaceCases()
+        {
+            SkyDreamEffectPanningVerification.Run();
+        }
+
+        [Test]
+        public void GameplayZone2TubeDoorCompilesEveryPassForDirect3D()
+        {
+            GameplayZone2TubeDoorVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void GameplayZone2TubeDoorCompilesEveryPassForOpenGL()
+        {
+            GameplayZone2TubeDoorVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void GameplayZone2TubeDoorGpuOutputMatchesDecodedSurfaceCases()
+        {
+            GameplayZone2TubeDoorVerification.Run();
+        }
+
+        [Test]
+        public void ParticleDreamRippleCompilesEveryPassForDirect3D()
+        {
+            ParticleDreamRippleVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void ParticleDreamRippleCompilesEveryPassForOpenGL()
+        {
+            ParticleDreamRippleVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void ParticleDreamRippleGpuOutputMatchesDecodedSurfaceCases()
+        {
+            ParticleDreamRippleVerification.Run();
+        }
+
+        [Test]
+        public void CharBoss01ShockwaveCompilesEveryPassForDirect3D()
+        {
+            CharBoss01ShockwaveVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharBoss01ShockwaveCompilesEveryPassForOpenGL()
+        {
+            CharBoss01ShockwaveVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void CharBoss01ShockwaveGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharBoss01ShockwaveVerification.Run();
+        }
+
+        [Test]
+        public void CharBoss03BodyCompilesEveryPassForDirect3D()
+        {
+            CharBoss03BodyVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharBoss03BodyCompilesEveryPassForOpenGL()
+        {
+            CharBoss03BodyVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void CharBoss03BodyGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharBoss03BodyVerification.Run();
+        }
+
+        [Test]
+        public void UIWorldspaceAlwaysOnTopCompilesEveryPassForDirect3D()
+        {
+            UIWorldspaceAlwaysOnTopVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void UIWorldspaceAlwaysOnTopCompilesEveryPassForOpenGL()
+        {
+            UIWorldspaceAlwaysOnTopVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void UIWorldspaceAlwaysOnTopGpuOutputMatchesDecodedSurfaceCases()
+        {
+            UIWorldspaceAlwaysOnTopVerification.Run();
+        }
+
+        [Test]
+        public void GameplayBlobShadowCompilesEveryPassForDirect3D()
+        {
+            GameplayBlobShadowVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void GameplayBlobShadowCompilesEveryPassForOpenGL()
+        {
+            GameplayBlobShadowVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void GameplayBlobShadowGpuOutputMatchesDecodedSurfaceCases()
+        {
+            GameplayBlobShadowVerification.Run();
+        }
+
+        // End of batch-three shader wrappers (#448).
 
         // The shared tables the two enum-string verifiers write through the genuine
         // GetString miss path: three of the ActorDefinitionVerification tables (all

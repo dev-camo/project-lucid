@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: a95546cc3cafd984991d36b57cd01ce7
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures:
+  - _HLSubSgFlowMapInput_acd9b3a5411347599d1a42d501175ad2_FlowMapTexture_4128534274_Texture2D: {fileID: 2800000, guid: 1061d6e61c336e44b9dd1103fb90a4f1,
+      type: 3}
+  - _HLSubSgTex2DGrad_5da7d4cba8b4452091965912b7f28090_Texture2D_4287008460_Texture2D: {fileID: 2800000, guid: d2f552a503a952c48b4f9b39c32be0d7,
+      type: 3}
+  - _HLSubSgTex2DGrad_6a07e9d27201494eaa0ba86ed1f50c3a_Texture2D_4287008460_Texture2D: {fileID: 2800000, guid: d2f552a503a952c48b4f9b39c32be0d7,
+      type: 3}
+  - _SampleTexture2D_ffc956bac9fb4289b903d92cc5924e93_Texture_1_Texture2D: {fileID: 2800000, guid: e8055f4d7423e2a41a7e7cd68a052b5c,
+      type: 3}
+  - _Texture2DAsset_bade7436e4bd476da86479d094bcf974_Out_0_Texture2D: {fileID: 2800000, guid: e8129d5371ff1e04d8070064644689a1,
+      type: 3}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

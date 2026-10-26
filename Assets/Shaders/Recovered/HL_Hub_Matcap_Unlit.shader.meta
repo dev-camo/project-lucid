@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: da114adcf264a2340a6474c5fc76fa72
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures:
+  - _HLSubSgVertexDisplacementTexture_649c8a79f0c04a6785cb1ef073b96b53_Texture_4082694086_Texture2D: {fileID: 2800000, guid: 5cecf516273ba544f8abc9afeafea881,
+      type: 3}
+  - _Texture2DAsset_d39bff2dfe9a47cba322697e35ffd3f9_Out_0_Texture2D: {fileID: 2800000, guid: 737b0c6c5bbc2af4198c74848846235c,
+      type: 3}
+  - _SampleTexture2D_3b9f3ee02411490484da157e5c0b5f78_Texture_1_Texture2D: {fileID: 2800000, guid: 673db981a8bcd6e45a15be7ec1409d6c,
+      type: 3}
+  userData:
+  assetBundleName:
+  assetBundleVariant:
