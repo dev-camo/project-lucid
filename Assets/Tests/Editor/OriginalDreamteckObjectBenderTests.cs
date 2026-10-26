@@ -17,6 +17,9 @@ namespace ProjectLucid.Tests
     {
         private const float Tolerance = 1e-4f;
 
+        // Instance-only failure injection for ownership regression tests.
+        public Action<string> OwnershipFault;
+
         private const BindingFlags InstanceAny = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
         private readonly List<GameObject> _owned = new List<GameObject>();
@@ -31,6 +34,7 @@ namespace ProjectLucid.Tests
                 if (owned != null)
                 {
                     UnityEngine.Object.DestroyImmediate(owned);
+                    OwnershipFault?.Invoke("after-destroy");
                 }
             }
 
@@ -40,6 +44,7 @@ namespace ProjectLucid.Tests
                 if (asset != null)
                 {
                     UnityEngine.Object.DestroyImmediate(asset);
+                    OwnershipFault?.Invoke("after-destroy");
                 }
             }
 
@@ -50,6 +55,7 @@ namespace ProjectLucid.Tests
         {
             GameObject owner = new GameObject(name);
             _owned.Add(owner);
+            OwnershipFault?.Invoke("before-component");
             return owner;
         }
 
@@ -130,6 +136,7 @@ namespace ProjectLucid.Tests
             ObjectBender bender = root.AddComponent<ObjectBender>();
             bender.spline = NewLine(lineSize);
             bender.RebuildImmediate();
+            OwnershipFault?.Invoke("after-acquire");
             return bender;
         }
 

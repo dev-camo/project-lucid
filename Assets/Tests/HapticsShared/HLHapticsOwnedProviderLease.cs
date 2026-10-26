@@ -98,10 +98,15 @@ namespace ProjectLucid.Verification
    public void IncludeOwnedInfo(object info){allowedRef=info.GetType().GetField("SystemRef",Declared).GetValue(info);CaptureInfo(info);}
    public void Check(object newlyOwnedInfo)
    {
-    foreach(Action check in checks)check();List<DictionaryEntry> actual=Entries(registry);bool originallyAbsent=rows.All(x=>!Equals(x.Key,typeof(VibrationManager).ToString()));Require(actual.Count==rows.Count+(originallyAbsent&&newlyOwnedInfo!=null?1:0),"registry exact count except one proven owned row");
-    for(int i=0;i<rows.Count;i++)Require(Same(actual[i].Key,rows[i].Key)&&Same(actual[i].Value,rows[i].Value),"all preexisting ordered registry rows exact");
-    if(actual.Count>rows.Count)Require(Equals(actual[actual.Count-1].Key,typeof(VibrationManager).ToString())&&ReferenceEquals(actual[actual.Count-1].Value,newlyOwnedInfo),"exact sole newly owned default row");
+    foreach(Action check in checks)check();
+    CheckRegistryRows(rows, Entries(registry), newlyOwnedInfo);
    }
+  }
+  static void CheckRegistryRows(List<DictionaryEntry> rows, List<DictionaryEntry> actual, object newlyOwnedInfo)
+  {
+   bool originallyAbsent=rows.All(x=>!Equals(x.Key,typeof(VibrationManager).ToString()));Require(actual.Count==rows.Count+(originallyAbsent&&newlyOwnedInfo!=null?1:0),"registry exact count except one proven owned row");
+   for(int i=0;i<rows.Count;i++)Require(Same(actual[i].Key,rows[i].Key)&&Same(actual[i].Value,rows[i].Value),"all preexisting ordered registry rows exact");
+   if(actual.Count>rows.Count)Require(Equals(actual[actual.Count-1].Key,typeof(VibrationManager).ToString())&&ReferenceEquals(actual[actual.Count-1].Value,newlyOwnedInfo),"exact sole newly owned default row");
   }
   sealed class ReferenceComparer:IEqualityComparer<object>{public static readonly ReferenceComparer Instance=new ReferenceComparer();public new bool Equals(object a,object b)=>ReferenceEquals(a,b);public int GetHashCode(object x)=>System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(x);}
   // OwnedDefault* name the row an earlier lease created. Each lease removes its own row on close,

@@ -15,6 +15,9 @@ namespace ProjectLucid.Tests
     {
         public const float Tolerance = 1e-4f;
 
+        // Instance-only failure injection for ownership regression tests.
+        public System.Action<string> OwnershipFault;
+
         private const BindingFlags AnyInstance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
         private static readonly FieldInfo UvsField = typeof(MeshGenerator).GetField("__uvs", BindingFlags.Static | BindingFlags.NonPublic);
@@ -64,6 +67,7 @@ namespace ProjectLucid.Tests
                     if (tracked != null)
                     {
                         Object.DestroyImmediate(tracked);
+                        OwnershipFault?.Invoke("after-destroy");
                     }
                 }
 
@@ -86,6 +90,7 @@ namespace ProjectLucid.Tests
                     }
 
                     Object.DestroyImmediate(owned);
+                    OwnershipFault?.Invoke("after-destroy");
                 }
 
                 _owned.Clear();
@@ -106,6 +111,7 @@ namespace ProjectLucid.Tests
             CaptureUvs();
             GameObject owner = new GameObject(name);
             _owned.Add(owner);
+            OwnershipFault?.Invoke("before-component");
             return owner;
         }
 
@@ -134,6 +140,7 @@ namespace ProjectLucid.Tests
 
             T generator = owner.AddComponent<T>();
             Track(MeshOf(generator));
+            OwnershipFault?.Invoke("after-acquire");
             return generator;
         }
 

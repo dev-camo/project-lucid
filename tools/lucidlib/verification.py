@@ -546,6 +546,44 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalObjectDestructionLifecycleTests.OriginalComponentRemovalRetainsDeferredExclusionsAndTransform",
 )
 
+
+# Fixture ownership: borrowed tangent scratch and actual dictionary slot reuse (#521).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.TangentScratchOwnershipTests." + name for name in (
+    'FixtureDetachesScratchBeforeItsFirstComponent("generator",3)',
+    'FixtureDetachesScratchBeforeItsFirstComponent("generator",4)',
+    'FixtureDetachesScratchBeforeItsFirstComponent("bender",3)',
+    'FixtureDetachesScratchBeforeItsFirstComponent("bender",4)',
+    'FixtureReturnsBorrowedScratchAndCleansEveryOwnedResource("generator","none",3)',
+    'FixtureReturnsBorrowedScratchAndCleansEveryOwnedResource("generator","body",3)',
+    'FixtureReturnsBorrowedScratchAndCleansEveryOwnedResource("generator","setup",3)',
+    'FixtureReturnsBorrowedScratchAndCleansEveryOwnedResource("generator","cleanup",3)',
+    'FixtureReturnsBorrowedScratchAndCleansEveryOwnedResource("generator","none",4)',
+    'FixtureReturnsBorrowedScratchAndCleansEveryOwnedResource("bender","none",3)',
+    'FixtureReturnsBorrowedScratchAndCleansEveryOwnedResource("bender","body",3)',
+    'FixtureReturnsBorrowedScratchAndCleansEveryOwnedResource("bender","setup",3)',
+    'FixtureReturnsBorrowedScratchAndCleansEveryOwnedResource("bender","cleanup",3)',
+    'FixtureReturnsBorrowedScratchAndCleansEveryOwnedResource("bender","none",4)',
+    'FollowingTriangleMatchesUninterruptedOriginalAccumulation("generator")',
+    'FollowingTriangleMatchesUninterruptedOriginalAccumulation("bender")',
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.HLHapticsRegistryOwnershipTests." + name for name in (
+    'ExactOwnedRowMayOccupyAnySlotWhileForeignOrderIsPreserved(0)',
+    'ExactOwnedRowMayOccupyAnySlotWhileForeignOrderIsPreserved(1)',
+    'ExactOwnedRowMayOccupyAnySlotWhileForeignOrderIsPreserved(2)',
+    'ComparatorRejectsForeignMutationOrUnprovenOwnedRow("key-identity")',
+    'ComparatorRejectsForeignMutationOrUnprovenOwnedRow("value-identity")',
+    'ComparatorRejectsForeignMutationOrUnprovenOwnedRow("order")',
+    'ComparatorRejectsForeignMutationOrUnprovenOwnedRow("missing-foreign")',
+    'ComparatorRejectsForeignMutationOrUnprovenOwnedRow("extra-foreign")',
+    'ComparatorRejectsForeignMutationOrUnprovenOwnedRow("wrong-owned-key")',
+    'ComparatorRejectsForeignMutationOrUnprovenOwnedRow("wrong-owned-value")',
+    'ComparatorRejectsForeignMutationOrUnprovenOwnedRow("missing-owned")',
+    'ExistingTargetRemainsForeignAndCannotBeReplaced',
+))
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.HLHapticsRegistrySlotTests.GenuineManagerReusesAnOwnedEarlierSlotWithoutChangingForeignState",
+)
+
 # Fixture guard self-check for the live cloud facade proof; no product oracle.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.CloudFacadeTests.FixtureGuardRejectsBorrowedStoreStateWithoutInvocation",
