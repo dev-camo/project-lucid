@@ -94,6 +94,34 @@ PACKAGE_RULES = (
     },
 )
 RULES += PACKAGE_RULES
+
+# Separate authored Image domain; the three scalar package rules stay unchanged.
+# Original Image serialization 06000162@27D1C20 and inherited destruction
+# 06000101@27CC650 retain callbacks even for an inactive owned prefab.
+IMAGE_RUNTIME_SOURCES = dict(UGUI_RUNTIME_SOURCES, **{
+    'Packages/com.unity.ugui/Runtime/UI/Core/Image.cs': '351dd72516d240f5722c55f72f8e95a0a92cf71e83358bbc922eee47bdb78502',
+    'Packages/com.unity.ugui/Runtime/UI/Core/MaskableGraphic.cs': '96ad95f99e13503587432204eaaaf3110f6b73795715798162c60379ee46408b',
+    'Packages/com.unity.ugui/Runtime/UI/Core/Graphic.cs': 'c23b303effecdb6693f791cbbe703f0c368fd92b1443934ae90d4d97c21dd9b0',
+    'Packages/com.unity.ugui/Runtime/UI/Animation/CoroutineTween.cs': 'efce6000f556688a1bbc76ed448bf3a884c6cd25070f2b8abf5948fb36ffb504',
+    'Packages/com.unity.ugui/Runtime/UI/Core/GraphicRegistry.cs': 'd708b194821a8dd95ee2a0eb77b246229b15da0e82bafe76ce06f4bbebb20b85',
+    'Packages/com.unity.ugui/Runtime/UI/Core/CanvasUpdateRegistry.cs': '6d74c8cfa3500ffc2f35e1dd6ebc991178e2227194e8994dffe9db74575171cb',
+    'Packages/com.unity.ugui/Runtime/UI/Core/GraphicRebuildTracker.cs': 'acd4b05911ce9763c5ef27eda7e41e9850d877fb875c653e15c816b2871cc159',
+    'Packages/com.unity.ugui/Runtime/UI/Core/SpecializedCollections/IndexedSet.cs': '67e82737a015c50084766be7bffd284f6950ecfd91e395e6c67d8f64a19aea8b',
+    'Packages/com.unity.ugui/Runtime/UI/Core/Utility/VertexHelper.cs': '1623d631b78018c8171c9b13cd5372fdbc0ca53aac4a36a65b10027a0df37dd1',
+    'Packages/com.unity.ugui/Editor/UI/PrefabLayoutRebuilder.cs': '7296d7c7420360e453ea84e5a5e410d03c984cf6496093e86b17749e60783356',
+    'Packages/com.unity.ugui/Editor/UnityEditor.UI.asmdef': '5e77894ab373d3c4a9ac030bf88aea2e51bce612bd529dcceebe5301b93fe575',
+})
+IMAGE_PACKAGE_RULES = ({
+    "assembly": "UnityEngine.UI",
+    "full_name": "UnityEngine.UI.Image",
+    "export_path": "Assets/Scripts/UnityEngine.UI/UnityEngine/UI/Image.cs",
+    "maintained_path": "Packages/com.unity.ugui/Runtime/UI/Core/Image.cs",
+    "binary_sha256": BINDING_INPUT["binary_sha256"],
+    "metadata_sha256": BINDING_INPUT["metadata_sha256"],
+    "package": "com.unity.ugui",
+    "runtime_sources": IMAGE_RUNTIME_SOURCES,
+},)
+RULES += IMAGE_PACKAGE_RULES
 UGUI_PACKAGE_SHA256 = "6830b8501f301344de9feab76c65d1d9339b496c55cb16f9827658e78234ee78"
 UGUI_LOCK = {"version": "1.0.0", "depth": 0, "source": "builtin",
              "dependencies": {"com.unity.modules.ui": "1.0.0", "com.unity.modules.imgui": "1.0.0"}}

@@ -71,7 +71,10 @@ namespace ProjectLucid
             Check(export != null && export.status == "exported" && prepared != null && prepared.status == "prepared" &&
                   prepared.script_bindings != null && prepared.script_bindings.status == "verified_layout", "complete export and preparation proof");
             Check(Path.GetFullPath(prepared.recovered_path) == Path.Combine(root, "Assets/Recovered"), "owned generated assets");
-            Binding[] bindings = prepared.script_bindings.bindings.Where(b => b.package == "com.unity.ugui").ToArray();
+            // This proof retains its original three-type scope; Image has a separate authored proof.
+            Binding[] bindings = prepared.script_bindings.bindings.Where(b => b.package == "com.unity.ugui" &&
+                (b.full_name == typeof(LayoutElement).FullName || b.full_name == typeof(ContentSizeFitter).FullName ||
+                 b.full_name == typeof(AspectRatioFitter).FullName)).ToArray();
             Check(bindings.Length == 3 && bindings.Select(b => b.full_name).Distinct().Count() == 3 &&
                   bindings.Select(b => b.full_name).OrderBy(n => n).SequenceEqual(new[] { typeof(AspectRatioFitter).FullName, typeof(ContentSizeFitter).FullName, typeof(LayoutElement).FullName }.OrderBy(n => n)), "exact reviewed three components");
             var scripts = new Dictionary<string, MonoScript>();

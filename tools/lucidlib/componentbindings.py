@@ -7,7 +7,9 @@ equal the shape observed in this release, and every payload line must lie inside
 a block that one of those fields opens. Unselected documents are not read.
 """
 
+import math
 import re
+import struct
 
 from .configurationbindings import COMMON, GUID, SCRIPT
 
@@ -17,6 +19,11 @@ PROFILES = {
         "m_requirementForHDUI", "m_atlasesWithVariants", "m_devicePerformanceGroup", "m_sdAtlasSuffix"),
     # The highlight component of the ten uihighlight_* prefabs.
     ("HLModernUI.Runtime", "Hardlight.UIHighlight"): ("m_definition", "m_onShowHighlight"),
+    ("UnityEngine.UI", "UnityEngine.UI.Image"): (
+        "m_Material", "m_Color", "m_RaycastTarget", "m_RaycastPadding", "m_Maskable",
+        "m_OnCullStateChanged", "m_Sprite", "m_Type", "m_PreserveAspect", "m_FillCenter",
+        "m_FillMethod", "m_FillAmount", "m_FillClockwise", "m_FillOrigin", "m_UseSpriteMesh",
+        "m_PixelsPerUnitMultiplier"),
 }
 # The profile fields whose payload is a nested block: a serializable class
 # (PerformanceAttribute), a string array and a UnityEvent's persistent calls.
@@ -24,11 +31,61 @@ PROFILES = {
 NESTED = {
     ("Game.Runtime", "HardlightProject.VisualAssetManager"): ("m_requirementForHDUI", "m_atlasesWithVariants"),
     ("HLModernUI.Runtime", "Hardlight.UIHighlight"): ("m_onShowHighlight",),
+    ("UnityEngine.UI", "UnityEngine.UI.Image"): ("m_OnCullStateChanged",),
 }
 HEADER = re.compile(r"^--- !u!(\d+) &(-?\d+)(?: stripped)?\r?\n(\w+):\r?\n", re.MULTILINE)
 FIELD = re.compile(r"  ([A-Za-z_][A-Za-z_0-9]*):(?: (.*))?")
 PREFIXES = ("%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n",
             "%YAML 1.1\r\n%TAG !u! tag:unity3d.com,2011:\r\n")
+
+
+def _image_float(value):
+    if re.fullmatch(r"-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", value) is None:
+        raise ValueError("Unsupported Image float syntax")
+    try:
+        number = float(value)
+        if not math.isfinite(number) or not math.isfinite(struct.unpack("<f", struct.pack("<f", number))[0]):
+            raise ValueError("Nonfinite Image float32")
+    except (OverflowError, struct.error) as error:
+        raise ValueError("Unsupported Image float32") from error
+
+
+def _image_payload(body, values):
+    # Original CullStateChangedEvent has an empty persistent-call list in this
+    # authored domain. Indentation alone does not establish its event payload.
+    event = "  m_OnCullStateChanged:\n    m_PersistentCalls:\n      m_Calls: []\n"
+    if event not in body.replace("\r\n", "\n"):
+        raise ValueError("Unsupported Image persistent event")
+    lines = body.splitlines()
+    nested = [line for line in lines if line.startswith("    ") or line.startswith("  - ")]
+    if nested != ["    m_PersistentCalls:", "      m_Calls: []"]:
+        raise ValueError("Unsupported Image nested payload")
+    for name in ("m_RaycastTarget", "m_Maskable", "m_PreserveAspect", "m_FillCenter",
+                 "m_FillClockwise", "m_UseSpriteMesh"):
+        if values[name] not in ("0", "1"):
+            raise ValueError("Unsupported Image Boolean")
+    for name, maximum in (("m_Type", 3), ("m_FillMethod", 4)):
+        if values[name] not in tuple(str(n) for n in range(maximum + 1)):
+            raise ValueError("Unsupported Image enum")
+    if re.fullmatch(r"-?[0-9]+", values["m_FillOrigin"]) is None or not -(1 << 31) <= int(values["m_FillOrigin"]) < (1 << 31):
+        raise ValueError("Unsupported Image Int32")
+    for name in ("m_FillAmount", "m_PixelsPerUnitMultiplier"):
+        _image_float(values[name])
+    for name, components in (("m_Color", ("r", "g", "b", "a")),
+                             ("m_RaycastPadding", ("x", "y", "z", "w"))):
+        pattern = r"\{" + ", ".join(component + r": ([^,{}]+)" for component in components) + r"\}"
+        match = re.fullmatch(pattern, values[name])
+        if match is None:
+            raise ValueError("Unsupported Image vector/color")
+        for value in match.groups():
+            _image_float(value)
+    for name in ("m_Material", "m_Sprite"):
+        if values[name] == "{fileID: 0}":
+            continue
+        pointer = re.fullmatch(r"\{fileID: (-?[0-9]+), guid: ([0-9a-f]{32}), type: 2\}", values[name])
+        if (pointer is None or not -(1 << 63) <= int(pointer[1]) < (1 << 63)
+                or int(pointer[1]) == 0 or pointer[2] == "0" * 32):
+            raise ValueError("Unsupported Image asset pointer")
 
 
 def _bindings(rows):
@@ -79,8 +136,10 @@ def _document(body, row):
     for name in ("m_CorrespondingSourceObject", "m_PrefabInstance", "m_PrefabAsset"):
         if values[name] != "{fileID: 0}":
             raise ValueError("Component is not the qualified unprefabbed scene shape")
-    owner = re.fullmatch(r"\{fileID: ([1-9][0-9]*)\}", values["m_GameObject"])
-    if owner is None or int(owner[1]) >= 1 << 63:
+    image = (row["assembly"], row["full_name"]) == ("UnityEngine.UI", "UnityEngine.UI.Image")
+    owner_pattern = r"\{fileID: (-?[1-9][0-9]*)\}" if image else r"\{fileID: ([1-9][0-9]*)\}"
+    owner = re.fullmatch(owner_pattern, values["m_GameObject"])
+    if owner is None or not -(1 << 63) <= int(owner[1]) < 1 << 63:
         raise ValueError("Unsupported component owner pointer")
     if values["m_Enabled"] not in ("0", "1"):
         raise ValueError("Unsupported component enabled flag")
@@ -89,6 +148,8 @@ def _document(body, row):
     pointer = SCRIPT.fullmatch(values["m_Script"])
     if pointer is None or (pointer[1], pointer[2]) != (str(row["exported_file_id"]), row["exported_guid"]):
         raise ValueError("Unsupported selected component script pointer")
+    if (row["assembly"], row["full_name"]) == ("UnityEngine.UI", "UnityEngine.UI.Image"):
+        _image_payload(body, values)
 
 
 def rewrite_component_pointers(content, bindings):
@@ -132,6 +193,13 @@ def rewrite_component_pointers(content, bindings):
         if pointer is None or pointer[2] not in mapping:
             raise ValueError("Unsupported selected component script identity")
         row = mapping[pointer[2]]
+        if (row["assembly"], row["full_name"]) == ("UnityEngine.UI", "UnityEngine.UI.Image"):
+            anchor = header[2]
+            if (re.fullmatch(r"-?[0-9]+", anchor) is None or int(anchor) == 0
+                    or not -(1 << 63) <= int(anchor) < (1 << 63)):
+                raise ValueError("Unsupported Image document local ID")
+            if sum(int(other[2]) == int(anchor) for other in headers) != 1:
+                raise ValueError("Duplicate Image document local ID")
         _document(body, row)
         start = header.end() + lines[0].start(1)
         replacements.append((start, start + len(value), row))

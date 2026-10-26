@@ -531,6 +531,25 @@ EDITMODE_TESTS += tuple("OriginalBadgeStartTests." + name for name in (
     "StartRewardsRetainOwnedCallbackAndNullFaultPublicationOrder",
 ))
 
+# Strict authored Image binding and owned cleanup boundaries (#547).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.UguiImageBindingTests.AllAuthoredImagesRetainValuesAndAssetIdentityAcrossRoundtrip",
+    "ProjectLucid.Tests.UguiImageBindingTests.OriginalCullEventAncestryRetainsCompleteOrderedDeclarations",
+    "ProjectLucid.Tests.UguiImageBindingTests.KnownEventAttributeOrdersRejectUnknownPermutationsAndValues",
+    "ProjectLucid.Tests.UguiImageBindingTests.UnlistedEventFieldsStillRequireExactOriginalAttributeOrder",
+    'ProjectLucid.Tests.UguiImageBindingTests.NonemptyBorrowedCollectionSnapshotDetectsMutationWithoutRepair("row")',
+    'ProjectLucid.Tests.UguiImageBindingTests.NonemptyBorrowedCollectionSnapshotDetectsMutationWithoutRepair("count")',
+    'ProjectLucid.Tests.UguiImageBindingTests.NonemptyBorrowedCollectionSnapshotDetectsMutationWithoutRepair("nested")',
+    'ProjectLucid.Tests.UguiImageBindingTests.OwnedImageCleanupAttemptsEveryReleaseAndPreservesFirstFailure("folder",False)',
+    'ProjectLucid.Tests.UguiImageBindingTests.OwnedImageCleanupAttemptsEveryReleaseAndPreservesFirstFailure("folder",True)',
+    'ProjectLucid.Tests.UguiImageBindingTests.OwnedImageCleanupAttemptsEveryReleaseAndPreservesFirstFailure("setup",False)',
+    'ProjectLucid.Tests.UguiImageBindingTests.OwnedImageCleanupAttemptsEveryReleaseAndPreservesFirstFailure("setup",True)',
+    'ProjectLucid.Tests.UguiImageBindingTests.OwnedImageCleanupAttemptsEveryReleaseAndPreservesFirstFailure("body",False)',
+    'ProjectLucid.Tests.UguiImageBindingTests.OwnedImageCleanupAttemptsEveryReleaseAndPreservesFirstFailure("body",True)',
+    'ProjectLucid.Tests.UguiImageBindingTests.OwnedImageCleanupAttemptsEveryReleaseAndPreservesFirstFailure("none",False)',
+    'ProjectLucid.Tests.UguiImageBindingTests.OwnedImageCleanupAttemptsEveryReleaseAndPreservesFirstFailure("none",True)',
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",

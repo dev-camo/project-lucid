@@ -151,7 +151,12 @@ class HighlightTests(unittest.TestCase):
 
 class BootDataRosterTests(unittest.TestCase):
     def test_roster_and_sources(self):
-        self.assertEqual(42, len(RULES))
+        # The separate authored Image rule adds one member to the original 42-rule roster.
+        image_identity = ("UnityEngine.UI", "UnityEngine.UI.Image")
+        identities = [(rule["assembly"], rule["full_name"]) for rule in RULES]
+        self.assertEqual(42, len([identity for identity in identities if identity != image_identity]))
+        self.assertEqual([image_identity], [identity for identity in identities if identity == image_identity])
+        self.assertEqual(43, len(RULES))
         self.assertEqual(["HardlightProject.TimeCategoryLookup", "HardlightProject.DevicePerformanceGroup",
                           "HardlightProject.DevicePerformance_iOS", "HardlightProject.DevicePerformance_macOS",
                           "HardlightProject.DevicePerformance_tvOS", "Hardlight.UIHighlightDefinition", "Hardlight.UIHighlight"],

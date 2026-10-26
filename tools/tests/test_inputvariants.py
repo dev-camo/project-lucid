@@ -30,7 +30,12 @@ PUBLIC_METADATA = "88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49
 
 class VariantTableTests(unittest.TestCase):
     def test_binding_and_theme_evidence_name_only_the_local_variant(self):
-        self.assertEqual(42, len(RULES))
+        # The separate authored Image rule adds one member to the original 42-rule roster.
+        image_identity = ("UnityEngine.UI", "UnityEngine.UI.Image")
+        identities = [(rule["assembly"], rule["full_name"]) for rule in RULES]
+        self.assertEqual(42, len([identity for identity in identities if identity != image_identity]))
+        self.assertEqual([image_identity], [identity for identity in identities if identity == image_identity])
+        self.assertEqual(43, len(RULES))
         for rule in RULES:
             with self.subTest(rule=rule["full_name"]):
                 self.assertEqual((LOCAL[GAME_ASSEMBLY], LOCAL[METADATA]), (rule["binary_sha256"], rule["metadata_sha256"]))
