@@ -388,29 +388,29 @@ namespace ProjectLucid
                         child.transform.localScale = Vector(target["m_LocalScale"]);
                     }
                     transforms[i] = new TransformState(child.transform);
+                    // The tracked inactive child owns the component before any
+                    // real Reset/OnValidate callback. Configuration is already
+                    // admitted; retain the engine's saved component identity.
+                    Corpus.Require(child.AddComponent<TransformRotator>() != null, "genuine owned component construction");
+                    componentObserved();
                 }
                 state.Save();
                 GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(state.Path);
                 string yaml = File.ReadAllText(state.Path);
                 var documents = Corpus.Documents(yaml).ToDictionary(d => d.Id);
-                var used = new HashSet<long>(documents.Keys.Select(id => Int64.Parse(id, CultureInfo.InvariantCulture)));
-                long next = 1;
                 for (int i = 0; i < samples.Length; ++i)
                 {
                     GameObject child = prefab.transform.GetChild(i).gameObject;
-                    while (used.Contains(next)) ++next;
-                    string owner = LocalId(child), component = next.ToString(CultureInfo.InvariantCulture); used.Add(next);
-                    string ownerDoc = documents[owner].Text;
-                    string changedOwner = ownerDoc.Replace("  m_Layer:", "  - component: {fileID: " + component + "}\n  m_Layer:");
-                    Corpus.Require(changedOwner != ownerDoc, "owned component list injection");
-                    yaml = yaml.Replace(ownerDoc, changedOwner);
+                    string owner = LocalId(child), component = LocalId(child.GetComponent<TransformRotator>());
+                    Corpus.Require(documents[component].Class == 114 && documents[owner].Text.Contains("  - component: {fileID: " + component + "}"),
+                        "saved engine component identity belongs to its owned child");
                     string doc = samples[i].Document;
                     doc = Regex.Replace(doc, @"\A--- !u!114 &-?[0-9]+", "--- !u!114 &" + component);
                     doc = ReplaceField(doc, "m_GameObject", "{fileID: " + owner + "}");
                     doc = ReplaceField(doc, "m_Script", "{fileID: 11500000, guid: " + script + ", type: 3}");
                     if (samples[i].TargetDocument != null)
                         doc = ReplaceField(doc, "m_targetTransform", "{fileID: " + LocalId(child.transform) + "}");
-                    yaml += doc;
+                    yaml = yaml.Replace(documents[component].Text, doc);
                 }
                 File.WriteAllText(state.Path, yaml, new UTF8Encoding(false));
                 AssetDatabase.ImportAsset(state.Path, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
