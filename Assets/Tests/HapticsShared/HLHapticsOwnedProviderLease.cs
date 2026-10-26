@@ -104,9 +104,25 @@ namespace ProjectLucid.Verification
   }
   static void CheckRegistryRows(List<DictionaryEntry> rows, List<DictionaryEntry> actual, object newlyOwnedInfo)
   {
-   bool originallyAbsent=rows.All(x=>!Equals(x.Key,typeof(VibrationManager).ToString()));Require(actual.Count==rows.Count+(originallyAbsent&&newlyOwnedInfo!=null?1:0),"registry exact count except one proven owned row");
-   for(int i=0;i<rows.Count;i++)Require(Same(actual[i].Key,rows[i].Key)&&Same(actual[i].Value,rows[i].Value),"all preexisting ordered registry rows exact");
-   if(actual.Count>rows.Count)Require(Equals(actual[actual.Count-1].Key,typeof(VibrationManager).ToString())&&ReferenceEquals(actual[actual.Count-1].Value,newlyOwnedInfo),"exact sole newly owned default row");
+   string targetName = typeof(VibrationManager).ToString();
+   bool excludeOwned = newlyOwnedInfo != null && rows.All(row => !Equals(row.Key, targetName));
+   Require(actual.Count == rows.Count + (excludeOwned ? 1 : 0), "registry exact count except one proven owned row");
+   // A genuine new row can reuse an earlier dictionary slot; foreign identities and relative order must stay exact.
+   int foreignIndex = 0;
+   bool foundOwned = false;
+   foreach (DictionaryEntry row in actual)
+   {
+    if (excludeOwned && Equals(row.Key, targetName) && ReferenceEquals(row.Value, newlyOwnedInfo))
+    {
+     Require(!foundOwned, "exact sole newly owned default row");
+     foundOwned = true;
+     continue;
+    }
+    Require(foreignIndex < rows.Count && Same(row.Key, rows[foreignIndex].Key) && Same(row.Value, rows[foreignIndex].Value),
+     "all preexisting ordered registry rows exact");
+    foreignIndex++;
+   }
+   Require(foreignIndex == rows.Count && foundOwned == excludeOwned, "complete foreign sequence and exact owned row");
   }
   sealed class ReferenceComparer:IEqualityComparer<object>{public static readonly ReferenceComparer Instance=new ReferenceComparer();public new bool Equals(object a,object b)=>ReferenceEquals(a,b);public int GetHashCode(object x)=>System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(x);}
   // OwnedDefault* name the row an earlier lease created. Each lease removes its own row on close,

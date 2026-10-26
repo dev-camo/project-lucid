@@ -26,29 +26,54 @@ namespace ProjectLucid.Tests
 
         private readonly List<UnityEngine.Object> _ownedAssets = new List<UnityEngine.Object>();
 
+        private TangentScratchLease _tangentScratch;
+
+        [SetUp]
+        public void AcquireTangentScratch()
+        {
+            _tangentScratch = new TangentScratchLease();
+        }
+
+        private static void AttemptCleanup(List<Exception> failures, Action action)
+        {
+            try { action(); }
+            catch (Exception failure) { failures.Add(failure); }
+        }
+
         [TearDown]
         public void DestroyOwnedObjects()
         {
-            foreach (GameObject owned in _owned)
+            var failures = new List<Exception>();
+            try
             {
-                if (owned != null)
+                foreach (GameObject owned in _owned)
                 {
-                    UnityEngine.Object.DestroyImmediate(owned);
-                    OwnershipFault?.Invoke("after-destroy");
+                    AttemptCleanup(failures, () =>
+                    {
+                        if (owned == null) return;
+                        UnityEngine.Object.DestroyImmediate(owned);
+                        OwnershipFault?.Invoke("after-destroy");
+                    });
                 }
+                _owned.Clear();
+                foreach (UnityEngine.Object asset in _ownedAssets)
+                {
+                    AttemptCleanup(failures, () =>
+                    {
+                        if (asset == null) return;
+                        UnityEngine.Object.DestroyImmediate(asset);
+                        OwnershipFault?.Invoke("after-destroy");
+                    });
+                }
+                _ownedAssets.Clear();
             }
-
-            _owned.Clear();
-            foreach (UnityEngine.Object asset in _ownedAssets)
+            catch (Exception failure) { failures.Add(failure); }
+            finally
             {
-                if (asset != null)
-                {
-                    UnityEngine.Object.DestroyImmediate(asset);
-                    OwnershipFault?.Invoke("after-destroy");
-                }
+                AttemptCleanup(failures, () => _tangentScratch?.Dispose());
+                _tangentScratch = null;
             }
-
-            _ownedAssets.Clear();
+            if (failures.Count != 0) throw new AggregateException("Object bender fixture cleanup failed", failures);
         }
 
         private GameObject NewObject(string name)

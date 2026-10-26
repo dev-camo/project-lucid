@@ -26,6 +26,7 @@ namespace ProjectLucid.Tests
         private readonly List<Mesh> _meshes = new List<Mesh>();
         private Vector2 _uvsBaseline;
         private bool _uvsCaptured;
+        private TangentScratchLease _tangentScratch;
 
         // The static MeshGenerator.__uvs scratch value as found when this test first acquired an object. A new component does not
         // rerun the type initializer, so a test that reads the default asserts against this baseline and Dispose puts it back.
@@ -58,56 +59,70 @@ namespace ProjectLucid.Tests
             }
         }
 
+        private static void AttemptCleanup(List<System.Exception> failures, System.Action action)
+        {
+            try { action(); }
+            catch (System.Exception failure) { failures.Add(failure); }
+        }
+
         public void Dispose()
         {
+            var failures = new List<System.Exception>();
             try
             {
                 foreach (Mesh tracked in _meshes)
                 {
-                    if (tracked != null)
+                    AttemptCleanup(failures, () =>
                     {
+                        if (tracked == null) return;
                         Object.DestroyImmediate(tracked);
                         OwnershipFault?.Invoke("after-destroy");
-                    }
+                    });
                 }
-
                 _meshes.Clear();
 
                 foreach (GameObject owned in _owned)
                 {
-                    if (owned == null)
+                    if (owned == null) continue;
+                    MeshGenerator[] generators = null;
+                    AttemptCleanup(failures, () => generators = owned.GetComponents<MeshGenerator>());
+                    if (generators != null)
                     {
-                        continue;
-                    }
-
-                    foreach (MeshGenerator generator in owned.GetComponents<MeshGenerator>())
-                    {
-                        Mesh mesh = MeshOf(generator);
-                        if (mesh != null)
+                        foreach (MeshGenerator generator in generators)
                         {
-                            Object.DestroyImmediate(mesh);
+                            AttemptCleanup(failures, () =>
+                            {
+                                Mesh mesh = MeshOf(generator);
+                                if (mesh != null) Object.DestroyImmediate(mesh);
+                            });
                         }
                     }
-
-                    Object.DestroyImmediate(owned);
-                    OwnershipFault?.Invoke("after-destroy");
+                    AttemptCleanup(failures, () =>
+                    {
+                        Object.DestroyImmediate(owned);
+                        OwnershipFault?.Invoke("after-destroy");
+                    });
                 }
-
                 _owned.Clear();
             }
+            catch (System.Exception failure) { failures.Add(failure); }
             finally
             {
-                // The shared scratch value is handed back even when a destroy above throws.
-                if (_uvsCaptured)
+                // Return borrowed scratch even if enumeration fails outside a destruction attempt.
+                AttemptCleanup(failures, () =>
                 {
-                    UvsField.SetValue(null, _uvsBaseline);
+                    if (_uvsCaptured) UvsField.SetValue(null, _uvsBaseline);
                     _uvsCaptured = false;
-                }
+                });
+                AttemptCleanup(failures, () => _tangentScratch?.Dispose());
+                _tangentScratch = null;
             }
+            if (failures.Count != 0) throw new System.AggregateException("Generator fixture cleanup failed", failures);
         }
 
         public GameObject NewObject(string name)
         {
+            if (_tangentScratch == null) _tangentScratch = new TangentScratchLease();
             CaptureUvs();
             GameObject owner = new GameObject(name);
             _owned.Add(owner);
