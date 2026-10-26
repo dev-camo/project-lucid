@@ -35,6 +35,9 @@ NESTED = {
 }
 HEADER = re.compile(r"^--- !u!(\d+) &(-?\d+)(?: stripped)?\r?\n(\w+):\r?\n", re.MULTILINE)
 FIELD = re.compile(r"  ([A-Za-z_][A-Za-z_0-9]*):(?: (.*))?")
+# Exact field-specific builtin references present in the immutable authored Images.
+IMAGE_BUILTIN_IDS = {"m_Sprite": (10907, 10911, 10913, 10917), "m_Material": (10754,)}
+IMAGE_BUILTIN_GUID = "0000000000000000f000000000000000"
 PREFIXES = ("%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n",
             "%YAML 1.1\r\n%TAG !u! tag:unity3d.com,2011:\r\n")
 
@@ -82,9 +85,13 @@ def _image_payload(body, values):
     for name in ("m_Material", "m_Sprite"):
         if values[name] == "{fileID: 0}":
             continue
+        builtin = tuple("{fileID: " + str(local_id) + ", guid: " + IMAGE_BUILTIN_GUID + ", type: 0}"
+                        for local_id in IMAGE_BUILTIN_IDS[name])
+        if values[name] in builtin:
+            continue
         pointer = re.fullmatch(r"\{fileID: (-?[0-9]+), guid: ([0-9a-f]{32}), type: 2\}", values[name])
         if (pointer is None or not -(1 << 63) <= int(pointer[1]) < (1 << 63)
-                or int(pointer[1]) == 0 or pointer[2] == "0" * 32):
+                or int(pointer[1]) == 0 or pointer[2] in ("0" * 32, "0000000000000000e000000000000000", IMAGE_BUILTIN_GUID)):
             raise ValueError("Unsupported Image asset pointer")
 
 

@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import re
 import tempfile
 from pathlib import Path
 import sys
@@ -49,6 +50,41 @@ MonoBehaviour:
   m_PixelsPerUnitMultiplier: 1
 """
 
+# Literal first rejected original Image from CS_Zone4_Boss_B_3D.
+BUILTIN_AUTHORED = b"""%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &114880969609912730
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1996317296757491}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3cf5a44414476512e00c3e7a2569a919, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  m_Material: {fileID: 0}
+  m_Color: {r: 0.4339623, g: 0.4339623, b: 0.4339623, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 10907, guid: 0000000000000000f000000000000000, type: 0}
+  m_Type: 1
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+"""
+
 BINDING = {
     "assembly": "UnityEngine.UI", "full_name": "UnityEngine.UI.Image",
     "package": "com.unity.ugui", "exported_file_id": 11500000,
@@ -74,6 +110,48 @@ class ImageBindingTests(unittest.TestCase):
         target = original.replace(BINDING["exported_guid"].encode(), BINDING["target_guid"].encode())
         self.assertEqual(1, count)
         self.assertEqual(AUTHORED.replace(original, target), result)
+
+    def test_original_builtin_sprite_document_changes_only_script_pointer(self):
+        result, count = self.rewrite(BUILTIN_AUTHORED)
+        self.assertEqual(1, count)
+        self.assertEqual(BUILTIN_AUTHORED.replace(BINDING["exported_guid"].encode(),
+                                                BINDING["target_guid"].encode()), result)
+
+    def test_exact_authored_builtin_tuples_preserve_bytes(self):
+        # Exact original field/local-ID tuples; installed resource class IDs are
+        # Sprite213 for these four and Material21 for10754, requiring native qualification.
+        for field, local_id in (("m_Sprite", 10907), ("m_Sprite", 10911),
+                                ("m_Sprite", 10913), ("m_Sprite", 10917),
+                                ("m_Material", 10754)):
+            with self.subTest(field=field, local_id=local_id):
+                pointer = ("{fileID: " + str(local_id) + ", guid: 0000000000000000f000000000000000, type: 0}").encode()
+                content = re.sub(rb"(?m)^  " + field.encode() + rb": .*?$",
+                                 b"  " + field.encode() + b": " + pointer, AUTHORED)
+                result, count = self.rewrite(content)
+                self.assertEqual(1, count)
+                self.assertEqual(content.replace(BINDING["exported_guid"].encode(),
+                                                BINDING["target_guid"].encode()), result)
+
+    def test_builtin_pointer_identity_type_and_field_mismatches_fail_closed(self):
+        sprite = b"{fileID: 10907, guid: 0000000000000000f000000000000000, type: 0}"
+        invalid = (
+            ("m_Sprite", sprite.replace(b"10907", b"10908")),
+            ("m_Sprite", sprite.replace(b"10907", b"-10907")),
+            ("m_Sprite", sprite.replace(b"10907", b"10754")),
+            ("m_Sprite", sprite.replace(b"type: 0", b"type: 2")),
+            ("m_Sprite", sprite.replace(b"f000000000000000", b"e000000000000000").replace(b"type: 0", b"type: 2")),
+            ("m_Sprite", sprite.replace(b"type: 0", b"type: 3")),
+            ("m_Sprite", sprite.replace(b"f000000000000000", b"e000000000000000")),
+            ("m_Sprite", sprite.replace(b"0000000000000000f000000000000000", b"009495c444868ba409e37d6a8dede145")),
+            ("m_Material", sprite),
+            ("m_Material", sprite.replace(b"10907", b"10755")),
+        )
+        for field, pointer in invalid:
+            with self.subTest(field=field, pointer=pointer):
+                content = re.sub(rb"(?m)^  " + field.encode() + rb": .*?$",
+                                 b"  " + field.encode() + b": " + pointer, AUTHORED)
+                with self.assertRaises(ValueError):
+                    self.rewrite(content)
 
     def test_disabled_image_and_typed_scalar_values_are_preserved(self):
         content = AUTHORED.replace(b"m_Enabled: 1", b"m_Enabled: 0")

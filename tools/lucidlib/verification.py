@@ -534,6 +534,7 @@ EDITMODE_TESTS += tuple("OriginalBadgeStartTests." + name for name in (
 # Strict authored Image binding and owned cleanup boundaries (#547).
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.UguiImageBindingTests.AllAuthoredImagesRetainValuesAndAssetIdentityAcrossRoundtrip",
+    "ProjectLucid.Tests.UguiImageBindingTests.BuiltinSpriteAndMaterialReferencesResolveExactInstalledObjects",
     "ProjectLucid.Tests.UguiImageBindingTests.OriginalCullEventAncestryRetainsCompleteOrderedDeclarations",
     "ProjectLucid.Tests.UguiImageBindingTests.KnownEventAttributeOrdersRejectUnknownPermutationsAndValues",
     "ProjectLucid.Tests.UguiImageBindingTests.UnlistedEventFieldsStillRequireExactOriginalAttributeOrder",

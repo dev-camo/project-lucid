@@ -17,6 +17,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void BuiltinSpriteAndMaterialReferencesResolveExactInstalledObjects()
+        {
+            UguiImageBindingVerification.CheckBuiltinAssets();
+        }
+
+        [Test]
         public void OriginalCullEventAncestryRetainsCompleteOrderedDeclarations()
         {
             UguiImageBindingVerification.CheckEventDeclaration();

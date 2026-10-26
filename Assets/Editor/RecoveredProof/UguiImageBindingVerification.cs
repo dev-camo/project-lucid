@@ -47,7 +47,25 @@ namespace ProjectLucid
             "m_Enabled", "m_EditorHideFlags", "m_Script", "m_Name", "m_EditorClassIdentifier"
         };
         private static readonly Regex Header = new Regex(@"^--- !u!([0-9]+) &(-?[0-9]+)\r?$", RegexOptions.Multiline);
-        private static readonly Regex Pointer = new Regex(@"\A\{fileID: (-?[0-9]+), guid: ([0-9a-f]{32}), type: 2\}\z");
+        private static readonly Regex Pointer = new Regex(@"\A\{fileID: (-?[0-9]+), guid: ([0-9a-f]{32}), type: ([02])\}\z");
+
+        private const string BuiltinGuid = "0000000000000000f000000000000000";
+        private const string BuiltinPath = "Resources/unity_builtin_extra";
+        private const string BuiltinResourceHash = "4706a837278deb458991d16823718055f9ec00c16a483bb8c4782405ba32a289";
+
+        public static void CheckBuiltinAssets()
+        {
+            // Original field/local-ID pairs; installed resource objects retain
+            // these identities. No replacement Sprite or default material is used.
+            var samples = new List<Sample>();
+            foreach (long id in new long[] { 10907, 10911, 10913, 10917 })
+                samples.Add(new Sample { Fields = new Dictionary<string, string> {
+                    { "m_Sprite", "{fileID: " + id + ", guid: " + BuiltinGuid + ", type: 0}" },
+                    { "m_Material", "{fileID: 10754, guid: " + BuiltinGuid + ", type: 0}" }
+                } });
+            var borrowed = new BorrowedAssets();
+            VerificationFixtureOwnership.RunThenCleanUp(() => borrowed.Capture(samples.ToArray()), borrowed.Verify);
+        }
 
         public sealed class OwnedFixture : IDisposable
         {
@@ -242,19 +260,19 @@ namespace ProjectLucid
                     }
                     File.WriteAllText(state.AssetPath, yaml, new UTF8Encoding(false));
                     AssetDatabase.ImportAsset(state.AssetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
-                    VerifyImported(state.AssetPath, samples, binding);
+                    VerifyImported(state.AssetPath, samples, binding, borrowedAssets);
                     state.Load();
                     bool saved;
                     PrefabUtility.SaveAsPrefabAsset(state.Contents, state.AssetPath, out saved);
                     Check(saved, "save imported authored values");
                     state.Unload();
                     AssetDatabase.ImportAsset(state.AssetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
-                    VerifyImported(state.AssetPath, samples, binding);
+                    VerifyImported(state.AssetPath, samples, binding, borrowedAssets);
                 });
             }, borrowed.Verify, borrowedAssets.Verify);
         }
 
-        private static void VerifyImported(string path, Sample[] samples, Binding binding)
+        private static void VerifyImported(string path, Sample[] samples, Binding binding, BorrowedAssets borrowedAssets)
         {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             var writtenDocuments = Documents(File.ReadAllText(path)).ToDictionary(d => d.Item1, d => Fields(d.Item2), StringComparer.Ordinal);
@@ -284,7 +302,11 @@ namespace ProjectLucid
                         Check(image.onCullStateChanged != null && image.onCullStateChanged.GetPersistentEventCount() == 0 &&
                               serialized.FindProperty("m_OnCullStateChanged.m_PersistentCalls.m_Calls").arraySize == 0, "empty persistent event survives");
                     }
-                    else if (name == "m_Material" || name == "m_Sprite") CheckAssetPointer(property.objectReferenceValue, fields[name]);
+                    else if (name == "m_Material" || name == "m_Sprite")
+                    {
+                        CheckAssetPointer(property.objectReferenceValue, fields[name], name);
+                        borrowedAssets.CheckReference(property.objectReferenceValue, fields[name], name);
+                    }
                     else if (name == "m_Color")
                     {
                         float[] values = Components(fields[name]);
@@ -320,16 +342,31 @@ namespace ProjectLucid
         private sealed class BorrowedAssets
         {
             private readonly List<Action> checks = new List<Action>();
+            private readonly Dictionary<string, Object> objects = new Dictionary<string, Object>(StringComparer.Ordinal);
+            public void CheckReference(Object value, string authored, string field)
+            {
+                if (authored != "{fileID: 0}")
+                    Check(ReferenceEquals(value, objects[field + ":" + authored]), "import retains captured borrowed object identity");
+            }
             public void Capture(Sample[] samples)
             {
-                foreach (string authored in samples.SelectMany(sample => new[] { sample.Fields["m_Sprite"], sample.Fields["m_Material"] }).Distinct(StringComparer.Ordinal))
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                bool checkedBuiltinBytes = false;
+                foreach (Sample sample in samples)
+                foreach (string field in new[] { "m_Sprite", "m_Material" })
                 {
-                    if (authored == "{fileID: 0}") continue;
-                    Match pointer = Pointer.Match(authored);
-                    Check(pointer.Success, "authored borrowed asset syntax");
+                    string authored = sample.Fields[field];
+                    if (authored == "{fileID: 0}" || !seen.Add(field + ":" + authored)) continue;
+                    Match pointer = AssetPointer(authored, field);
                     string guid = pointer.Groups[2].Value;
                     long id = Int64.Parse(pointer.Groups[1].Value, CultureInfo.InvariantCulture);
+                    bool builtin = pointer.Groups[3].Value == "0";
                     string path = AssetDatabase.GUIDToAssetPath(guid);
+                    if (builtin)
+                    {
+                        if (String.IsNullOrEmpty(path)) path = BuiltinPath;
+                        Check(path == BuiltinPath, "exact installed builtin resource path");
+                    }
                     Check(!String.IsNullOrEmpty(path), "authored asset resolves before fixture construction");
                     Object[] matching = AssetDatabase.LoadAllAssetsAtPath(path).Where(value =>
                     {
@@ -338,15 +375,27 @@ namespace ProjectLucid
                     }).ToArray();
                     Check(matching.Length == 1, "one real borrowed authored subasset");
                     Object borrowed = matching[0];
-                    Check(borrowed is Sprite || borrowed is Material, "actual Sprite or Material asset");
+                    Check(field == "m_Sprite" ? borrowed is Sprite : borrowed is Material, "actual authored field asset class");
+                    objects.Add(field + ":" + authored, borrowed);
                     bool dirty = EditorUtility.IsDirty(borrowed);
-                    string root = Directory.GetParent(Application.dataPath).FullName;
-                    string physical = OwnedPath(root, Path.Combine(root, path));
                     checks.Add(() =>
                     {
                         Check(borrowed != null && EditorUtility.IsDirty(borrowed) == dirty, "borrowed asset remains alive and unchanged");
-                        CheckAssetPointer(borrowed, authored);
+                        CheckAssetPointer(borrowed, authored, field);
                     });
+                    if (builtin)
+                    {
+                        if (!checkedBuiltinBytes)
+                        {
+                            string resource = Path.Combine(EditorApplication.applicationContentsPath, "Resources/unity_builtin_extra");
+                            Check(Hash(File.ReadAllBytes(resource)) == BuiltinResourceHash, "pinned installed builtin resource bytes");
+                            checks.Add(() => Check(Hash(File.ReadAllBytes(resource)) == BuiltinResourceHash, "builtin resource bytes unchanged"));
+                            checkedBuiltinBytes = true;
+                        }
+                        continue;
+                    }
+                    string root = Directory.GetParent(Application.dataPath).FullName;
+                    string physical = OwnedPath(root, Path.Combine(root, path));
                     string bytes = Hash(File.ReadAllBytes(physical));
                     checks.Add(() => Check(Hash(File.ReadAllBytes(physical)) == bytes, "borrowed asset bytes unchanged"));
                     string meta = Hash(File.ReadAllBytes(physical + ".meta"));
@@ -615,11 +664,25 @@ namespace ProjectLucid
             return fields;
         }
         private static float[] Components(string value) => value.Trim('{', '}').Split(',').Select(part => Single.Parse(part.Substring(part.IndexOf(':') + 1), CultureInfo.InvariantCulture)).ToArray();
-        private static void CheckAssetPointer(Object value, string authored)
+        private static Match AssetPointer(string authored, string field)
+        {
+            Match pointer = Pointer.Match(authored);
+            Check(pointer.Success, "authored asset pointer syntax");
+            long id = Int64.Parse(pointer.Groups[1].Value, CultureInfo.InvariantCulture);
+            if (pointer.Groups[3].Value == "0")
+                Check(pointer.Groups[2].Value == BuiltinGuid &&
+                      (field == "m_Sprite" ? new long[] { 10907, 10911, 10913, 10917 }.Contains(id) : field == "m_Material" && id == 10754),
+                      "exact authored builtin field/local-ID tuple");
+            else
+                Check(pointer.Groups[2].Value != BuiltinGuid && pointer.Groups[2].Value != "0000000000000000e000000000000000" &&
+                      pointer.Groups[2].Value != "00000000000000000000000000000000", "builtin identity retains original pointer kind");
+            return pointer;
+        }
+        private static void CheckAssetPointer(Object value, string authored, string field)
         {
             if (authored == "{fileID: 0}") { Check(value == null, "authored null asset pointer"); return; }
-            Match pointer = Pointer.Match(authored);
-            Check(pointer.Success && value != null, "actual nonnull authored asset");
+            Match pointer = AssetPointer(authored, field);
+            Check(value != null && (field == "m_Sprite" ? value is Sprite : value is Material), "actual nonnull authored asset class");
             string guid; long id;
             Check(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(value, out guid, out id) && guid == pointer.Groups[2].Value &&
                   id == Int64.Parse(pointer.Groups[1].Value, CultureInfo.InvariantCulture), "exact authored asset GUID/local ID");
