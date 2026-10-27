@@ -361,6 +361,32 @@ class AssetTests(unittest.TestCase):
         self.assertEqual(result["quarantined_script_guids"], ["a" * 32])
         self.assertEqual(result["skipped_code_files"], 2)
 
+    def test_serialized_data_under_plugins_survives_and_object_references_to_code_are_reported(self):
+        # #572: MeshCombineStudio's InstantiatePrefab.prefab sits under an authored Plugins folder and ten zone scenes
+        # reference it; it is data and keeps its GUID. A file inside a .bundle container stays quarantined, and a
+        # non-script reference to quarantined code is reported.
+        project = self.make_export()
+        prefab_guid, native_guid, scene_guid = "d" * 32, "e" * 32, "f" * 32
+        write_asset(project, "Plugins/External/MeshCombineStudio/Sources/InstantiatePrefab.prefab", prefab_guid,
+                    "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n--- !u!1 &1\nGameObject:\n  m_Name: InstantiatePrefab\n")
+        write_asset(project, "Plugins/Native.bundle/Contents/Info.plist", native_guid, "<plist/>")
+        write_asset(project, "Scenes/zone.unity", scene_guid,
+                    "%YAML 1.1\n--- !u!114 &1\nMonoBehaviour:\n  instantiatePrefab: {fileID: 1, guid: " + prefab_guid +
+                    ", type: 3}\n  plugin: {fileID: 1, guid: " + native_guid + ", type: 3}\n")
+        mapping = assets.build_asset_map(project)
+        assets._json_write(project.parent / "asset-map.json", mapping)
+        result = assets.prepare_assets(self.repo, self.work)
+        recovered = self.repo / "Assets/Recovered"
+        prefab = recovered / "Plugins/External/MeshCombineStudio/Sources/InstantiatePrefab.prefab"
+        self.assertTrue(prefab.exists())
+        self.assertIn("guid: " + prefab_guid, prefab.with_name(prefab.name + ".meta").read_text())
+        self.assertFalse((recovered / "Plugins/Native.bundle").exists())
+        self.assertEqual([native_guid], result["quarantined_object_reference_guids"])
+        self.assertEqual(result["skipped_code_files"], 4)
+        rows = {row["path"]: row for row in mapping["assets"]}
+        self.assertFalse(rows["Assets/Plugins/External/MeshCombineStudio/Sources/InstantiatePrefab.prefab"]["code_quarantined"])
+        self.assertTrue(rows["Assets/Plugins/Native.bundle/Contents/Info.plist"]["code_quarantined"])
+
     def test_prepare_rerun_retains_previous_owned_assets_in_cache(self):
         self.make_export()
         assets.prepare_assets(self.repo, self.work)
