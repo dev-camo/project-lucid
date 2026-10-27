@@ -1,12 +1,9 @@
-"""Default-branch control for GitHub-approved PR runs on the Ubuntu runner.
+"""Shared default-branch helpers for the progress workflows (main_progress, compiler_precheck,
+editor_sandbox, process_registry): the PR gate, request validation, checkout and compiler control.
 
-The controller has read-only API access. A separate hosted job publishes only
-validated generated outputs, dispatches owner checks and observes fork PR checks.
-No PR Python is imported by the gate, seal or publisher.
+The controller has read-only API access. No PR Python is imported by the gate.
 """
-import argparse
 import base64
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -19,7 +16,6 @@ import tempfile
 import time
 import urllib.parse
 import urllib.request
-import urllib.error
 
 import native_compilation as driver
 import process_registry
@@ -31,8 +27,6 @@ SHA = re.compile(r"[0-9a-f]{40}\Z")
 PRODUCER_FIELDS = {"head", "image", "control_commit", "run_id", "source_fingerprint",
                    "report_sha256", "compiler_receipt_sha256"}
 MAX_REPORT_BYTES = 40 * 1024
-CHECK_WORKFLOWS = ("code-progress.yml", "tool-tests.yml")
-PUBLICATION_CONTEXT = "lucid/generated-progress"
 REPO_NAME = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 
 
@@ -130,81 +124,45 @@ def require_workflow_context(request):
         raise ValueError("Workflow repository, control or first-attempt identity differs")
 
 
-def gate(api, event, control_commit, manual_pr=0, manual_head=""):
+def gate(api, event, control_commit):
     run = event.get("workflow_run")
-    if run:
-        if (run.get("repository", {}).get("full_name") != REPOSITORY or run.get("event") != "pull_request"
-                or run.get("name") != "Code progress"):
-            return None
-        head = run.get("head_sha", "")
-        if not isinstance(head, str) or not SHA.fullmatch(head):
-            return None
-        # Both workflow_run.pull_requests and commit-to-PR associations can be
-        # empty for forks. Query the advertised fork branch, then bind the
-        # returned PR to its exact repository/ref/head below.
-        repository = (run.get("head_repository") or {}).get("full_name")
-        branch = run.get("head_branch")
-        if (not isinstance(repository, str) or not REPO_NAME.fullmatch(repository)
-                or not isinstance(branch, str) or not branch):
-            return None
-        query = urllib.parse.urlencode({"state": "open", "head": repository.split("/")[0] + ":" + branch,
-                                       "per_page": 100})
-        candidates = api.request(f"/repos/{REPOSITORY}/pulls?" + query)
-        candidates = [pr for pr in candidates if pr.get("state") == "open"
-                      and pr.get("head", {}).get("sha") == head
-                      and pr.get("head", {}).get("ref") == run.get("head_branch")
-                      and (pr.get("head", {}).get("repo") or {}).get("full_name") ==
-                          (run.get("head_repository") or {}).get("full_name")
-                      and (pr.get("base", {}).get("repo") or {}).get("full_name") == REPOSITORY]
-        if len(candidates) != 1:
-            return None
-        pr = candidates[0]
-    else:
-        if not SHA.fullmatch(manual_head) or manual_pr <= 0:
-            return None
-        head = manual_head
-        pr = api.request(f"/repos/{REPOSITORY}/pulls/{manual_pr}")
-        runs = api.request(f"/repos/{REPOSITORY}/actions/workflows/code-progress.yml/runs?event=pull_request&head_sha={head}&per_page=100")
-        run = next((row for row in runs["workflow_runs"] if row.get("status") == "completed"
-                    and row.get("conclusion") in {"success", "failure"}), {})
+    if not run:
+        return None
+    if (run.get("repository", {}).get("full_name") != REPOSITORY or run.get("event") != "pull_request"
+            or run.get("name") != "Code progress"):
+        return None
+    head = run.get("head_sha", "")
+    if not isinstance(head, str) or not SHA.fullmatch(head):
+        return None
+    # Both workflow_run.pull_requests and commit-to-PR associations can be
+    # empty for forks. Query the advertised fork branch, then bind the
+    # returned PR to its exact repository/ref/head below.
+    repository = (run.get("head_repository") or {}).get("full_name")
+    branch = run.get("head_branch")
+    if (not isinstance(repository, str) or not REPO_NAME.fullmatch(repository)
+            or not isinstance(branch, str) or not branch):
+        return None
+    query = urllib.parse.urlencode({"state": "open", "head": repository.split("/")[0] + ":" + branch,
+                                   "per_page": 100})
+    candidates = api.request(f"/repos/{REPOSITORY}/pulls?" + query)
+    candidates = [pr for pr in candidates if pr.get("state") == "open"
+                  and pr.get("head", {}).get("sha") == head
+                  and pr.get("head", {}).get("ref") == run.get("head_branch")
+                  and (pr.get("head", {}).get("repo") or {}).get("full_name") ==
+                      (run.get("head_repository") or {}).get("full_name")
+                  and (pr.get("base", {}).get("repo") or {}).get("full_name") == REPOSITORY]
+    if len(candidates) != 1:
+        return None
+    pr = candidates[0]
     request = {"pr": pr["number"], "head": head, "control_commit": control_commit,
                "head_repository": (pr.get("head", {}).get("repo") or {}).get("full_name"),
                "head_ref": pr.get("head", {}).get("ref"), "upstream_run": run.get("id")}
     try:
         require_current_pr(api, request)
         require_upstream_run(api, request)
-        if published_head(api, request):
-            return None
     except ValueError:
         return None
     return request
-
-
-def published_head(api, request):
-    """Only protected publisher provenance can suppress a generated-only loop."""
-    statuses = api.request(f"/repos/{REPOSITORY}/commits/{request['head']}/statuses?per_page=100")
-    for status in statuses:
-        if (status.get("context") != PUBLICATION_CONTEXT or status.get("state") != "success"
-                or status.get("creator", {}).get("login") != BOT):
-            continue
-        match = re.fullmatch(r"https://github.com/" + re.escape(REPOSITORY) + r"/actions/runs/([1-9][0-9]*)",
-                             status.get("target_url", ""))
-        if not match:
-            continue
-        run = api.request(f"/repos/{REPOSITORY}/actions/runs/{match[1]}")
-        if (run.get("path") == ".github/workflows/native-progress.yml"
-                and run.get("head_sha") == request["control_commit"]
-                and run.get("event") in {"workflow_run", "workflow_dispatch"}):
-            # The protected publisher issues this marker only after verifying
-            # the sealed report. A later publication/check-observation failure
-            # must not recompile its generated child, nor must pending publisher
-            # completion race the child's check workflow.
-            jobs = api.request(f"/repos/{REPOSITORY}/actions/runs/{match[1]}/jobs?per_page=100")
-            if any(job.get("name") == "Native compilation and evidence"
-                   and job.get("status") == "completed" and job.get("conclusion") == "success"
-                   for job in jobs["jobs"]):
-                return True
-    return False
 
 
 def reporting_tools(control):
@@ -214,22 +172,6 @@ def reporting_tools(control):
     return validate_public_counts, render_readme_section, split_readme
 
 
-
-
-def verify_report(raw, producer, request, run_id, control, source=None):
-    validate_request(request)
-    if len(raw) > MAX_REPORT_BYTES:
-        raise ValueError("Public report exceeds bound")
-    report = json.loads(raw)
-    reporting_tools(control)[0](report, source)
-    driver.require_approved_original(report, json.loads((control / "docs/code-progress.json").read_bytes()))
-    expected = {"head": request["head"], "image": EDITOR, "control_commit": request["control_commit"],
-                "run_id": str(run_id), "source_fingerprint": report["source_fingerprint"],
-                "report_sha256": hashlib.sha256(raw).hexdigest(),
-                "compiler_receipt_sha256": report["compiler_receipt_sha256"]}
-    if set(producer) != PRODUCER_FIELDS or producer != expected:
-        raise ValueError("Report differs from protected real compiler outputs")
-    return report
 
 
 CHECKOUT_TIMEOUT_SECONDS = 300
@@ -432,56 +374,6 @@ def require_stopped_marker(marker):
         raise ValueError("Compiler group still active; refuse compilation or cleanup")
 
 
-def compile_job(api, request):
-    require_workflow_context(request)
-    require_current_pr(api, request)
-    require_upstream_run(api, request)
-    root = job_root()
-    if root.parent.is_symlink():
-        raise ValueError("Symlinked job parent rejected")
-    for marker in root.parent.glob("direct-*/compiler-group.json"):
-        require_stopped_marker(marker)
-    root.mkdir(mode=0o700)
-    control, source = root / "control", root / "source"
-    checkout(control, request["control_commit"])
-    checkout(source, request["head"])
-    require_current_pr(api, request)
-    driver.require_control_reporting_tools(source, control)
-    sys.path.insert(0, str(control / "tools"))
-    from lucidlib.verification import artifact_fingerprint
-    command = ["python3", str(control / ".github/scripts/native_compilation.py"),
-        "--source", str(source), "--control", str(control),
-        "--input", "/srv/lucid-task5/input/SonicDreamTeam.app", "--work-dir", str(source / ".cache/project-lucid"),
-        "--expected-head", request["head"], "--expected-source", artifact_fingerprint(source),
-        "--image", EDITOR, "--control-commit", request["control_commit"], "--run-id", os.environ["GITHUB_RUN_ID"]]
-    with (root / "private-driver-stderr.log").open("wb") as errors:
-        output = run_compiler(command, source, errors, root / "compiler-group.json")
-    producer = json.loads(output)
-    raw = (source / "docs/code-progress.json").read_bytes()
-    verify_report(raw, producer, request, os.environ["GITHUB_RUN_ID"], control, source)
-    require_current_pr(api, request)
-    (root / "request.json").write_text(json.dumps(request, sort_keys=True))
-    (root / "code-progress.json").write_bytes(raw)
-    write_outputs(producer)
-    print("Real native compilation and progress generation validated")
-
-
-def seal_job(api, request, producer):
-    require_workflow_context(request)
-    require_current_pr(api, request)
-    require_upstream_run(api, request)
-    root = job_root()
-    control, source = root / "control", root / "source"
-    if (json.loads((root / "request.json").read_bytes()) != request
-            or git_head(control) != request["control_commit"] or git_head(source) != request["head"]):
-        raise ValueError("Local source/control/request differs")
-    raw = (root / "code-progress.json").read_bytes()
-    verify_report(raw, producer, request, os.environ["GITHUB_RUN_ID"], control, source)
-    driver.require_control_reporting_tools(source, control)
-    write_outputs({"producer_base64": encode(producer), "report_base64": base64.b64encode(raw).decode()})
-    print("Sanitized report sealed against protected compiler step outputs")
-
-
 def cleanup_job():
     root = job_root()
     if root.is_symlink() or root.parent.is_symlink():
@@ -495,167 +387,6 @@ def cleanup_job():
             shutil.rmtree(path)
 
 
-def dispatch_checks(api, request, head):
-    if request["head_repository"] != REPOSITORY:
-        return wait_for_fork_checks(api, request, head)
-    current = dict(request, head=head)
-    pr = require_current_pr(api, current)
-    ref = "/repos/" + REPOSITORY + "/git/refs/heads/" + urllib.parse.quote(pr["head"]["ref"], safe="")
-    runs = []
-    for workflow in CHECK_WORKFLOWS:
-        if api.request(ref)["object"]["sha"] != head:
-            raise ValueError("Head changed before required-check dispatch")
-        result = api.request(f"/repos/{REPOSITORY}/actions/workflows/{workflow}/dispatches", "POST",
-                             {"ref": pr["head"]["ref"], "inputs": {"expected_head": head}})
-        run_id = (result or {}).get("workflow_run_id")
-        if (type(run_id) is not int or run_id <= 0
-                or result.get("html_url") != f"https://github.com/{REPOSITORY}/actions/runs/{run_id}"):
-            raise ValueError("Required-check dispatch uncertain; do not automatically retry")
-        runs.append(result["html_url"])
-    return runs
-
-
-def wait_for_fork_checks(api, request, head, sleep=time.sleep, monotonic=time.monotonic, seconds=240):
-    """Observe real PR checks triggered by the publisher's non-Actions token.
-
-    Base workflow_dispatch cannot target a branch in another repository. Never
-    dispatch on main and call those checks evidence for the contributor head.
-    """
-    deadline = monotonic() + seconds
-    while True:
-        require_current_pr(api, dict(request, head=head))
-        found = []
-        for workflow in CHECK_WORKFLOWS:
-            runs = api.request(f"/repos/{REPOSITORY}/actions/workflows/{workflow}/runs?event=pull_request&head_sha={head}&per_page=100")
-            matches = [row for row in runs["workflow_runs"] if row.get("head_sha") == head
-                       and row.get("event") == "pull_request"
-                       and row.get("head_branch") == request["head_ref"]
-                       and (row.get("head_repository") or {}).get("full_name") == request["head_repository"]
-                       and row.get("status") in {"queued", "in_progress", "completed"}
-                       and row.get("conclusion") not in {"skipped", "cancelled", "action_required"}]
-            if matches:
-                run = matches[0]
-                url = f"https://github.com/{REPOSITORY}/actions/runs/{run['id']}"
-                if run.get("html_url") != url:
-                    raise ValueError("Fork check URL differs")
-                found.append(url)
-        if len(found) == len(CHECK_WORKFLOWS):
-            return found
-        if monotonic() >= deadline:
-            raise ValueError("Published head retained; exact-head PR checks not observed, no automatic retry")
-        sleep(min(2, max(0, deadline - monotonic())))
-
-
-def head_api(request):
-    # Public ref reads need no credential. In particular the base job token is
-    # never sent to a contributor-selected repository.
-    return GitHub(request["head_repository"], token="")
-
-
-def push_fork(api, request, source, created):
-    if not os.environ.get("LUCID_FORK_TOKEN"):
-        raise PermissionError("Fork writeback requires hosted publisher access")
-    require_current_pr(api, request)
-    # Fetch a commit made by trusted API code; do not run hooks or PR scripts.
-    environment = {key: value for key, value in os.environ.items() if key in {"PATH", "HOME", "LANG", "LC_ALL"}}
-    subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "fetch", "--no-tags", "origin", created],
-                   cwd=source, env=environment, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    helper = '!f() { printf "username=x-access-token\\npassword=%s\\n" "$LUCID_FORK_TOKEN"; }; f'
-    environment = dict(environment)
-    environment.update(LUCID_FORK_TOKEN=os.environ["LUCID_FORK_TOKEN"], GIT_TERMINAL_PROMPT="0")
-    ref = "refs/heads/" + request["head_ref"]
-    require_current_pr(api, request)
-    # The lease is an atomic compare-and-swap. The new commit has this exact
-    # head as its sole parent, so a contributor's concurrent commit is preserved.
-    subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "credential.helper=",
-                    "-c", "credential.helper=" + helper, "push",
-                    "--force-with-lease=" + ref + ":" + request["head"],
-                    "https://github.com/" + request["head_repository"] + ".git", created + ":" + ref],
-                   cwd=source, env=environment, check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
-def wait_for_published_head(api, request, branch, head, sleep=time.sleep,
-                            monotonic=time.monotonic, seconds=240):
-    """Bound API propagation after the atomic push; never repush or overwrite."""
-    deadline=monotonic()+seconds
-    ref_api = api if request["head_repository"] == REPOSITORY else head_api(request)
-    ref=f"/repos/{request['head_repository']}/git/refs/heads/"+urllib.parse.quote(branch,safe="")
-    while True:
-        pr=api.request(f"/repos/{REPOSITORY}/pulls/{request['pr']}")
-        actual=pr.get("head",{}).get("sha")
-        if actual not in {request["head"],head} or pr.get("head",{}).get("ref") != branch:
-            raise ValueError("Concurrent head or branch change after publication")
-        require_pr_metadata(pr,dict(request, head=actual))
-        reference = ref_api.request(ref)["object"]["sha"]
-        if default_head(api)[1] != request["control_commit"] or reference not in {request["head"], head}:
-            raise ValueError("Control or published ref changed during PR metadata wait")
-        if monotonic() >= deadline:
-            raise ValueError("PR metadata did not catch up; published ref retained, no automatic retry")
-        if actual == head and reference == head:
-            return
-        sleep(min(2, max(0,deadline-monotonic())))
-
-
-def publish(api, request, raw, producer, control, source):
-    require_workflow_context(request)
-    pr = require_current_pr(api, request)
-    require_upstream_run(api, request)
-    if git_head(control) != request["control_commit"] or git_head(source) != request["head"]:
-        raise ValueError("Publisher source/control checkout differs")
-    driver.require_control_reporting_tools(source, control)
-    report = verify_report(raw, producer, request, os.environ["GITHUB_RUN_ID"], control, source)
-    _, render, split = reporting_tools(control)
-    readme = source / "README.md"
-    if readme.is_symlink() or not readme.is_file() or readme.stat().st_size > 1024 * 1024:
-        raise ValueError("Invalid README")
-    before, _, after = split(readme.read_text())
-    updated = (before + render(report).rstrip("\n") + after).encode()
-    updated += b"" if updated.endswith(b"\n") else b"\n"
-    payload = (json.dumps(report, indent=2, sort_keys=True) + "\n").encode()
-    if readme.read_bytes() == updated and (source / "docs/code-progress.json").read_bytes() == payload:
-        return request["head"], dispatch_checks(api, request, request["head"])
-    fork = request["head_repository"] != REPOSITORY
-    if fork and (pr.get("maintainer_can_modify") is not True or not os.environ.get("LUCID_FORK_TOKEN")):
-        print("::error::Native compilation succeeded; generated progress was not published. "
-              "Fork writeback requires Allow edits by maintainers and a fork-capable hosted publisher credential.")
-        raise PermissionError("Fork writeback unavailable; original contributor head retained")
-    user = api.request("/users/github-actions%5Bbot%5D")
-    if user.get("login") != BOT or user.get("type") != "Bot" or type(user.get("id")) is not int or user["id"] <= 0:
-        raise ValueError("GitHub Actions bot identity differs")
-    identity = {"name": BOT, "email": f"{user['id']}+{BOT}@users.noreply.github.com"}
-    head = request["head"]
-    commit = api.request(f"/repos/{REPOSITORY}/git/commits/{head}")
-    tree = []
-    for path, data in (("README.md", updated), ("docs/code-progress.json", payload)):
-        blob = api.request(f"/repos/{REPOSITORY}/git/blobs", "POST",
-                           {"content": base64.b64encode(data).decode(), "encoding": "base64"})["sha"]
-        tree.append({"path": path, "mode": "100644", "type": "blob", "sha": blob})
-    tree_sha = api.request(f"/repos/{REPOSITORY}/git/trees", "POST", {"base_tree": commit["tree"]["sha"], "tree": tree})["sha"]
-    created = api.request(f"/repos/{REPOSITORY}/git/commits", "POST", {
-        "message": "Update verified Linux code progress", "tree": tree_sha, "parents": [head],
-        "author": identity, "committer": identity})["sha"]
-    if not isinstance(created, str) or not SHA.fullmatch(created):
-        raise ValueError("Created commit identity differs")
-    require_current_pr(api, request)
-    ref = f"/repos/{request['head_repository']}/git/refs/heads/" + urllib.parse.quote(pr["head"]["ref"], safe="")
-    ref_api = head_api(request) if fork else api
-    if ref_api.request(ref)["object"]["sha"] != head:
-        raise ValueError("Concurrent commit; refuse publication")
-    if fork:
-        # Base-repository bot provenance prevents the PAT/App-triggered PR check
-        # from starting another native refresh of these generated-only changes.
-        api.request(f"/repos/{REPOSITORY}/statuses/{created}", "POST", {
-            "state": "success", "context": PUBLICATION_CONTEXT,
-            "description": "Generated outputs from verified native compilation",
-            "target_url": f"https://github.com/{REPOSITORY}/actions/runs/{os.environ['GITHUB_RUN_ID']}"})
-        push_fork(api, request, source, created)
-    else:
-        api.request(ref, "PATCH", {"sha": created, "force": False})
-    wait_for_published_head(api,request,pr["head"]["ref"],created)
-    return created, dispatch_checks(api, request, created)
-
-
 def encode(value):
     return base64.b64encode(json.dumps(value, separators=(",", ":")).encode()).decode()
 
@@ -667,42 +398,3 @@ def write_outputs(values):
             if "\n" in text or "\r" in text:
                 raise ValueError("Multiline output rejected")
             output.write(key + "=" + text + "\n")
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=("gate", "compile", "seal", "cleanup", "publish"))
-    mode = parser.parse_args().mode
-    api = GitHub()
-    if mode == "cleanup":
-        cleanup_job()
-        return
-    if mode == "gate":
-        event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
-        request = gate(api, event, os.environ["GITHUB_SHA"], int(os.environ.get("PR_NUMBER") or 0), os.environ.get("EXPECTED_HEAD", ""))
-        if request:
-            require_workflow_context(request)
-        write_outputs({"run": "true" if request else "false", "head": request["head"] if request else "",
-                       "request_base64": encode(request) if request else ""})
-        return
-    request = json.loads(base64.b64decode(os.environ["REQUEST_BASE64"], validate=True))
-    require_workflow_context(request)
-    if mode == "compile":
-        compile_job(api, request)
-    elif mode == "seal":
-        seal_job(api, request, json.loads(os.environ["COMPILE_OUTPUTS"]))
-    else:
-        head, runs = publish(api, request, base64.b64decode(os.environ["REPORT_BASE64"], validate=True),
-            json.loads(base64.b64decode(os.environ["PRODUCER_BASE64"], validate=True)), Path("control"), Path("source"))
-        print("Verified output head: " + head)
-        for url in runs:
-            print("Required check run (completion not claimed): " + url)
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        detail="HTTP " + str(error.code) if isinstance(error,urllib.error.HTTPError) else type(error).__name__
-        print("Native progress failed ("+detail+"); inspect sanitized run state or private VM diagnostics", file=sys.stderr)
-        sys.exit(1)

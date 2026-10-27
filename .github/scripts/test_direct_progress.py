@@ -145,26 +145,6 @@ class DirectProgressTests(unittest.TestCase):
         self.addCleanup(self.environment.stop)
         self.api = direct.GitHub()
 
-    def publish(self):
-        return direct.publish(self.api, self.http.request, self.http.raw, self.http.producer, ROOT, ROOT)
-
-    def test_publish_only_generated_files_with_bot_author_committer_and_explicit_required_checks(self):
-        head, runs = self.publish()
-        self.assertEqual("2" * 40, head)
-        self.assertEqual(2, len(runs))
-        created = next(c for c in self.http.calls if c["method"] == "POST" and c["path"].endswith("/git/commits"))
-        identity = {"name": direct.BOT, "email": "41898282+github-actions[bot]@users.noreply.github.com"}
-        self.assertEqual(identity, created["body"]["author"])
-        self.assertEqual(identity, created["body"]["committer"])
-        self.assertEqual([self.http.head], created["body"]["parents"])
-        tree = next(c for c in self.http.calls if c["path"].endswith("/git/trees"))
-        self.assertEqual({"README.md", "docs/code-progress.json"}, {r["path"] for r in tree["body"]["tree"]})
-        patch = next(c for c in self.http.calls if c["method"] == "PATCH")
-        self.assertEqual({"sha": head, "force": False}, patch["body"])
-        dispatches = [c for c in self.http.calls if c["path"].endswith("/dispatches")]
-        self.assertEqual(list(direct.CHECK_WORKFLOWS), [c["path"].split("/")[-2] for c in dispatches])
-        self.assertTrue(all(c["body"] == {"ref": "owner-progress", "inputs": {"expected_head": head}} for c in dispatches))
-        self.assertTrue(all(c["headers"]["Authorization"] == "Bearer job-token" for c in self.http.calls))
 
     def test_non_pr_check_completions_do_not_loop(self):
         for event in ("push", "workflow_dispatch"):
@@ -221,7 +201,7 @@ class DirectProgressTests(unittest.TestCase):
                 self.assertIsNone(direct.gate(self.api, event, self.http.head))
         self.assertFalse(self.http.calls)
 
-    def test_platform_run_must_be_completed_for_exact_head_including_manual_dispatch(self):
+    def test_platform_run_must_be_completed_for_exact_head_(self):
         self.fork()
         for key, value in (("status", "waiting"), ("conclusion", "action_required"),
                            ("event", "push"), ("workflow_id", 10), ("head_sha", "a" * 40),
@@ -231,165 +211,12 @@ class DirectProgressTests(unittest.TestCase):
             self.http.upstream[key] = value
             with self.subTest(key=key):
                 self.assertIsNone(direct.gate(self.api, event, self.http.head))
-                self.assertIsNone(direct.gate(self.api, {}, self.http.head, 7, self.http.head))
             self.http.upstream = saved
         self.http.upstream["conclusion"] = "failure"
         self.assertEqual(self.http.request, direct.gate(self.api, self.event(), self.http.head))
-        self.assertEqual(self.http.request, direct.gate(self.api, {}, self.http.head, 7, self.http.head))
+        # Without a workflow_run event there is no admitted upstream run.
+        self.assertIsNone(direct.gate(self.api, {}, self.http.head))
 
-    def test_unapproved_platform_run_never_fetches_or_compiles(self):
-        self.fork()
-        self.http.upstream["status"] = "waiting"
-        with mock.patch.object(direct, "checkout") as fetch, mock.patch.object(direct, "run_compiler") as run:
-            with self.assertRaisesRegex(ValueError, "Completed exact-head"):
-                direct.compile_job(self.api, self.http.request)
-        fetch.assert_not_called()
-        run.assert_not_called()
-
-    def test_generated_loop_requires_base_bot_provenance_and_successful_trusted_compilation(self):
-        status = {"context": direct.PUBLICATION_CONTEXT, "state": "success", "creator": {"login": direct.BOT},
-                  "target_url": f"https://github.com/{direct.REPOSITORY}/actions/runs/456"}
-        self.http.statuses = [status]
-        self.assertIsNone(direct.gate(self.api, self.event(), self.http.head))
-        for key, value in (("creator", {"login": "KyleO6"}), ("state", "failure"),
-                           ("target_url", "https://github.com/KyleO6/project-lucid/actions/runs/456")):
-            self.http.statuses = [dict(status, **{key: value})]
-            with self.subTest(key=key):
-                self.assertEqual(self.http.request, direct.gate(self.api, self.event(), self.http.head))
-        self.http.statuses = [status]
-        for key, value in (("path", ".github/workflows/other.yml"), ("head_sha", "a" * 40),
-                           ("event", "pull_request")):
-            saved = copy.deepcopy(self.http.native_run)
-            self.http.native_run[key] = value
-            with self.subTest(key=key):
-                self.assertEqual(self.http.request, direct.gate(self.api, self.event(), self.http.head))
-            self.http.native_run = saved
-        for conclusion in (None, "failure", "cancelled"):
-            self.http.native_run["conclusion"] = conclusion
-            with self.subTest(publisher_conclusion=conclusion):
-                self.assertIsNone(direct.gate(self.api, self.event(), self.http.head))
-        for jobs in ([], [{"name": "Native compilation and evidence", "status": "completed",
-                          "conclusion": "failure"}],
-                     [{"name": "Native compilation and evidence", "status": "in_progress",
-                       "conclusion": None}],
-                     [{"name": "other", "status": "completed", "conclusion": "success"}]):
-            self.http.native_jobs = jobs
-            with self.subTest(jobs=jobs):
-                self.assertEqual(self.http.request, direct.gate(self.api, self.event(), self.http.head))
-
-    def test_fork_missing_publisher_access_fails_before_any_write(self):
-        self.fork()
-        for token, allow in (("", True), ("publisher-only-fixture", False)):
-            self.http.pr["maintainer_can_modify"] = allow
-            with self.subTest(token=bool(token)), mock.patch.dict(os.environ, {"LUCID_FORK_TOKEN": token}), \
-                 mock.patch("sys.stdout", new_callable=io.StringIO):
-                with self.assertRaisesRegex(PermissionError, "original contributor head retained"):
-                    self.publish()
-            self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
-
-    def checks(self, head):
-        return [dict(self.http.upstream, id=800, head_sha=head,
-                     html_url=f"https://github.com/{direct.REPOSITORY}/actions/runs/800")]
-
-    def test_fork_publish_preserves_original_parent_and_observes_actual_pr_checks(self):
-        self.fork()
-        head = "2" * 40
-        self.http.fork_checks = self.checks(head)
-        def push(api, request, source, created):
-            self.assertEqual(head, created)
-            self.assertEqual(self.http.head, request["head"])
-            self.http.reference = created
-            self.http.pr["head"]["sha"] = created
-        with mock.patch.dict(os.environ, {"LUCID_FORK_TOKEN": "publisher-only-fixture"}), \
-             mock.patch.object(direct, "push_fork", side_effect=push) as pushed:
-            published, runs = self.publish()
-        self.assertEqual(head, published)
-        self.assertEqual(2, len(runs))
-        pushed.assert_called_once()
-        created = next(c for c in self.http.calls if c["path"].endswith("/git/commits") and c["method"] == "POST")
-        self.assertEqual([self.http.head], created["body"]["parents"])
-        self.assertEqual(direct.BOT, created["body"]["author"]["name"])
-        self.assertFalse(any(c["path"].endswith("/dispatches") for c in self.http.calls))
-        self.assertFalse(any(c["method"] == "PATCH" for c in self.http.calls))
-        fork_reads = [c for c in self.http.calls if c["path"].startswith("/repos/KyleO6/")]
-        self.assertTrue(fork_reads)
-        self.assertTrue(all("Authorization" not in c["headers"] for c in fork_reads))
-
-    def test_fork_checks_cannot_claim_default_branch_or_stale_head_runs(self):
-        self.fork()
-        self.http.fork_checks = self.checks("a" * 40)
-        with self.assertRaisesRegex(ValueError, "checks not observed"):
-            direct.wait_for_fork_checks(self.api, self.http.request, self.http.head, seconds=0)
-        self.http.fork_checks = self.checks(self.http.head)
-        self.http.fork_checks[0]["head_repository"]["full_name"] = direct.REPOSITORY
-        with self.assertRaisesRegex(ValueError, "checks not observed"):
-            direct.wait_for_fork_checks(self.api, self.http.request, self.http.head, seconds=0)
-        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
-
-    def test_failed_fork_checks_are_observed_without_rewriting_their_results(self):
-        self.fork()
-        self.http.fork_checks = self.checks(self.http.head)
-        self.http.fork_checks[0]["conclusion"] = "failure"
-        before = copy.deepcopy(self.http.fork_checks)
-        runs = direct.wait_for_fork_checks(self.api, self.http.request, self.http.head)
-        self.assertEqual(2, len(runs))
-        self.assertEqual(before, self.http.fork_checks)
-        self.assertFalse(any(call["method"] != "GET" for call in self.http.calls))
-
-    def test_fork_push_uses_only_hosted_credential_and_atomic_exact_parent_lease(self):
-        self.fork()
-        with mock.patch.dict(os.environ, {"LUCID_FORK_TOKEN": "publisher-only-fixture", "GITHUB_TOKEN": "never-child"}), \
-             mock.patch.object(direct.subprocess, "run") as git:
-            direct.push_fork(self.api, self.http.request, ROOT, "2" * 40)
-        push = git.call_args_list[-1]
-        command = push.args[0]
-        self.assertIn("--force-with-lease=refs/heads/owner-progress:" + self.http.head, command)
-        self.assertIn("https://github.com/KyleO6/project-lucid.git", command)
-        self.assertIn("2" * 40 + ":refs/heads/owner-progress", command)
-        self.assertNotIn("publisher-only-fixture", " ".join(command))
-        self.assertEqual("publisher-only-fixture", push.kwargs["env"]["LUCID_FORK_TOKEN"])
-        self.assertNotIn("GH_TOKEN", push.kwargs["env"])
-        self.assertNotIn("GITHUB_TOKEN", push.kwargs["env"])
-
-    def test_real_git_fork_push_preserves_concurrent_contributor_commit(self):
-        self.fork()
-        execute = subprocess.run
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            control, source, remote = root / "control", root / "source", root / "fork.git"
-            # Fetch, commit and receive-pack otherwise start a detached
-            # `git maintenance run --auto` that can still write into .git
-            # while the temporary directory is being removed.
-            quiet = ["--config", "maintenance.auto=false", "--config", "gc.auto=0",
-                     "--config", "gc.autoDetach=false"]
-            execute(["git", "clone", "-q", *quiet, "--shared", str(ROOT), str(control)], check=True)
-            execute(["git", "clone", "-q", *quiet, "--shared", str(control), str(source)], check=True)
-            execute(["git", "clone", "-q", *quiet, "--bare", str(control), str(remote)], check=True)
-            ref = "refs/heads/owner-progress"
-            execute(["git", "update-ref", ref, self.http.head], cwd=remote, check=True)
-            (control / "README.md").write_text("Generated-only fixture\n")
-            execute(["git", "add", "README.md"], cwd=control, check=True)
-            execute(["git", "-c", "user.name=" + direct.BOT, "-c", "user.email=fixture@example.invalid",
-                     "commit", "-qm", "Generated fixture"], cwd=control, check=True)
-            created = direct.git_head(control)
-            def local_git(command, **kwargs):
-                command = [str(remote) if item == "https://github.com/KyleO6/project-lucid.git" else item
-                           for item in command]
-                return execute(command, **kwargs)
-            with mock.patch.dict(os.environ, {"LUCID_FORK_TOKEN": "publisher-only-fixture"}), \
-                 mock.patch.object(direct.subprocess, "run", side_effect=local_git):
-                direct.push_fork(self.api, self.http.request, source, created)
-                self.assertEqual(created, subprocess.check_output(["git", "rev-parse", ref], cwd=remote, text=True).strip())
-                # A contributor advances the actual remote after our API read.
-                (control / "README.md").write_text("Concurrent contributor fixture\n")
-                execute(["git", "add", "README.md"], cwd=control, check=True)
-                execute(["git", "-c", "user.name=Contributor", "-c", "user.email=fixture@example.invalid",
-                         "commit", "-qm", "Concurrent fixture"], cwd=control, check=True)
-                concurrent = direct.git_head(control)
-                execute(["git", "push", "-q", str(remote), "HEAD:" + ref], cwd=control, check=True)
-                with self.assertRaises(subprocess.CalledProcessError):
-                    direct.push_fork(self.api, self.http.request, source, created)
-                self.assertEqual(concurrent, subprocess.check_output(["git", "rev-parse", ref], cwd=remote, text=True).strip())
 
     def test_compiler_environment_excludes_controller_tokens_and_output_channels(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -405,47 +232,6 @@ class DirectProgressTests(unittest.TestCase):
             for key in ("GH_TOKEN", "GITHUB_OUTPUT", "REQUEST_BASE64", "LUCID_FORK_TOKEN"):
                 self.assertNotIn(key, environment)
 
-    def test_forged_bot_report_cannot_skip_real_compilation(self):
-        original = copy.deepcopy(self.http.report)
-        for schema in (1, 2, 3):
-            with self.subTest(schema=schema):
-                forged = copy.deepcopy(original)
-                forged["schema_version"] = schema
-                row = next(row for row in forged["assemblies"]
-                           if row.get("measurement_status", "measured") == "measured"
-                           and row["not_implemented"] > 0)
-                if schema == 1:
-                    for assembly in forged["assemblies"]:
-                        assembly.pop("measurement_status", None)
-                        assembly.pop("unavailable_reason", None)
-                for counts in (row, forged["totals"]):
-                    counts["implemented_source_bodies"] += 1
-                    counts["not_implemented"] -= 1
-                forged["compiler_receipt_sha256"] = "0" * 64
-                # Self-consistent counts still cannot prove compiler provenance.
-                direct.reporting_tools(ROOT)[0](forged, ROOT)
-                self.http.report = forged
-                self.http.raw = (json.dumps(forged, indent=2, sort_keys=True) + "\n").encode()
-                with self.assertRaisesRegex(ValueError, "Report differs from protected real compiler outputs"):
-                    direct.verify_report(self.http.raw, self.http.producer, self.http.request, "456", ROOT, ROOT)
-                self.http.calls.clear()
-                event = self.event()
-                event["workflow_run"]["actor"] = {"login": direct.BOT}
-                with tempfile.TemporaryDirectory() as directory:
-                    path = Path(directory) / "event.json"
-                    output = Path(directory) / "output"
-                    path.write_text(json.dumps(event))
-                    with mock.patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(path), "GITHUB_OUTPUT": str(output)}), \
-                         mock.patch.object(sys, "argv", ["direct_progress", "gate"]), \
-                         mock.patch.object(direct, "reporting_tools") as report_tools:
-                        direct.main()
-                        report_tools.assert_not_called()
-                    self.assertIn("run=true\n", output.read_text())
-                self.assertFalse(any(c["path"].endswith("/commits/" + self.http.head)
-                                     or "/contents/" in c["path"] for c in self.http.calls))
-        workflow=(ROOT/".github/workflows/native-progress.yml").read_text()
-        self.assertIn("compile: ${{ steps.gate.outputs.run }}",workflow)
-        self.assertNotIn("recheck",workflow)
 
     def test_current_head_gate_and_stale_or_changed_identity_skips(self):
         event = self.event()
@@ -458,227 +244,14 @@ class DirectProgressTests(unittest.TestCase):
             self.assertIsNone(direct.gate(self.api, event, self.http.head))
             self.http.pr = saved
 
-    def test_stale_control_and_default_branch_publication_rejected(self):
-        self.http.default = "a" * 40
-        with self.assertRaisesRegex(ValueError, "Control changed"):
-            self.publish()
-        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
-        self.http.default = self.http.head
-        self.http.pr["head"]["ref"] = "main"
-        with self.assertRaises(ValueError):
-            self.publish()
-
-    def test_forged_or_missing_compilation_outputs_rejected_before_write(self):
-        for key in direct.PRODUCER_FIELDS:
-            producer = dict(self.http.producer, **{key: "0" * 64})
-            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "protected real compiler"):
-                direct.publish(self.api, self.http.request, self.http.raw, producer, ROOT, ROOT)
-        with self.assertRaises(ValueError):
-            direct.publish(self.api, self.http.request, self.http.raw, {}, ROOT, ROOT)
-        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
-
-    def test_source_fingerprint_and_private_report_fields_rejected(self):
-        for key, value in (("source_fingerprint", "a" * 64), ("private_inventory", ["input.app"])):
-            report = dict(self.http.report, **{key: value})
-            raw = json.dumps(report).encode()
-            with self.subTest(key=key), self.assertRaises(ValueError):
-                direct.publish(self.api, self.http.request, raw, self.http.producer, ROOT, ROOT)
-        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
-
-    def test_original_input_and_reporting_tool_integrity_rejected(self):
-        # The retired e94d/88af pair is no longer a declared variant. Rejection of
-        # pairs that differ from the approval is covered in test_native_compilation.
-        retired = dict(self.http.report,
-                       input_binary_sha256="e94d984c0bc726a3a66ed0b39785d5166f92aa4356b3dd742fce098d42521987",
-                       input_metadata_sha256="88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837")
-        with self.assertRaisesRegex(ValueError, "variant is not declared"):
-            direct.verify_report(json.dumps(retired).encode(), self.http.producer, self.http.request, "456", ROOT)
-        undeclared = dict(self.http.report, input_binary_sha256="a" * 64)
-        with self.assertRaisesRegex(ValueError, "variant is not declared"):
-            direct.verify_report(json.dumps(undeclared).encode(), self.http.producer, self.http.request, "456", ROOT)
-        with mock.patch.object(direct.driver, "require_control_reporting_tools", side_effect=ValueError("tools differ")), self.assertRaises(ValueError):
-            self.publish()
-        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
-
-    def test_concurrent_head_and_ref_rejected_before_push(self):
-        for change in ("head", "ref"):
-            self.http.calls.clear()
-            self.http.reference = self.http.head
-            self.http.pr["head"]["sha"] = self.http.head
-            def race(call):
-                if call["method"] == "POST" and call["path"].endswith("/git/commits"):
-                    if change == "head":
-                        self.http.pr["head"]["sha"] = "a" * 40
-                    else:
-                        self.http.reference = "a" * 40
-            self.http.on_call = race
-            with self.subTest(change=change), self.assertRaises(ValueError):
-                self.publish()
-            self.assertFalse(any(c["method"] == "PATCH" for c in self.http.calls))
-
-    def test_uncertain_dispatch_does_not_retry_or_claim_checks_complete(self):
-        self.http.dispatch_response = False
-        with self.assertRaisesRegex(ValueError, "uncertain"):
-            self.publish()
-        self.assertEqual(1, len([c for c in self.http.calls if c["path"].endswith("/dispatches")]))
-        self.assertEqual(1, len([c for c in self.http.calls if c["method"] == "PATCH"]))
-
-    def test_head_changes_after_push_prevents_dispatch(self):
-        def race(call):
-            if call["method"] == "GET" and call["path"].endswith("/pulls/7") and self.http.reference == "2" * 40:
-                self.http.pr["head"]["sha"] = "3" * 40
-        self.http.on_call = race
-        with self.assertRaises(ValueError):
-            self.publish()
-        self.assertFalse(any(c["path"].endswith("/dispatches") for c in self.http.calls))
-
-    def test_pr_metadata_can_lag_only_while_published_ref_stays_exact(self):
-        head="2"*40
-        self.http.reference=head
-        clock=[0]
-        def catch_up(seconds):
-            clock[0]+=seconds
-            self.http.pr["head"]["sha"]=head
-        direct.wait_for_published_head(self.api,self.http.request,"owner-progress",head,
-                                      sleep=catch_up,monotonic=lambda:clock[0],seconds=10)
-        self.assertEqual(2,clock[0])
-        self.http.pr["head"]["sha"]=self.http.head
-        self.http.reference="3"*40
-        with self.assertRaisesRegex(ValueError,"published ref changed"):
-            direct.wait_for_published_head(self.api,self.http.request,"owner-progress",head,
-                                          sleep=catch_up,monotonic=lambda:clock[0])
-
-    def test_pr_metadata_timeout_never_dispatches_or_repushes(self):
-        self.http.reference="2"*40
-        clock=[0]
-        with self.assertRaisesRegex(ValueError,"did not catch up"):
-            direct.wait_for_published_head(self.api,self.http.request,"owner-progress","2"*40,
-                sleep=lambda seconds:clock.__setitem__(0,clock[0]+seconds),monotonic=lambda:clock[0],seconds=3)
-        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
-
-    def test_fork_ref_and_pr_api_can_each_lag_after_atomic_push(self):
-        self.fork()
-        head = "2" * 40
-        for first in ("ref", "pr"):
-            self.http.reference = self.http.head
-            self.http.pr["head"]["sha"] = self.http.head
-            clock = [0]
-            def catch_up(seconds):
-                clock[0] += seconds
-                if first == "ref" or clock[0] >= 4:
-                    self.http.reference = head
-                if first == "pr" or clock[0] >= 4:
-                    self.http.pr["head"]["sha"] = head
-            with self.subTest(first=first):
-                direct.wait_for_published_head(self.api, self.http.request, "owner-progress", head,
-                    sleep=catch_up, monotonic=lambda: clock[0], seconds=10)
-                self.assertEqual(4, clock[0])
-        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
-
-    def test_fork_ref_api_staying_at_parent_times_out_without_writes(self):
-        self.fork()
-        self.http.pr["head"]["sha"] = "2" * 40
-        clock = [0]
-        with self.assertRaisesRegex(ValueError, "did not catch up"):
-            direct.wait_for_published_head(self.api, self.http.request, "owner-progress", "2" * 40,
-                sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds),
-                monotonic=lambda: clock[0], seconds=3)
-        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
-
-
-    def test_failed_pr_preflight_never_fetches_or_invokes_compiler(self):
-        self.http.pr["draft"] = True
-        with mock.patch.object(direct, "checkout") as fetch, mock.patch.object(direct.subprocess, "run") as run, self.assertRaises(ValueError):
-            direct.compile_job(self.api, self.http.request)
-        fetch.assert_not_called()
-        run.assert_not_called()
 
     def test_wrong_repository_and_rerun_context_rejected(self):
         for key, value in (("GITHUB_REPOSITORY", "dev-camo/other"), ("GITHUB_RUN_ATTEMPT", "2"), ("GITHUB_SHA", "a" * 40)):
             with self.subTest(key=key), mock.patch.dict(os.environ, {key: value}), self.assertRaises(ValueError):
                 direct.require_workflow_context(self.http.request)
 
-    def test_seal_binds_report_to_actual_compiler_step_outputs_and_rejects_tampering(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory).resolve()
-            # These are fixture checkouts, not compiler results or production evidence.
-            for name in ("source", "control"):
-                subprocess.run(["git", "clone", "-q", "--shared", str(ROOT), str(root / name)], check=True)
-            # Model the actual compiler checkout, whose contents can differ from a dirty parent.
-            self.http.bind_report_to_source(root / "source")
-            (root / "request.json").write_text(json.dumps(self.http.request))
-            (root / "code-progress.json").write_bytes(self.http.raw)
-            with mock.patch.object(direct, "job_root", return_value=root), \
-                 mock.patch.object(direct, "write_outputs") as outputs:
-                direct.seal_job(self.api, self.http.request, self.http.producer)
-                emitted = outputs.call_args.args[0]
-                self.assertEqual(self.http.raw, base64.b64decode(emitted["report_base64"]))
-                self.assertEqual(self.http.producer, json.loads(base64.b64decode(emitted["producer_base64"])))
-                outputs.reset_mock()
-                report = copy.deepcopy(self.http.report)
-                report["compiler_receipt_sha256"] = "a" * 64
-                (root / "code-progress.json").write_text(json.dumps(report))
-                with self.assertRaisesRegex(ValueError, "protected real compiler"):
-                    direct.seal_job(self.api, self.http.request, self.http.producer)
-                outputs.assert_not_called()
-                (root / "code-progress.json").write_bytes(self.http.raw)
-                (root / "request.json").write_text(json.dumps(dict(self.http.request, head="a" * 40)))
-                with self.assertRaisesRegex(ValueError, "Local source/control/request"):
-                    direct.seal_job(self.api, self.http.request, self.http.producer)
 
-    def test_seal_rejects_report_after_actual_source_changes_without_head_change(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory).resolve()
-            for name in ("source", "control"):
-                subprocess.run(["git", "clone", "-q", "--shared", str(ROOT), str(root / name)], check=True)
-            self.http.bind_report_to_source(root / "source")
-            (root / "source/Assets/seal-fixture-stale-source.txt").write_text("Changed after modeled compilation\n")
-            self.assertEqual(self.http.head, direct.git_head(root / "source"))
-            self.assertEqual(self.http.head, direct.git_head(root / "control"))
-            self.assertNotEqual(self.http.report["source_fingerprint"], artifact_fingerprint(root / "source"))
-            self.assertEqual(self.http.report["source_fingerprint"], self.http.producer["source_fingerprint"])
-            self.assertEqual(hashlib.sha256(self.http.raw).hexdigest(), self.http.producer["report_sha256"])
-            (root / "request.json").write_text(json.dumps(self.http.request))
-            (root / "code-progress.json").write_bytes(self.http.raw)
-            with mock.patch.object(direct, "job_root", return_value=root), \
-                 mock.patch.object(direct, "write_outputs") as outputs:
-                with self.assertRaisesRegex(ValueError, "Public code-work snapshot is stale for this source/scope"):
-                    direct.seal_job(self.api, self.http.request, self.http.producer)
-                outputs.assert_not_called()
-
-    def test_seal_fixture_uses_actual_checkout_when_parent_has_unrelated_dirty_source(self):
-        with tempfile.TemporaryDirectory() as directory:
-            parent = Path(directory).resolve() / "parent"
-            subprocess.run(["git", "clone", "-q", "--shared", str(ROOT), str(parent)], check=True)
-            clean_fingerprint = artifact_fingerprint(parent)
-            marker = parent / "Assets/seal-fixture-dirty-parent.txt"
-            marker.write_text("Unrelated uncommitted fixture source\n")
-            dirty_fingerprint = artifact_fingerprint(parent)
-            self.assertEqual(self.http.head, direct.git_head(parent))
-            self.assertNotEqual(clean_fingerprint, dirty_fingerprint)
-            # Re-run every original seal assertion with a dirty parent and committed fixture checkouts.
-            previous = Path.cwd()
-            try:
-                os.chdir(parent)
-                with mock.patch.object(sys.modules[__name__], "ROOT", parent):
-                    case = type(self)("test_seal_binds_report_to_actual_compiler_step_outputs_and_rejects_tampering")
-                    try:
-                        case.setUp()
-                        self.assertEqual(dirty_fingerprint, case.http.report["source_fingerprint"])
-                        case.test_seal_binds_report_to_actual_compiler_step_outputs_and_rejects_tampering()
-                    finally:
-                        case.doCleanups()
-            finally:
-                os.chdir(previous)
-            self.assertEqual(self.http.head, direct.git_head(parent))
-            self.assertEqual("Unrelated uncommitted fixture source\n", marker.read_text())
-            self.assertEqual(dirty_fingerprint, artifact_fingerprint(parent))
-
-    def test_check_dispatch_ref_race_and_foreign_api_paths_fail_closed(self):
-        self.http.reference = "a" * 40
-        with self.assertRaisesRegex(ValueError, "Head changed"):
-            direct.dispatch_checks(self.api, self.http.request, self.http.head)
-        self.assertFalse(any(c["method"] == "POST" for c in self.http.calls))
+    def test_foreign_api_paths_fail_closed(self):
         with self.assertRaisesRegex(ValueError, "Foreign API"):
             self.api.request("/repos/dev-camo/other/git/refs/heads/main", "PATCH", {})
 
@@ -713,17 +286,6 @@ class DirectProgressTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "still active"):
                 direct.require_stopped_marker(marker)
 
-
-    def test_bounded_report_and_bot_identity_do_not_allow_publication(self):
-        with self.assertRaisesRegex(ValueError, "exceeds bound"):
-            direct.verify_report(b" " * (direct.MAX_REPORT_BYTES + 1), self.http.producer, self.http.request, "456", ROOT)
-        for field, value in (("login", "dev-camo"), ("id", True), ("type", "User")):
-            original = self.http.bot[field]
-            self.http.bot[field] = value
-            with self.subTest(field=field), self.assertRaisesRegex(ValueError, "bot identity"):
-                self.publish()
-            self.http.bot[field] = original
-        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
 
     def test_cleanup_removes_only_run_checkouts_without_following_symlinks(self):
         with tempfile.TemporaryDirectory() as directory:
