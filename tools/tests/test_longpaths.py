@@ -1,3 +1,4 @@
+import io
 import sys
 import unittest
 from pathlib import Path
@@ -60,6 +61,20 @@ class LongPathStatusTests(unittest.TestCase):
         unreadable = self.run_doctor("unreadable")
         self.assertEqual(unreadable["long_paths"], "unreadable")
         self.assertIn("Could not read", unreadable["errors"][0])
+        # A reported error fails the check; a clean host completes (#578).
+        self.assertEqual("complete", enabled["status"])
+        self.assertEqual("failed", disabled["status"])
+        self.assertEqual("failed", unreadable["status"])
+
+    def test_doctor_exit_status_follows_its_errors(self):
+        import lucid
+        for status, code in (("enabled", 0), ("disabled", 1), ("unreadable", 1)):
+            with self.subTest(status=status), patch.object(project, "long_paths_status", return_value=status), \
+                    patch.object(project.shutil, "which", return_value=None), \
+                    patch.object(lucid, "write_report", return_value=Path("doctor.json")) as written, \
+                    patch("sys.stdout", new_callable=io.StringIO):
+                self.assertEqual(code, lucid.main(["doctor"]))
+                self.assertEqual("doctor.json", written.call_args.args[1])
 
 
 

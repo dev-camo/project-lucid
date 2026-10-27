@@ -47,7 +47,8 @@ def doctor(repo_root, work_dir):
     elif long_paths == "unreadable":
         errors.append("Could not read the Windows long-path setting (LongPathsEnabled); if inspection reports "
                       "missing or unreadable files, check it. " + ENABLE_HELP)
-    return {"status": "complete", "python": sys.version.split()[0], "host": platform.system(),
+    # A reported error is a failed check, so the command exits nonzero (docs/setup.md).
+    return {"status": "failed" if errors else "complete", "python": sys.version.split()[0], "host": platform.system(),
             "architecture": platform.machine(), "tools": tools, "editors": editors, "long_paths": long_paths,
             "required_editor": UNITY_VERSION, "work_dir": str(work_dir), "errors": errors,
             "message": "Inspection uses Python only; extraction requires bootstrapped tools, and project work requires the matching Editor."}
