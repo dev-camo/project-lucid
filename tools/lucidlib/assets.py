@@ -241,8 +241,10 @@ def _assert_no_symlinks(root: Path) -> None:
 
 
 def _is_code(path: Path) -> bool:
+    # Code is decided by kind, not folder: a code file, or a file inside a code container such as a .bundle.
+    # Serialized data under an authored Plugins or Scripts folder (MeshCombineStudio's prefab) is ordinary data.
     asset = Path(str(path)[:-5]) if path.suffix.lower() == ".meta" else path
-    return asset.suffix.lower() in CODE_EXTENSIONS or any(part.lower() in {"scripts", "plugins"} for part in asset.parts)
+    return any(Path(part).suffix.lower() in CODE_EXTENSIONS for part in asset.parts)
 
 
 def _is_compiled_shader(path: Path) -> bool:
@@ -1037,10 +1039,15 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     mapped_assets = {row["path"]: row for row in mapping["assets"]}
     material_path_counts = Counter(row["path"] for row in mapping["assets"])
     material_guid_counts = Counter(row["guid"] for row in mapping["assets"])
-    quarantined_guids = {row["guid"] for row in mapping["assets"] if row["code_quarantined"]}
+    # Quarantine follows the copy rule below, so an asset map exported under an older rule cannot hide a copied asset.
+    quarantined_guids = {row["guid"] for row in mapping["assets"] if _is_code(Path(row["path"]))}
     shader_guids = {row["guid"] for row in mapping["assets"] if row.get("shader_quarantined")}
-    dangling = sorted({guid for row in mapping["assets"] if not row["code_quarantined"]
+    dangling = sorted({guid for row in mapping["assets"] if not _is_code(Path(row["path"]))
                        for guid in row["script_references"] if guid in quarantined_guids and guid not in bound_guids})
+    # Non-script references (prefabs, materials, ...) to a quarantined asset are reported too.
+    dangling_objects = sorted({guid for row in mapping["assets"] if not _is_code(Path(row["path"]))
+                               for guid in set(row.get("references", [])) - set(row["script_references"])
+                               if guid in quarantined_guids})
     assets.mkdir(exist_ok=True)
     staging = _physical_path(assets / (".lucid-assets-" + uuid.uuid4().hex))
     staging.mkdir()
@@ -1146,6 +1153,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                       "material_shader_normalization": {"status": "complete" if binding_release else "not_applicable",
                                                         "assets": material_assets},
                       "backup_paths": [str(path) for path in backups], "quarantined_script_guids": dangling,
+                      "quarantined_object_reference_guids": dangling_objects,
                       "script_bindings": {**script_bindings, "references_modified": bool(rebound_assets), "assets": rebound_assets},
                       "render_pipeline": dict(render_pipeline, unresolved_shader_slots=sorted(
                           {(entry["slot"], entry["exported_guid"]) for asset in rebound_assets
