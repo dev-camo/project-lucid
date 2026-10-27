@@ -39,15 +39,20 @@ struct Varyings
     float4 viewDirectionWS : TEXCOORD1;
 };
 
-// Both templates give the screen UV, flipped vertically unless _FlipY is set.
+// Both templates (Shader Graph 14 FullscreenCommon.hlsl) give the screen UV from the clip position at the near
+// clip value, flipped vertically unless _FlipY is set on APIs whose UVs start at the top. Metal, the decoded
+// target, takes the flip unconditionally.
 Varyings FullscreenVaryings(float2 positionNDC)
 {
     Varyings output;
-    output.positionCS = float4(positionNDC, 1.0, 1.0);
-    float2 uv = positionNDC * 0.5 + 0.5;
-    output.uv = float4(uv.x, _FlipY < 0.5 ? 1.0 - uv.y : uv.y, 1.0, 1.0);
+    output.positionCS = float4(positionNDC, UNITY_NEAR_CLIP_VALUE, 1.0);
+    output.uv = output.positionCS * 0.5 + 0.5;
+#if UNITY_UV_STARTS_AT_TOP
+    if (_FlipY < 0.5)
+        output.uv.y = 1.0 - output.uv.y;
+#endif
     // The shipped templates retain an unnormalized view direction from the unflipped clip position.
-    float4 positionWS = mul(UNITY_MATRIX_I_VP, float4(positionNDC, 1.0, 1.0));
+    float4 positionWS = mul(UNITY_MATRIX_I_VP, output.positionCS);
     float3 viewDirection = _WorldSpaceCameraPos - positionWS.xyz / positionWS.w;
     output.viewDirectionWS = float4(unity_OrthoParams.w == 0.0 ? viewDirection : UNITY_MATRIX_V[2].xyz, 0.0);
     return output;
