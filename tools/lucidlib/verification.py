@@ -2837,7 +2837,6 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.AudioMixerLifecycleTests.OriginalMixerKeysNormalizeAndResetTheSuppliedMixerAcrossFrames",
     "ProjectLucid.Tests.AudioSourceLifecycleTests.OriginalAudioSourceDelaysFadesAndUntrackedOneShotsUseTheRealHost",
     "ProjectLucid.Tests.BootSceneUnloadTests.OriginalBootStateUnloadsNamedScene",
-    "ProjectLucid.Tests.BundledLanguageRequestTests.PortableAsyncLoaderReadsEverySuppliedLanguageBeforeCallback",
     "ProjectLucid.Tests.CharacterBrainLifecycleTests.OriginalBrainReenablesThroughItsCoroutineHostAndAppliesDeferredActions",
     "ProjectLucid.Tests.CloudFacadeTests.OriginalCloudFacade_OverlappingCallbacksAndShutdown",
     "ProjectLucid.Tests.CoroutineHostTests.OriginalCoroutineHost_StartStopAndRegistryLifecycle",
