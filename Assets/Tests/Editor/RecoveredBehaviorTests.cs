@@ -127,7 +127,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void OriginalSplineMathRetainsCachingApproximationAndAliasedOutputs()
         {
-            Assert.That(ProjectLucid.Editor.SplineMathVerification.RunManaged(), Is.EqualTo(197));
+            Assert.That(ProjectLucid.Editor.SplineMathVerification.RunManaged(), Is.EqualTo(199));
             Assert.That(ProjectLucid.Editor.SplineMathVerification.RunEngine(), Is.EqualTo(26));
         }
 

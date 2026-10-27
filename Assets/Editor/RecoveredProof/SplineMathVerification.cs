@@ -131,6 +131,7 @@ namespace ProjectLucid.Editor
             Check(Bezier.FindNearestPointOnSpline(new Vector3(-100,-200,-300),control)>0 && Bezier.FindNearestPointOnSpline(new Vector3(-100,-200,-300),control)<0.002,"Bezier endpoint approach stays interior");
             Check(Bezier.FindNearestPointOnSpline(Vector3.zero,control,0.5f)==0.5f,"Bezier large epsilon early midpoint");
             Check(Bezier.FindNearestPointOnSpline(Vector3.zero,degenerate,-1f)==0.5f,"Bezier negative epsilon bounded by1000");
+            Check(Bezier.FindNearestPointOnSpline(new Vector3(float.NaN,0,0),control)==0.5f,"Bezier NaN distances fail the ordered move tests and keep the midpoint");
             var asymmetricCat=asymmetric;
             Check(Near(CatmullRom.PointAlongSpline(0.5f,ref asymmetricCat),new Vector3(4.9375f,-3.8125f,2.625f)),"Catmull asymmetric native coefficient evaluation");
             Check(asymmetricCat.m_cacheVector1==new Vector3(8,-16,4) && asymmetricCat.m_cacheVector2==new Vector3(3,3,-2),"Catmull asymmetric first/second cache literals");
@@ -167,6 +168,8 @@ namespace ProjectLucid.Editor
             Check(catLength.m_cacheSet,"Catmull length mutates ref cache");
             Check(Near(CatmullRom.CalculateSegmentLengthRecursive(1,0,ref catLength),Mathf.Sqrt(14)),"Catmull reverse segment");
             Check(CatmullRom.FindNearestPointOnSpline(new Vector3(1.25f,2.5f,3.75f),ref catLength)==0.25f,"Catmull quarter nearest");
+            var catNaN=Line();
+            Check(CatmullRom.FindNearestPointOnSpline(new Vector3(float.NaN,0,0),ref catNaN)==0.5f,"Catmull NaN distances keep the midpoint");
             var catNoLoop=Line();
             Check(CatmullRom.FindNearestPointOnSpline(Vector3.zero,ref catNoLoop,0.5f)==0.5f && catNoLoop.m_cacheSet,"Catmull large epsilon still evaluates/cache midpoint");
             catNoLoop=Line();
