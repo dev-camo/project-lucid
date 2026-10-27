@@ -14,7 +14,7 @@ Extraction and analysis use separate tools downloaded into the local cache:
 | .NET SDK | 10.0.401 | [Microsoft .NET](https://dotnet.microsoft.com/), distribution notices |
 | .NET runtime | 6.0.36 | [Microsoft .NET](https://dotnet.microsoft.com/), distribution notices |
 
-Download locations and SHA256 hashes are recorded in `tools/tool-lock.json`.
+Download locations and SHA-256 or SHA-512 hashes are recorded in `tools/tool-lock.json`.
 Downloaded distributions retain their own licenses. Game assets are supplied
 by the user and are not distributed in this repository.
 
