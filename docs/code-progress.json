@@ -277,7 +277,7 @@
     }
   ],
   "behavior_parity_verified": false,
-  "compiler_receipt_sha256": "bc3e3256ead1e439d934e8d9f5f086aaf1258db00b6fb3d5f2c4d0922cea602f",
+  "compiler_receipt_sha256": "8c53e3213cf9891fd5b92459f248f6ae5fe45950b192e7a81d377a71b74ecd94",
   "generated_by": "ProjectLucid.code_progress",
   "input_binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
   "input_metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
