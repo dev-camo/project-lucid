@@ -64,7 +64,7 @@ namespace ProjectLucid.Tests
                     // The Editor may hold an unassigned serialized reference as a fake null; the
                     // facade's CLR-null answer is what the cases below rely on.
                     Set(Facade, "m_editableSpline", null);
-                    Follower = host.AddComponent<SplineObjectFollower>();
+                    Follower = TimeScaledReferenceLease.Add<SplineObjectFollower>(host);
                     Set(Follower, "m_attachedSpline", Facade);
                     Set(Follower, "m_surface", Surface);
                     Target = Objects.Create("target").transform;
@@ -159,7 +159,7 @@ namespace ProjectLucid.Tests
         public void AwakeAddsResetTargetToTheLevelRestartAndOnDestroyRemovesIt()
         {
             using (var objects = new OwnedWorldObjects("lucid-surface-follower-level"))
-            using (var timeRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>()))
+            using (var timeRow = new TimeScaledReferenceLease())
             using (var missionRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<MissionManager>()))
             using (var audioRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<AudioManager>()))
             using (var saveRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SaveManager>()))
@@ -180,7 +180,7 @@ namespace ProjectLucid.Tests
                     host.SetActive(false);
                     var facade = host.AddComponent<Spline>();
                     Set(facade, "m_editableSpline", null);
-                    var follower = host.AddComponent<SplineObjectFollower>();
+                    var follower = TimeScaledReferenceLease.Add<SplineObjectFollower>(host);
                     Set(follower, "m_attachedSpline", facade);
                     Transform target = objects.Create("target").transform;
                     target.position = new Vector3(1f, 2f, 3f);
@@ -219,7 +219,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void OnDestroyWithoutALevelManagerLeavesNothingToRemove()
         {
-            using (var timeRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>()))
+            using (var timeRow = new TimeScaledReferenceLease())
             using (var fixture = new Fixture())
             {
                 Assert.DoesNotThrow(() => Call(fixture.Follower, "OnDestroy"));
@@ -360,7 +360,7 @@ namespace ProjectLucid.Tests
                 ribbonHost.SetActive(false);
                 var ribbon = ribbonHost.AddComponent<Ribbon>();
                 Set(ribbon, "m_editableRibbon", null);
-                var ribbonFollower = ribbonHost.AddComponent<RibbonObjectFollower>();
+                var ribbonFollower = TimeScaledReferenceLease.Add<RibbonObjectFollower>(ribbonHost);
                 Set(ribbonFollower, "m_attachedRibbon", ribbon);
                 Assert.That(Call(ribbonFollower, "GetSurface"), Is.Null);
                 InertRibbon inertRibbon = ribbonHost.AddComponent<InertRibbon>();

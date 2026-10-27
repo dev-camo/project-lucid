@@ -159,7 +159,7 @@ namespace ProjectLucid.Tests
             {
                 GameObject host = owned.Host("Lucid chaos aim homing target");
                 var collider = host.AddComponent<BoxCollider>();
-                var target = host.AddComponent<HomingTarget>();
+                var target = TimeScaledReferenceLease.Add<HomingTarget>(host);
                 Set(target, "m_collider", collider);
                 Set(target, "m_targetType", HomingTargetType.Enemy);
                 Physics.SyncTransforms();

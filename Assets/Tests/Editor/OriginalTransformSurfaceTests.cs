@@ -70,21 +70,21 @@ namespace ProjectLucid.Tests
             public readonly OwnedWorldObjects Objects = new OwnedWorldObjects("lucid-transform-surface");
             public readonly TransformSurfaceFollower Follower;
             public readonly List<TransformSurfaceDescription> Surfaces = new List<TransformSurfaceDescription>();
-            private readonly VerificationFixtureOwnership.LifecycleRow m_timeRow;
+            private readonly TimeScaledReferenceLease m_timeRow;
             private readonly object m_priorConfig;
 
             public Fixture() : this(Vector3.zero, Quaternion.identity) { }
 
             public Fixture(Vector3 position, Quaternion rotation)
             {
-                m_timeRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>());
+                m_timeRow = new TimeScaledReferenceLease();
                 m_priorConfig = GetStatic(typeof(TimeScaledComponent_SDT), "s_config_Internal");
                 try
                 {
                     SetStatic(typeof(TimeScaledComponent_SDT), "s_config_Internal", Objects.Own(ScriptableObject.CreateInstance<TimeCategoryLookup>()));
                     GameObject host = Objects.Create("follower", position, rotation);
                     host.SetActive(false);
-                    Follower = host.AddComponent<TransformSurfaceFollower>();
+                    Follower = TimeScaledReferenceLease.Add<TransformSurfaceFollower>(host);
                 }
                 catch
                 {

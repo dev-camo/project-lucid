@@ -78,6 +78,12 @@ namespace ProjectLucid
             private readonly object borrowedReference;
             private readonly IDictionary borrowedCache;
             private readonly Dictionary<object, object> priorTypedEntries;
+            private readonly List<object> priorTypedOrder = new List<object>();
+            private readonly Dictionary<object, object> retainedEntries = new Dictionary<object, object>();
+            private object retainedRow;
+            private object retainedReference;
+            private IDictionary retainedCache;
+            private List<object> retainedOrder;
             private bool released;
 
             public bool Existed { get; }
@@ -100,7 +106,8 @@ namespace ProjectLucid
                 borrowedReference = Reference(row);
                 borrowedCache = TypedCache(row);
                 priorTypedEntries = new Dictionary<object, object>();
-                foreach (DictionaryEntry entry in borrowedCache) priorTypedEntries.Add(entry.Key, entry.Value);
+                foreach (DictionaryEntry entry in borrowedCache)
+                { priorTypedEntries.Add(entry.Key, entry.Value); priorTypedOrder.Add(entry.Key); }
             }
 
             private static SystemRef Reference(object row) => (SystemRef)Read(row, "SystemRef");
@@ -113,6 +120,75 @@ namespace ProjectLucid
             private static void RequireIdle(object row, string name) =>
                 RequireIdleRow(row, "Fixture registry row retains unowned state: " + name + "/");
 
+            // A caller that observed genuine permanent ownership may retain that
+            // exact entry. Ordinary lifecycle leases still remove temporary entries.
+            public void RetainTypedEntry(object key, object value)
+            {
+                if (released || value == null || !registry.Contains(name))
+                    throw new InvalidOperationException("Fixture cannot retain an absent typed reference: " + name);
+                object row = registry[name];
+                IDictionary cache = TypedCache(row);
+                if (!cache.Contains(key) || !ReferenceEquals(cache[key], value))
+                    throw new InvalidOperationException("Fixture retained reference is not attached: " + name);
+                if (Existed && (!ReferenceEquals(row, borrowedRow) ||
+                    !ReferenceEquals(Reference(row), borrowedReference) || !ReferenceEquals(cache, borrowedCache)))
+                    throw new InvalidOperationException("Fixture borrowed registry row was replaced: " + name);
+                if (Existed)
+                    foreach (KeyValuePair<object, object> entry in priorTypedEntries)
+                        if (!cache.Contains(entry.Key) || !ReferenceEquals(cache[entry.Key], entry.Value))
+                            throw new InvalidOperationException("Fixture borrowed typed cache changed: " + name);
+                CheckRetainedEntries(row);
+                if (retainedEntries.TryGetValue(key, out object prior) && !ReferenceEquals(prior, value))
+                    throw new InvalidOperationException("Fixture retained typed reference was replaced: " + name);
+                CheckPriorOrder(cache);
+                retainedRow = row;
+                retainedReference = Reference(row);
+                retainedCache = cache;
+                retainedEntries[key] = value;
+                retainedOrder = RetainedKeys(cache);
+            }
+
+            private List<object> RetainedKeys(IDictionary cache)
+            {
+                var keys = new List<object>();
+                foreach (DictionaryEntry entry in cache)
+                    if ((Existed && priorTypedEntries.ContainsKey(entry.Key)) || retainedEntries.ContainsKey(entry.Key))
+                        keys.Add(entry.Key);
+                return keys;
+            }
+
+            private void CheckPriorOrder(IDictionary cache)
+            {
+                if (!Existed) return;
+                int position = 0;
+                foreach (DictionaryEntry entry in cache)
+                    if (priorTypedEntries.ContainsKey(entry.Key))
+                    {
+                        if (position >= priorTypedOrder.Count || !Equals(entry.Key, priorTypedOrder[position++]))
+                            throw new InvalidOperationException("Fixture borrowed typed order changed: " + name);
+                    }
+                if (position != priorTypedOrder.Count)
+                    throw new InvalidOperationException("Fixture borrowed typed order changed: " + name);
+            }
+
+            private void CheckRetainedEntries(object row)
+            {
+                if (retainedEntries.Count == 0) return;
+                if (!ReferenceEquals(row, retainedRow) || !ReferenceEquals(Reference(row), retainedReference) ||
+                    !ReferenceEquals(TypedCache(row), retainedCache))
+                    throw new InvalidOperationException("Fixture retained registry storage was replaced: " + name);
+                foreach (KeyValuePair<object, object> entry in retainedEntries)
+                    if (!retainedCache.Contains(entry.Key) || !ReferenceEquals(retainedCache[entry.Key], entry.Value))
+                        throw new InvalidOperationException("Fixture retained typed reference was replaced: " + name);
+                CheckPriorOrder(retainedCache);
+                List<object> currentOrder = RetainedKeys(retainedCache);
+                if (currentOrder.Count != retainedOrder.Count)
+                    throw new InvalidOperationException("Fixture retained typed order changed: " + name);
+                for (int i = 0; i < retainedOrder.Count; i++)
+                    if (!Equals(currentOrder[i], retainedOrder[i]))
+                        throw new InvalidOperationException("Fixture retained typed order changed: " + name);
+            }
+
             // Call after the proof has unregistered its systems. A row that
             // still holds state is left in place and reported.
             public void Dispose()
@@ -124,9 +200,23 @@ namespace ProjectLucid
                     ReturnBorrowedRow();
                     return;
                 }
-                if (!registry.Contains(name)) return;
-                RequireIdle(registry[name], name);
-                registry.Remove(name);
+                if (!registry.Contains(name))
+                {
+                    if (retainedEntries.Count != 0)
+                        throw new InvalidOperationException("Fixture retained registry row disappeared: " + name);
+                    return;
+                }
+                object row = registry[name];
+                CheckRetainedEntries(row);
+                RequireIdle(row, name);
+                if (retainedEntries.Count == 0) registry.Remove(name);
+                else
+                {
+                    var temporary = new List<object>();
+                    foreach (DictionaryEntry entry in TypedCache(row))
+                        if (!retainedEntries.ContainsKey(entry.Key)) temporary.Add(entry.Key);
+                    foreach (object key in temporary) TypedCache(row).Remove(key);
+                }
             }
 
             // The borrowed row and its prior typed entries stay as admitted;
@@ -142,6 +232,7 @@ namespace ProjectLucid
                 foreach (KeyValuePair<object, object> entry in priorTypedEntries)
                     if (!borrowedCache.Contains(entry.Key) || !ReferenceEquals(borrowedCache[entry.Key], entry.Value))
                         throw new InvalidOperationException("Fixture borrowed typed cache changed: " + name);
+                CheckRetainedEntries(borrowedRow);
                 if (!BorrowsLiveSystem) RequireIdle(borrowedRow, name);
                 var added = new List<object>();
                 foreach (DictionaryEntry entry in borrowedCache)
@@ -152,7 +243,8 @@ namespace ProjectLucid
                     foreach (object key in added)
                         RequireIdleReference(borrowedCache[key], liveSystem, "Fixture registry row retains unowned state: " + name + "/");
                 }
-                foreach (object key in added) borrowedCache.Remove(key);
+                foreach (object key in added)
+                    if (!retainedEntries.ContainsKey(key)) borrowedCache.Remove(key);
             }
         }
 

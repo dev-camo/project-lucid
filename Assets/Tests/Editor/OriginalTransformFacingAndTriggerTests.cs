@@ -55,7 +55,7 @@ namespace ProjectLucid.Tests
             {
                 GameObject host = Objects.Create("camera manager");
                 host.SetActive(false);
-                return host.AddComponent<CinemachineCameraManager>();
+                return TimeScaledReferenceLease.Add<CinemachineCameraManager>(host);
             }
 
             public void Dispose() => VerificationFixtureOwnership.RunThenCleanUp(() => { },

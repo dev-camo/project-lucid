@@ -401,7 +401,7 @@ namespace ProjectLucid.Tests
                 GameObject host = rig.Owned.Host("Lucid homing target");
                 host.transform.position = new Vector3(3f, 4f, 5f);
                 var collider = host.AddComponent<BoxCollider>();
-                var homing = host.AddComponent<HomingTarget>();
+                var homing = TimeScaledReferenceLease.Add<HomingTarget>(host);
                 Set(homing, "m_collider", collider); // Reflection: serialized reference
                 Physics.SyncTransforms();
 
@@ -429,7 +429,7 @@ namespace ProjectLucid.Tests
                 GameObject host = rig.Owned.Host("Lucid homing target");
                 host.transform.position = new Vector3(3f, 4f, 5f);
                 var collider = host.AddComponent<BoxCollider>();
-                var homing = host.AddComponent<HomingTarget>();
+                var homing = TimeScaledReferenceLease.Add<HomingTarget>(host);
                 Set(homing, "m_collider", collider); // Reflection: serialized reference
                 Physics.SyncTransforms();
                 Transform previousTransform = rig.Owned.Host("Lucid previous transform", false).transform;

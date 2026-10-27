@@ -334,7 +334,7 @@ namespace ProjectLucid.Tests
             object prior = config.GetValue(null);
             config.SetValue(null, owned.Track(ScriptableObject.CreateInstance<TimeCategoryLookup>()));
             FullscreenShaderManager manager;
-            try { manager = owned.Host("Lucid fullscreen shader manager", false).AddComponent<FullscreenShaderManager>(); }
+            try { manager = TimeScaledReferenceLease.Add<FullscreenShaderManager>(owned.Host("Lucid fullscreen shader manager", false)); }
             finally { config.SetValue(null, prior); }
             return owned.Register(manager);
         }

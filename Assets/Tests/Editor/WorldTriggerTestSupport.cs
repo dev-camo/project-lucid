@@ -124,7 +124,9 @@ namespace ProjectLucid.Tests
             internal void LeaseRow<T>() where T : class, ISystem
             {
                 string name = ProcessManager.GetDefaultName<T>();
-                m_leases.Add(new VerificationFixtureOwnership.LifecycleRow(name));
+                m_leases.Add(typeof(T) == typeof(TimeManager)
+                    ? (IDisposable)new TimeScaledReferenceLease()
+                    : new VerificationFixtureOwnership.LifecycleRow(name));
                 m_leasedRows.Add(name);
             }
 
@@ -135,6 +137,13 @@ namespace ProjectLucid.Tests
             internal T Register<T>(T system) where T : class, ISystem
             {
                 string name = ProcessManager.GetDefaultName<T>();
+                if (typeof(T) == typeof(TimeManager))
+                {
+                    var manager = Lease(new TimeScaledManagerLease());
+                    manager.AttachManager((TimeManager)(object)system);
+                    manager.RegisterManager();
+                    return system;
+                }
                 var borrowed = new VerificationFixtureOwnership.LifecycleRow(name);
                 if (borrowed.Existed)
                 {

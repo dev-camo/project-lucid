@@ -62,7 +62,7 @@ namespace ProjectLucid.Tests
             {
                 GameObject managerHost = Objects.Create("camera manager");
                 managerHost.SetActive(false);
-                Manager = managerHost.AddComponent<CinemachineCameraManager>();
+                Manager = TimeScaledReferenceLease.Add<CinemachineCameraManager>(managerHost);
                 GameObject cameraHost = Objects.Create("camera");
                 cameraHost.SetActive(false);
                 Camera = cameraHost.AddComponent<Camera>();

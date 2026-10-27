@@ -178,7 +178,7 @@ namespace ProjectLucid.Tests
             GameObject host = owned.Host("Lucid homing target");
             host.transform.position = new Vector3(x, y, z);
             var collider = host.AddComponent<BoxCollider>();
-            var target = host.AddComponent<HomingTarget>();
+            var target = TimeScaledReferenceLease.Add<HomingTarget>(host);
             Set(target, "m_collider", collider); // Reflection: serialized reference
             return target;
         }

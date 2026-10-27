@@ -236,7 +236,7 @@ namespace ProjectLucid.Tests
             GameObject host = time.Objects.Create("Lucid boss homing target");
             host.SetActive(false);
             host.AddComponent<BoxCollider>();
-            return host.AddComponent<BossHomingTarget>();
+            return TimeScaledReferenceLease.Add<BossHomingTarget>(host);
         }
 
         // The constructor 0x6E2D40 stores m_useAnimatedTargetIndicator = true at +0xC1 and the inlined
@@ -414,7 +414,7 @@ namespace ProjectLucid.Tests
 
                     GameObject host = time.Objects.Create("Lucid boss homing target", position, Quaternion.identity);
                     rig.TargetBox = host.AddComponent<BoxCollider>();
-                    rig.Target = host.AddComponent<BossHomingTarget>();
+                    rig.Target = TimeScaledReferenceLease.Add<BossHomingTarget>(host);
                     Set(rig.Target, "m_animatedTargetIndicator", rig.Prefab);
                     Set(rig.Target, "m_enabledByActivator", true);
                     if (Get(rig.Target, "m_onAwake") == null) Set(rig.Target, "m_onAwake", new UnityEvent());
@@ -598,7 +598,7 @@ namespace ProjectLucid.Tests
             WithBossTarget("lucid-boss-homing-update-live", new Vector3(0f, 0f, 10f), (owned, time, rig) =>
             {
                 // The camera manager looks along +z from the origin, as in the view target cases.
-                var cameraManager = owned.Host("Lucid boss camera manager", false).AddComponent<CinemachineCameraManager>();
+                var cameraManager = TimeScaledReferenceLease.Add<CinemachineCameraManager>(owned.Host("Lucid boss camera manager", false));
                 GameObject cameraHost = owned.Host("Lucid boss camera", false);
                 cameraHost.AddComponent<Camera>();
                 Set(cameraManager, "m_cinemachineBrain", cameraHost.AddComponent<CinemachineBrain>());
@@ -1627,7 +1627,7 @@ namespace ProjectLucid.Tests
                 using (var time = new OwnedTimeScaledObjects("lucid-fourmen-visuals-particles"))
                 {
                     GameObject host = time.Objects.Create("Lucid dangerous boss indicator");
-                    var wrapper = host.AddComponent<ParticleEffectWrapper>();
+                    var wrapper = TimeScaledReferenceLease.Add<ParticleEffectWrapper>(host);
                     ParticleSystem main = host.GetComponent<ParticleSystem>();
                     ParticleSystem alwaysCleared = time.Objects.Create("Lucid always cleared particles").AddComponent<ParticleSystem>();
                     Set(wrapper, "m_mainParticleSystem", main);

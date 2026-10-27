@@ -15,7 +15,7 @@ namespace ProjectLucid.Tests
         private const BindingFlags Fields = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
         private static string Name => typeof(TimeManager).FullName;
         private readonly IDictionary registry = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
-        private readonly VerificationFixtureOwnership.LifecycleRow temporary;
+        private readonly TimeScaledReferenceLease temporary;
         private readonly object priorRow, priorUntyped, priorCache;
         private readonly DictionaryEntry[] priorTyped;
         private object acquiredRow, acquiredUntyped, acquiredCache, retainedReference, unqualifiedReference;
@@ -24,7 +24,7 @@ namespace ProjectLucid.Tests
 
         internal TimeScaledManagerLease()
         {
-            temporary = new VerificationFixtureOwnership.LifecycleRow(Name);
+            temporary = new TimeScaledReferenceLease();
             priorRow = registry[Name];
             if (priorRow != null)
             {
@@ -94,7 +94,7 @@ namespace ProjectLucid.Tests
         {
             RegisterManager();
             T[] before = host.GetComponents<T>(); T result = null;
-            VerificationFixtureOwnership.RunThenCleanUp(() => result = construct(), () =>
+            VerificationFixtureOwnership.RunThenCleanUp(() => result = TimeScaledReferenceLease.Construct(host, construct), () =>
             {
                 RequireOwnedRow();
                 T[] added = host.GetComponents<T>().Where(c => !before.Any(old => ReferenceEquals(old, c))).ToArray();
@@ -130,7 +130,7 @@ namespace ProjectLucid.Tests
         private void ReturnRow()
         {
             if (unqualifiedReference != null) throw new InvalidOperationException("Owned time-scaled manager: unqualified reference retained after failed construction");
-            if (retainedReference == null) { temporary.Dispose(); return; }
+            if (retainedReference == null) return;
             RequireOwnedRow();
             RequireReference(Reference(acquiredRow), null);
             IDictionary current = Typed(acquiredRow);
@@ -145,7 +145,7 @@ namespace ProjectLucid.Tests
         public void Dispose()
         {
             if (disposed) return;
-            VerificationFixtureOwnership.RunThenCleanUp(() => { }, Unregister, ReturnRow);
+            VerificationFixtureOwnership.RunThenCleanUp(() => { }, Unregister, ReturnRow, temporary.Dispose);
             disposed = true;
         }
     }

@@ -354,7 +354,7 @@ namespace ProjectLucid.Tests
                     GameObject prefab = owned.Host("Lucid cascade prefab", false);
                     GameObject launched = owned.Host("Lucid cascade launched", false, prefab.transform);
                     var cascadeObject = prefab.AddComponent<PooledCascadeObject>();
-                    Set(cascadeObject, "m_simplifiedBody", prefab.AddComponent<SimplifiedBody>());
+                    Set(cascadeObject, "m_simplifiedBody", TimeScaledReferenceLease.Add<SimplifiedBody>(prefab));
                     Set(cascadeObject, "m_launchedTransform", launched.transform);
 
                     var pool = owned.Host("Lucid cascade pool", false).AddComponent<CascadeObjectPool>();

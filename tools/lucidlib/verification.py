@@ -336,6 +336,25 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.TimeScaledManagerOwnershipTests." + 
     "BorrowedRegistryObserversAreRejectedWithoutInvocationOrRemoval",
 ))
 
+
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.TimeScaledReferenceOwnershipTests." + name for name in (
+    "ExplicitRetentionPreservesExactEntryAndReleasesOnlyTemporaryEntries(False)",
+    "ExplicitRetentionPreservesExactEntryAndReleasesOnlyTemporaryEntries(True)",
+    "NoRetentionKeepsTheOriginalTemporaryLeaseBehavior(False)",
+    "NoRetentionKeepsTheOriginalTemporaryLeaseBehavior(True)",
+    'RetainedOwnershipChangesFailWithoutRepair("missing")',
+    'RetainedOwnershipChangesFailWithoutRepair("row")',
+    'RetainedOwnershipChangesFailWithoutRepair("entry")',
+    'RetainedOwnershipChangesFailWithoutRepair("order")',
+    'RetainedOwnershipChangesFailWithoutRepair("retained-order")',
+    'RetainedOwnershipChangesFailWithoutRepair("observer")',
+    "PromotionRejectsWrongIdentityAndReorderedPriorEntries",
+    "LaterPromotionRejectsReorderedPreviouslyRetainedEntries",
+    "NestedActualConstructionPreservesTheSameReferenceThroughBothScopes",
+    "FailureBeforeComponentPublicationRestoresActiveScopesAndRegistry",
+    "AdmissionAndDisposalFailuresReleaseEveryActiveScopeWithoutRemovingObservers",
+    "AmbiguousPublicationRetainsAndReportsThroughEveryEnclosingScope",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.TransformRotatorAuthoredTests." + name for name in (
     "EveryAuthoredDocumentRetainsOriginalValuesAndReferencesAcrossInactiveRoundtrip",
     "PreparedAssetsHaveTheExactVerifiedTransformRotatorBinding",

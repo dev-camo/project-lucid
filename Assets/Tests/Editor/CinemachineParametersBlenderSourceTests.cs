@@ -348,7 +348,7 @@ namespace ProjectLucid.Tests
                 GameObject host = time.Objects.Create("camera and source");
                 host.SetActive(false);
                 var camera = CinemachineCameraTestRig.AddWithoutPipelineHooks<CinemachineVirtualCamera>(host);
-                var source = host.AddComponent<CinemachineParametersBlenderSource_TimeSinceLive>();
+                var source = TimeScaledReferenceLease.Add<CinemachineParametersBlenderSource_TimeSinceLive>(host);
                 Assert.That(Get<CinemachineVirtualCameraBase>(source, "m_virtualCamera"), Is.SameAs(camera));
                 Assert.That(Get<float>(source, "m_maxTimeSeconds"), Is.EqualTo(1f));
             }, true);
@@ -379,7 +379,7 @@ namespace ProjectLucid.Tests
                 var camera = CinemachineCameraTestRig.AddWithoutPipelineHooks<CinemachineVirtualCamera>(host);
                 CinemachineCameraManager cameraManager = owned.Register(AddSource<CinemachineCameraManager>(time, "camera manager"));
                 Set(cameraManager, "m_cinemachineBrain", AddSource<CinemachineBrain>(time, "brain"));
-                var source = host.AddComponent<CinemachineParametersBlenderSource_TimeSinceLive>();
+                var source = TimeScaledReferenceLease.Add<CinemachineParametersBlenderSource_TimeSinceLive>(host);
                 Set(source, "m_maxTimeSeconds", 2f);
 
                 using (CinemachineCameraTestRig.MakeLive(camera))

@@ -35,7 +35,7 @@ namespace ProjectLucid.Tests
                 scene.Parent.localScale = new Vector3(2f, 2f, 2f);
                 scene.Child = owned.Host("Lucid aversion child", false, scene.Parent).transform;
                 scene.Child.localPosition = new Vector3(1f, 2f, 3f);
-                scene.Component = scene.Child.gameObject.AddComponent<CameraAversionWithLimit>();
+                scene.Component = TimeScaledReferenceLease.Add<CameraAversionWithLimit>(scene.Child.gameObject);
                 Call(scene.Component, "Awake");
                 body(owned, scene);
             }

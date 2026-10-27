@@ -118,7 +118,7 @@ namespace ProjectLucid.Tests
                     SetStatic(typeof(TimeScaledComponent_SDT), "s_config_Internal", Objects.Own(ScriptableObject.CreateInstance<TimeCategoryLookup>()));
                     GameObject host = Objects.Create("plane");
                     host.SetActive(false);
-                    Plane = host.AddComponent<SurfaceMeshPlaneGenerator>();
+                    Plane = TimeScaledReferenceLease.Add<SurfaceMeshPlaneGenerator>(host);
                     Set(Plane, "m_splineAxisX", AxisSpline("x", lengthAxisX));
                     Set(Plane, "m_splineAxisZ", AxisSpline("z", lengthAxisZ));
                     Set(Plane, "m_meshStepDistance", meshStepDistance);

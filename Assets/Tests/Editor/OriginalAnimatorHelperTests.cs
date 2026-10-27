@@ -169,7 +169,7 @@ namespace ProjectLucid.Tests
         {
             FieldInfo config = Field(typeof(TimeScaledComponent_SDT), "s_config_Internal");
             object priorConfig = config.GetValue(null);
-            using (var timeRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>()))
+            using (var timeRow = new TimeScaledReferenceLease())
             using (var owned = new Owned())
             {
                 try
@@ -181,7 +181,7 @@ namespace ProjectLucid.Tests
                         controller.AddMotion(owned.Clip("Lifetime", 10f));
                         controller.AddParameter("Speed", AnimatorControllerParameterType.Float);
                     });
-                    var lifetime = root.AddComponent<AnimatorDrivenLifetimeObject>();
+                    var lifetime = TimeScaledReferenceLease.Add<AnimatorDrivenLifetimeObject>(root);
                     Set(lifetime, "m_animator", animator);
                     Set(lifetime, "m_hazards", new Hazard[0]);
                     body(owned, lifetime, animator);
