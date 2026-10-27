@@ -74,12 +74,13 @@ namespace ProjectLucid.Tests
             var primary = new InvalidOperationException("time-scaled primary");
             var cleanup = new InvalidOperationException("time-scaled cleanup");
             TimeManager manager = null; SystemRef<TimeManager> original = null;
-            if (bodyFailure) LogAssert.Expect(LogType.Warning, new Regex("Fixture cleanup failed after an earlier failure:.*time-scaled cleanup", RegexOptions.Singleline));
             Exception error = Assert.Throws<InvalidOperationException>(() => WithManager(scene =>
             {
                 manager = scene.Manager;
                 Add<TimeScaledShader>(scene, scene.Owned.Host("owned cleanup descendant", false));
                 original = OriginalAfterConstruction();
+                // Native construction logs Reset before the later cleanup warning.
+                if (bodyFailure) LogAssert.Expect(LogType.Warning, new Regex("Fixture cleanup failed after an earlier failure:.*time-scaled cleanup", RegexOptions.Singleline));
                 scene.Owned.Lease(new ReleaseAction(() => { throw cleanup; }));
                 if (bodyFailure) throw primary;
             }));
