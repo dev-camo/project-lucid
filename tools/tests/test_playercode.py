@@ -14,6 +14,7 @@ import unittest
 from unittest.mock import patch
 import uuid
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lucidlib import bootstrap, playercode
 
 
