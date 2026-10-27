@@ -3,9 +3,6 @@ namespace ProjectLucid.Verification
 {
  public static partial class HLHapticsVerification
  {
-  // Selected observed immutable Editor image; whole emission and runtime qualification remain separate.
-  const string MainRecordSha256 = "eb3aa0b9fb3eeb5d3f6bc06f2bd15780ab928eef837b0a417a4e41c0db875c8b";
-  const string ReferenceRecordSha256 = "cc5311839beea9ef7095e9485e11e0d6bb9eaaa01f657f27aa2185415e8b7c11";
   static SourcePin[] TentativeProviderSourcePins() => new SourcePin[] {
    new SourcePin("Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/ProcessManager.cs","a51441a9b0ead623b7c4c39abeb27e1a9a95411850ee89d46a31ae4363ef5894",16112),
    new SourcePin("Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/SystemRef.cs","d59cf58c2c99a9b7dfec83e3cf8d7e2f1f17d37a2d21f57d2485555d8827819c",4198),
