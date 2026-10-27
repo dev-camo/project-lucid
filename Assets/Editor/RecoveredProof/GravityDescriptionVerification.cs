@@ -1,6 +1,5 @@
 using System;
 using System.Reflection;
-using System.Runtime.Serialization;
 using HardlightProject;
 using UnityEngine;
 
@@ -90,64 +89,6 @@ namespace ProjectLucid.Editor
             Same(d.CalculateGravity(-0f), -8f, "signed zero query retains full gravity", ref n);
             Same(d.Distance, -0f, "negative zero query cache", ref n);
             return n;
-        }
-
-        // Public API only: standalone reflection field access itself requests the
-        // real Physics cctor on .NET, so it is excluded from this bounded path.
-        private static int RunRawPublicScalar(GravityDescription d)
-        {
-            int n = 0;
-            d.Set(-8f, 0f, 2f, 10f, 15f);
-            Same(d.MaxDistance, 15f, "maximum follows outer falloff", ref n);
-            float[] queries = { -1f, 0f, 1f, 2f, 10f, 12f, 15f, 16f, float.NaN, float.NegativeInfinity, float.PositiveInfinity };
-            float[] results = { 0f, -0f, -4f, -8f, -8f, -8f, -8f, 0f, -8f, 0f, 0f };
-            for (int i = 0; i < queries.Length; ++i)
-            {
-                Same(d.CalculateGravity(queries[i]), results[i], "genuine query " + i, ref n);
-                Same(d.Distance, queries[i], "query cache even on exit " + i, ref n);
-            }
-            d.Set(-8f, 4f, 2f, 1f, 3f);
-            Same(d.InnerFalloffDistance, 4f, "retain authored inner falloff", ref n);
-            Same(d.InnerDistance, 4f, "clamp inner", ref n); Same(d.OuterDistance, 4f, "clamp outer", ref n);
-            Same(d.OuterFalloffDistance, 4f, "clamp outer falloff", ref n);
-            d.Set(-8f, float.NaN, 2f, 10f, 15f);
-            Require(float.IsNaN(d.InnerDistance) && float.IsNaN(d.OuterDistance) && float.IsNaN(d.OuterFalloffDistance), "ordered Max second argument NaN", ref n);
-            Same(d.CalculateGravity(99f), -8f, "unordered bounds return authored gravity", ref n);
-            d.Set(-8f, 0f, float.NaN, 10f, 15f);
-            Same(d.InnerDistance, 0f, "ordered Max first argument NaN selects second", ref n);
-            d.Set(-8f, 0f, 2f, 10f, float.PositiveInfinity);
-            Require(float.IsNaN(d.CalculateGravity(float.PositiveInfinity)), "infinity times zero retained", ref n);
-            Same(d.Distance, float.PositiveInfinity, "infinite query cache", ref n);
-            d.Set(-8f, 4f, 2f, 1f, 3f);
-            d.Validate();
-            Same(d.InnerDistance, 4f, "Validate retains already clamped inner", ref n);
-            Same(d.OuterDistance, 4f, "Validate retains already clamped outer", ref n);
-            Same(d.OuterFalloffDistance, 4f, "Validate retains already clamped outer falloff", ref n);
-            d.Set(-8f, -0f, +0f, -0f, +0f);
-            Same(d.InnerDistance, -0f, "equal signed zeros retain second Max operand inner", ref n);
-            Same(d.OuterDistance, -0f, "equal signed zeros retain second Max operand outer", ref n);
-            Same(d.OuterFalloffDistance, -0f, "equal signed zeros retain second Max operand falloff", ref n);
-            Same(d.CalculateGravity(-0f), -8f, "signed zero query retains full gravity", ref n);
-            Same(d.Distance, -0f, "negative zero query cache", ref n);
-            return n;
-        }
-
-        // No substituted Physics API: this isolated probe records host limitations.
-        public static void ProbeRawInstance()
-        {
-            try
-            {
-                var d = (GravityDescription)FormatterServices.GetUninitializedObject(typeof(GravityDescription));
-                int n = RunRawPublicScalar(d);
-                Console.WriteLine("RAW_HOST_PASS checks=" + n);
-            }
-            catch (Exception ex)
-            {
-                Exception inner = ex;
-                while (inner.InnerException != null) inner = inner.InnerException;
-                if (!(ex is TypeInitializationException) || !(inner is MissingMethodException)) throw;
-                Console.WriteLine("RAW_HOST_BLOCKED " + ex.GetType().FullName + " / " + inner.GetType().FullName + " / " + inner.Message);
-            }
         }
 
         public static int RunEngine()
