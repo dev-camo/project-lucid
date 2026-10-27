@@ -289,7 +289,7 @@ class PlayerCodeTests(unittest.TestCase):
             self.run_fake(checked_change)
         self.assertTrue(reached, "Failure fixture must reach the actual guarded mutation")
         self.assertEqual(self.old, self.latest.read_bytes())
-        self.assertFalse((self.work / "locks/player-code.lock").exists())
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.work / "locks/player-code.lock", "still held"))
 
     def run_noisy_editor(self, exit_code):
         actual_run = subprocess.run
@@ -322,7 +322,7 @@ class PlayerCodeTests(unittest.TestCase):
         self.assertFalse((run / "editor-stdout.log").exists())
         self.assertFalse((run / "editor-stderr.log").exists())
         self.assertEqual(result, json.loads(json.dumps(result)))
-        self.assertFalse((self.work / "locks/player-code.lock").exists())
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.work / "locks/player-code.lock", "still held"))
 
     def test_editor_launches_only_through_the_module_subprocess_facade(self):
         # CI replaces playercode.subprocess with its Editor sandbox, which offers only run()
@@ -389,7 +389,7 @@ class PlayerCodeTests(unittest.TestCase):
             "time.sleep(60)\n")
         self.editor.chmod(0o700)
         lock = self.work / "locks/player-code.lock"
-        real_run, real_popen, real_rmdir = subprocess.run, subprocess.Popen, Path.rmdir
+        real_run, real_popen, real_release = subprocess.run, subprocess.Popen, playercode.release_work_lock
         default_run = playercode.subprocess.run
         interrupted = KeyboardInterrupt("owned Editor interruption")
         raised, at_release, leaders = [], [], []
@@ -427,17 +427,17 @@ class PlayerCodeTests(unittest.TestCase):
                 return self.emit(command)
             return result
 
-        def release(path):
-            if path == lock:
-                self.assertTrue(path.is_dir())
+        def release(stream):
+            if os.path.samestat(os.fstat(stream.fileno()), lock.stat()):
+                self.assertTrue(lock.is_file())
                 at_release.append({role: stopped(json.loads((pids / (role + ".json")).read_text())["pid"])
                                    for role in ("editor", "child", "grandchild")})
-            return real_rmdir(path)
+            return real_release(stream)
 
         try:
             with patch.object(playercode.subprocess, "run", side_effect=invoke), \
                     patch.object(subprocess, "Popen", side_effect=spawn), \
-                    patch.object(Path, "rmdir", release):
+                    patch.object(playercode, "release_work_lock", release):
                 if completion == "success":
                     result = playercode.run_player_code(self.root, self.work, "macos")
                     self.assertEqual("compiled", result["status"])
@@ -452,7 +452,7 @@ class PlayerCodeTests(unittest.TestCase):
                     self.assertEqual(self.old, self.latest.read_bytes())
             self.assertEqual([{"editor": True, "child": True, "grandchild": True}], at_release,
                              "the command lock was released while an owned process still ran")
-            self.assertFalse(lock.exists())
+            bootstrap.release_work_lock(bootstrap.take_work_lock(lock, "still held"))
         finally:
             # Also clean the deliberately failing pre-fix control; never signal the runner's group.
             for marker in pids.glob("*.json"):
@@ -640,7 +640,7 @@ class PlayerCodeTests(unittest.TestCase):
         with patch.object(playercode.subprocess, "run", side_effect=subprocess.TimeoutExpired("Editor", 1800)):
             with self.assertRaises(subprocess.TimeoutExpired): playercode.run_player_code(self.root, self.work, "macos")
         self.assertEqual(self.old, self.latest.read_bytes())
-        self.assertFalse((self.work / "locks/player-code.lock").exists())
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.work / "locks/player-code.lock", "still held"))
 
     def test_nonzero_editor_return_retains_prior_receipt(self):
         with patch.object(playercode.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)):

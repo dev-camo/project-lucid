@@ -253,5 +253,62 @@ class ExclusiveLockTests(unittest.TestCase):
         self.assertEqual(["first", "second"], events)
 
 
+class WorkLockTests(unittest.TestCase):
+    """take_work_lock is held by the OS, so only a live owner blocks it (#568)."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.path = Path(temp.name) / "locks" / "work.lock"
+
+    def test_file_left_by_a_dead_owner_does_not_block(self):
+        self.path.parent.mkdir()
+        self.path.write_bytes(b"")
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.path, "busy"))
+        self.assertTrue(self.path.is_file())
+
+    def test_empty_legacy_lock_directory_is_replaced(self):
+        self.path.mkdir(parents=True)
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.path, "busy"))
+        self.assertTrue(self.path.is_file())
+
+    def test_non_empty_legacy_lock_directory_is_not_removed(self):
+        self.path.mkdir(parents=True)
+        (self.path / "owner").write_bytes(b"x")
+        with self.assertRaises(OSError):
+            bootstrap.take_work_lock(self.path, "busy")
+        self.assertTrue((self.path / "owner").exists())
+
+    def test_held_lock_raises_the_busy_message(self):
+        owner = bootstrap.take_work_lock(self.path, "busy")
+        try:
+            with self.assertRaisesRegex(ValueError, "^Another owner holds it$"):
+                bootstrap.take_work_lock(self.path, "Another owner holds it")
+        finally:
+            bootstrap.release_work_lock(owner)
+
+    def test_lock_can_be_taken_again_after_release(self):
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.path, "busy"))
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.path, "busy"))
+
+    @unittest.skipUnless(os.name == "posix", "SIGKILL is POSIX")
+    def test_killed_owner_leaves_a_file_that_does_not_block(self):
+        code = ("import sys, time\nsys.path.insert(0, sys.argv[2])\nfrom pathlib import Path\nfrom tools.lucidlib import bootstrap\n"
+                "owner = bootstrap.take_work_lock(Path(sys.argv[1]), 'busy')\nprint('held', flush=True)\ntime.sleep(60)\n")
+        root = Path(__file__).resolve().parents[2]
+        child = subprocess.Popen([sys.executable, "-I", "-c", code, str(self.path), str(root)], cwd=root,
+                                 stdout=subprocess.PIPE)
+        try:
+            self.assertEqual(b"held\n", child.stdout.readline())
+            with self.assertRaises(ValueError):
+                bootstrap.take_work_lock(self.path, "busy")
+        finally:
+            child.kill()
+            child.wait(timeout=10)
+            child.stdout.close()
+        self.assertTrue(self.path.is_file())
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.path, "busy"))
+
+
 if __name__ == "__main__":
     unittest.main()

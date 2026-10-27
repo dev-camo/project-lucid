@@ -79,7 +79,7 @@ class AuditHandshakeTests(unittest.TestCase):
 
     def assert_preserved(self):
         self.assertEqual(self.latest.read_bytes(), self.previous)
-        self.assertFalse((self.work / "locks/reference-audit.lock").exists())
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.work / "locks/reference-audit.lock", "still held"))
 
     def test_only_fresh_pending_report_is_promoted_after_two_native_hashes(self):
         with mock.patch.object(verification, "current_identity", wraps=verification.current_identity) as identity:
@@ -272,10 +272,13 @@ class AuditHandshakeTests(unittest.TestCase):
 
     def test_another_audit_lock_is_not_removed_or_bypassed(self):
         lock = self.work / "locks/reference-audit.lock"
-        lock.mkdir(parents=True)
-        with self.assertRaisesRegex(ValueError, "Another reference audit"):
-            self.run_audit()
-        self.assertTrue(lock.exists())
+        owner = bootstrap.take_work_lock(lock, "test owner")
+        try:
+            with self.assertRaisesRegex(ValueError, "Another reference audit"):
+                self.run_audit()
+            self.assertTrue(lock.exists())
+        finally:
+            bootstrap.release_work_lock(owner)
         self.assertEqual(self.latest.read_bytes(), self.previous)
         self.assertEqual(self.commands, [])
 

@@ -20,7 +20,7 @@ import uuid
 from . import inputvariants, native, playercode, playerschema, recovery
 from .bootstrap import (run_owned, NO_BUILD_SERVER_ARGS, dotnet_environment, host_lock, load_lock, managed_path,
                         validate_work_dir, write_json, reader_build_paths, tool_work_dir,
-                        verified_tool_path)
+                        verified_tool_path, take_work_lock, release_work_lock)
 from .inspection import sha256_file
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
@@ -520,9 +520,7 @@ def run_code_progress(repo_root, work_dir, input_path, target="macos"):
     inputvariants.require_code_variant(binary_seal["sha256"], metadata_seal["sha256"], inputvariants.CODE_PROGRESS)
     thin, _ = recovery._thin_binary(binary, work, binary_seal["sha256"])
     thin_seal = playercode._file_record(thin, 2 * 1024**3)
-    lock = managed_path(work, "locks", "code-progress.lock"); lock.parent.mkdir(parents=True, exist_ok=True)
-    try: lock.mkdir()
-    except FileExistsError as error: raise ValueError("Another code progress run owns the lock") from error
+    lock = take_work_lock(managed_path(work, "locks", "code-progress.lock"), "Another code progress run owns the lock")
     try:
         nonce = uuid.uuid4().hex; run = managed_path(work, "code-progress", "runs", nonce); run.mkdir(parents=True, exist_ok=False)
         reader = _build_reader(root, work, run, engine)
@@ -580,4 +578,4 @@ def run_code_progress(repo_root, work_dir, input_path, target="macos"):
         if artifact_fingerprint(root) != source: raise ValueError("Source changed before publication")
         write_json(managed_path(work, "code-progress", "latest-" + target + ".json"), result)
         return result
-    finally: lock.rmdir()
+    finally: release_work_lock(lock)

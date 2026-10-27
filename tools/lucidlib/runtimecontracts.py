@@ -11,7 +11,7 @@ import uuid
 from . import bindings, playercode, playerschema, themebindings, themecontracts
 from .bootstrap import (run_owned, NO_BUILD_SERVER_ARGS, dotnet_environment, executable, host_lock, load_lock, managed_path,
                         validate_work_dir, write_json, reader_build_paths, tool_work_dir,
-                        verified_tool_path)
+                        verified_tool_path, take_work_lock, release_work_lock)
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
 PROFILE = "zone-theme-v1"
@@ -455,9 +455,7 @@ def run_runtime_contracts(repo_root,work_dir,target,original_schema,loaded_inven
         raise ValueError("Matching Unity project version required")
     latest=managed_path(work,"runtime-contracts","latest-"+target+"-"+PROFILE+".json")
     if latest.exists():playercode._regular(latest,MAX_REPORT)
-    lock=managed_path(work,"locks","runtime-contracts.lock");lock.parent.mkdir(parents=True,exist_ok=True)
-    try:lock.mkdir()
-    except FileExistsError as error:raise ValueError("Another contract metadata run owns the lock") from error
+    lock=take_work_lock(managed_path(work,"locks","runtime-contracts.lock"),"Another contract metadata run owns the lock")
     run=None;created=False
     try:
         source=artifact_fingerprint(root);editor=playercode._regular(find_editor(),2*1024**3);engine=playercode._engine_identity(editor)
@@ -511,4 +509,4 @@ def run_runtime_contracts(repo_root,work_dir,target,original_schema,loaded_inven
         if created and run is not None and run.is_dir():
             write_json(run/"wrapper-failure.json",{"status":"failed","target":target,"profile":PROFILE,"error":str(error),"generated_by":"ProjectLucid.run_runtime_contracts"})
         raise
-    finally:lock.rmdir()
+    finally:release_work_lock(lock)

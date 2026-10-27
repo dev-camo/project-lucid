@@ -13,7 +13,7 @@ import subprocess
 import uuid
 import xml.etree.ElementTree as ET
 
-from .bootstrap import managed_path, run_owned, write_json
+from .bootstrap import release_work_lock, take_work_lock, managed_path, run_owned, write_json
 
 UNITY_VERSION = "2022.3.54f1"
 EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (
@@ -1329,12 +1329,7 @@ def run_audit(repo_root, work_dir):
     root, work = Path(repo_root).resolve(strict=True), Path(os.path.abspath(os.fspath(work_dir)))
     editor = find_editor()
     output = managed_path(work, "reports", "unity-reference-audit.json")
-    lock = managed_path(work, "locks", "reference-audit.lock")
-    lock.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        lock.mkdir()
-    except FileExistsError as error:
-        raise ValueError("Another reference audit owns the generated audit lock") from error
+    lock = take_work_lock(managed_path(work, "locks", "reference-audit.lock"), "Another reference audit owns the generated audit lock")
     try:
         before = current_identity(root)
         _audit_require_current_source(root, before, "while preparing the reference audit")
@@ -1385,7 +1380,7 @@ def run_audit(repo_root, work_dir):
         return {"status": report["status"], "unresolved_references": report["unresolved_references"],
                 "scanned_assets": report["scanned_assets"], "report_path": str(output), "log": str(log)}
     finally:
-        lock.rmdir()
+        release_work_lock(lock)
 
 EDITMODE_TESTS += ('ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.CopyPreservesAliasesAndDestinationCallbacks', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.DelegateAccessorsPreserveDuplicatesAndCapturedOrder', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.ComparisonsPreserveThresholdsAndMissingFeatureFallback', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.ProfileCallbacksPreserveReentryAndFaultPrefixes', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.ProfileSubscriptionsPreserveDuplicateAndFaultState')
 # Owned-component cleanup failure controls; no original-behavior claim.
