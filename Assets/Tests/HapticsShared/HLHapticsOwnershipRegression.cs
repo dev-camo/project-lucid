@@ -27,7 +27,7 @@ namespace ProjectLucid.Verification
                 var failures = new List<Exception>();
                 try { lease.Activate(true); }
                 catch (Exception failure) { failures.Add(failure); }
-                // Observe genuine Awake registration even when the old comparator rejects its slot.
+                // Observe genuine Awake registration even when activation fails, so every failure is reported together.
                 try { observe(); }
                 catch (Exception failure) { failures.Add(failure); }
                 if (failures.Count != 0) throw new AggregateException(failures);

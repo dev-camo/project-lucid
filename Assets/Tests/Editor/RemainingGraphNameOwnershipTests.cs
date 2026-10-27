@@ -172,8 +172,8 @@ namespace ProjectLucid.Tests
 
         private static void InvokeLifecycle(object fixture, Action body)
         {
-            // The old fixtures still execute their bodies before inheritance is repaired; missing
-            // setup alone is not our failure oracle. Direct NUnit method calls need explicit dispatch.
+            // Calling a fixture's test method directly skips NUnit's [SetUp] and [TearDown], so the
+            // graph-name scope they would open and release is dispatched here.
             var names = fixture as OwnedGraphNamesFixture;
             names?.OpenOwnedGraphNames();
             try { body(); }
