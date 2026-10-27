@@ -38,13 +38,13 @@ Shader "HardLight/RenderFeature/HL_UI_Blur_Render_Feature"
                 float2 uv : TEXCOORD0;
             };
 
-            // The full-screen triangle from the vertex id, with v flipped; no blit scale and bias.
+            // URP's full-screen triangle from the vertex id (v flipped where UVs start at the top, as on the
+            // decoded Metal program); no blit scale and bias.
             Varyings Vert(uint vertexID : SV_VertexID)
             {
                 Varyings output;
-                float2 corner = float2((vertexID << 1) & 2, vertexID & 2);
-                output.positionCS = float4(corner * 2.0 - 1.0, 1.0, 1.0);
-                output.uv = float2(corner.x, 1.0 - corner.y);
+                output.positionCS = GetFullScreenTriangleVertexPosition(vertexID);
+                output.uv = GetFullScreenTriangleTexCoord(vertexID);
                 return output;
             }
 

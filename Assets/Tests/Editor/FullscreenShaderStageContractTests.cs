@@ -154,7 +154,11 @@ namespace ProjectLucid.Tests
                 Expect(3, new Color(.25f, -.5f, 2, 0), "view matrix row binding");
                 Expect(4, new Color(3, -2, 5, 2), "inverse VP homogeneous binding");
 
-                // Original triangle ids0..2 and blit ids0..3, evaluated at clip z=w=1.
+                // Original triangle ids0..2 and blit ids0..3, evaluated at clip z=w=1 (the near clip value with a
+                // reversed depth buffer). At GL's near clip value of -1 the world z row (w = 2) loses 2, so the view z
+                // gains 1. The UV flips only where UVs start at the top (Shader Graph 14 FullscreenCommon.hlsl).
+                float nearClip = SystemInfo.usesReversedZBuffer ? 1f : -1f;
+                bool flipsAtTop = SystemInfo.graphicsUVStartsAtTop;
                 Color[][] perspective =
                 {
                     new[] { new Color(7, 13, 10.625f, 0), new Color(3, 15, 9.625f, 0), new Color(5, 7, 11.125f, 0) },
@@ -179,9 +183,11 @@ namespace ProjectLucid.Tests
                             {
                                 material.SetFloat("_ProbeVertexId", id);
                                 string label = "entry " + entry + " id " + id + " ortho " + ortho + " flip " + flip;
-                                Expect(0, ortho == 0 ? perspective[entry][id] : new Color(.25f, -.5f, 2, 0), label + " view");
+                                Color direction = perspective[entry][id];
+                                direction.b += (1 - nearClip) * .5f;
+                                Expect(0, ortho == 0 ? direction : new Color(.25f, -.5f, 2, 0), label + " view");
                                 Vector2 corner = uv[entry][id];
-                                Expect(1, new Color(corner.x, flip < .5f ? 1 - corner.y : corner.y, 1, 1), label + " UV");
+                                Expect(1, new Color(corner.x, flipsAtTop && flip < .5f ? 1 - corner.y : corner.y, nearClip * .5f + .5f, 1), label + " UV");
                             }
                         }
                     }

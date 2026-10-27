@@ -76,6 +76,17 @@ namespace ProjectLucid
                 material.SetFloat("_offset", 1);
                 Expect(material, target, sample, new Color(0, 0.4f, 0.2f, 1), "diagonal taps one texel out");
 
+                // A blit keeps the source orientation on every graphics API: URP flips V only where UVs start at the
+                // top. The lower half of the target reads the bottom texel row (red), the upper half the top (green).
+                var column = new Texture2D(1, 2, TextureFormat.RGBAFloat, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+                column.SetPixels(new[] { new Color(1, 0, 0, 1), new Color(0, 1, 0, 1) });
+                column.Apply(false, false);
+                owned.Add(column);
+                material.SetTexture("_BlitTexture", column);
+                material.SetFloat("_offset", 0);
+                Expect(material, target, sample, new Color(1, 0, 0, 1), "lower rows keep the bottom of the source", 8);
+                Expect(material, target, sample, new Color(0, 1, 0, 1), "upper rows keep the top of the source", 24);
+
                 // _GlobalMipBias applies once to every tap (URP's SAMPLE_TEXTURE2D). Spanning UV 0..1 across the
                 // 32-pixel target, a 256 texture with a colour per level reads level 3 (blue) unbiased and level 4
                 // (green) at bias 1; any tap biased twice would pull the average towards level 5 (red).
@@ -94,7 +105,7 @@ namespace ProjectLucid
                 Expect(material, target, sample, new Color(0, 0, 1, 1), "no bias reads level 3");
                 Shader.SetGlobalVector("_GlobalMipBias", new Vector4(1, 0, 0, 0));
                 Expect(material, target, sample, new Color(0, 1, 0, 1), "bias 1 applies once to every tap");
-                Debug.Log("Project Lucid HL_UI_Blur_Render_Feature GPU verification passed: 4 Metal-derived cases on " + SystemInfo.graphicsDeviceType + ".");
+                Debug.Log("Project Lucid HL_UI_Blur_Render_Feature GPU verification passed: 6 cases on " + SystemInfo.graphicsDeviceType + ".");
             }
             finally
             {
@@ -105,13 +116,13 @@ namespace ProjectLucid
             }
         }
 
-        private static void Expect(Material material, RenderTexture target, Texture2D sample, Color expected, string label)
+        private static void Expect(Material material, RenderTexture target, Texture2D sample, Color expected, string label, int row = 16)
         {
             Graphics.SetRenderTarget(target);
             GL.Clear(true, true, new Color(0, 0, 0, 0));
             Require(material.SetPass(0), "pass did not bind: " + label);
             Graphics.DrawProceduralNow(MeshTopology.Triangles, 3);
-            sample.ReadPixels(new Rect(16, 16, 1, 1), 0, 0, false);
+            sample.ReadPixels(new Rect(16, row, 1, 1), 0, 0, false);
             sample.Apply(false);
             Color actual = sample.GetPixel(0, 0);
             Require(Mathf.Abs(actual.r - expected.r) < 0.01f && Mathf.Abs(actual.g - expected.g) < 0.01f &&
