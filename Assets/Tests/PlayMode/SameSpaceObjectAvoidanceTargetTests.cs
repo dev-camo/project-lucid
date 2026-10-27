@@ -18,13 +18,14 @@ namespace ProjectLucid.Tests
         // CalculateCircle: centre = neighbour, radius = 0 + m_SSOADistance (3).
         // CalculateRotation 0x06002302, x86-64 0x582210: rotation*forward, then
         // position - centre (subps at 0x5822ee), rotation*up, SignedVectorAngle
-        // (0x582342) = Angle * sign(dot(other, cross(forward, up))) = -90.
+        // (0x582342) = Angle * sign(dot(other, cross(up, forward))) = +90 (rewritten
+        // for #587: the shipped SignedVectorAngle 0x1AB7EF0 crosses normal x reference).
         // CalculateTarget 0x06002300, x86-64 0x581bb0: zero Offset (< tolerance,
-        // 0x581c01) snaps m_rotation to -90; direction = AngleAxis(-90, up) * forward
-        // = -X; m_targetOffset (+0x78) = centre - position + direction * radius =
-        // (-4, 0, 0) (0x581d85..0x581dde); the return registers hold the direction.
+        // 0x581c01) snaps m_rotation to +90; direction = AngleAxis(90, up) * forward
+        // = +X; m_targetOffset (+0x78) = centre - position + direction * radius =
+        // (2, 0, 0) (0x581d85..0x581dde); the return registers hold the direction.
         // Catches returning the offset instead of the direction, and a
-        // centre - position sign (direction +X, offset (2, 0, 0)).
+        // centre - position sign (direction -X, offset (-4, 0, 0)).
         [Test]
         public void TargetUsesThePositionMinusCentreAngleAndReturnsTheRadialDirection()
         {
@@ -50,13 +51,13 @@ namespace ProjectLucid.Tests
                 CollectionAssert.AreEqual(new[] { neighbour }, selected);
                 Near(Vector3.zero, (Vector3)Get(avoidance, "m_centre"), "centre");
                 Assert.AreEqual(3f, (float)Get(avoidance, "m_radius"), 1e-5f);
-                Assert.AreEqual(-90f, (float)Get(avoidance, "m_rotation"), 1e-3f);
-                Near(new Vector3(-4f, 0f, 0f), (Vector3)Get(avoidance, "m_targetOffset"), "target offset");
+                Assert.AreEqual(90f, (float)Get(avoidance, "m_rotation"), 1e-3f);
+                Near(new Vector3(2f, 0f, 0f), (Vector3)Get(avoidance, "m_targetOffset"), "target offset");
                 Near(Vector3.zero, avoidance.Offset, "offset is only interpolated in LateUpdate");
 
                 var direction = (Vector3)typeof(SameSpaceObjectAvoidance).GetMethod("CalculateTarget", Instance).Invoke(avoidance, null);
-                Near(new Vector3(-1f, 0f, 0f), direction, "CalculateTarget returns the radial direction");
-                Near(new Vector3(-4f, 0f, 0f), (Vector3)Get(avoidance, "m_targetOffset"), "target offset is recomputed unchanged");
+                Near(new Vector3(1f, 0f, 0f), direction, "CalculateTarget returns the radial direction");
+                Near(new Vector3(2f, 0f, 0f), (Vector3)Get(avoidance, "m_targetOffset"), "target offset is recomputed unchanged");
             }
             finally
             {

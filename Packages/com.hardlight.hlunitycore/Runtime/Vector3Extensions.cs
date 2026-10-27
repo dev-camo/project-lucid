@@ -158,15 +158,15 @@ namespace Hardlight
             return new Vector3(Mathf.Abs(vec.x), Mathf.Abs(vec.y), Mathf.Abs(vec.z));
         }
 
-        // 0x06000356/57: original handedness is dot(other, cross(reference, normal)).
-        // It differs from Vector3.SignedAngle, so do not replace it with that API.
+        // 0x06000356/57: original handedness is dot(other, cross(normal, reference))
+        // (0x1ab80e7..0x1ab812f); Mathf.Sign makes zero and NaN dots +1 and -1.
         public static float SignedVectorAngle(Vector3 referenceVector, Vector3 otherVector, Vector3 normal)
         {
             return Vector3.Angle(referenceVector, otherVector) * SignOfAngle(referenceVector, otherVector, normal);
         }
         public static float SignOfAngle(Vector3 referenceVector, Vector3 otherVector, Vector3 normal)
         {
-            return Mathf.Sign(Vector3.Dot(otherVector, Vector3.Cross(referenceVector, normal)));
+            return Mathf.Sign(Vector3.Dot(otherVector, Vector3.Cross(normal, referenceVector)));
         }
 
         // 0x06000358: the authored caller supplies a unit normal. Preserve the

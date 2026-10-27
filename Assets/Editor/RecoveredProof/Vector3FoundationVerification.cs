@@ -172,14 +172,15 @@ namespace ProjectLucid
             a = new Vector3(-0f, -3, float.NegativeInfinity).Abs();
             Require(Bits(a.x) == 0 && a.y == 3 && float.IsPositiveInfinity(a.z), "absolute values preserve nonfinite policy and clear zero sign");
 
-            Require(Near(Vector3Extensions.SignedVectorAngle(Vector3.right, Vector3.up, Vector3.forward), -90), "original signed angle handedness");
-            Require(Near(Vector3Extensions.SignedVectorAngle(Vector3.up, Vector3.right, Vector3.forward), 90), "reverse orientation reverses sign");
+            // Rewritten for #587: the shipped body (0x1AB80E0) crosses normal x reference, so right->up about forward is +90.
+            Require(Near(Vector3Extensions.SignedVectorAngle(Vector3.right, Vector3.up, Vector3.forward), 90), "original signed angle handedness");
+            Require(Near(Vector3Extensions.SignedVectorAngle(Vector3.up, Vector3.right, Vector3.forward), -90), "reverse orientation reverses sign");
             Require(Near(Vector3Extensions.SignedVectorAngle(Vector3.right, Vector3.left, Vector3.zero), 180), "zero sign dot chooses positive half turn");
-            Require(Vector3Extensions.SignOfAngle(Vector3.right, Vector3.up, Vector3.forward) == -1 && Vector3Extensions.SignOfAngle(Vector3.right, Vector3.right, Vector3.forward) == 1, "negative and exactly zero sign branches");
+            Require(Vector3Extensions.SignOfAngle(Vector3.right, Vector3.up, Vector3.forward) == 1 && Vector3Extensions.SignOfAngle(Vector3.up, Vector3.right, Vector3.forward) == -1 && Vector3Extensions.SignOfAngle(Vector3.right, Vector3.right, Vector3.forward) == 1, "positive, negative and exactly zero sign branches");
             Require(Vector3Extensions.SignedVectorAngle(Vector3.zero, Vector3.up, Vector3.forward) == 0, "zero vector follows genuine engine Angle threshold");
             Require(Vector3Extensions.SignOfAngle(new Vector3(float.NaN, 0, 0), Vector3.up, Vector3.forward) == -1, "unordered sign follows original Mathf.Sign negative branch");
-            Require(Near(Vector3Extensions.SignedVectorAngleOnPlane(new Vector3(1, 1, 0), new Vector3(0, 1, 1), Vector3.up), 90), "unit plane projection removes height before angle");
-            Require(Near(Vector3Extensions.SignedVectorAngleOnPlane(new Vector3(1, 1, 0), new Vector3(0, 1, 1), new Vector3(0, 2, 0)), 25.841932f), "nonunit plane normal remains unnormalized");
+            Require(Near(Vector3Extensions.SignedVectorAngleOnPlane(new Vector3(1, 1, 0), new Vector3(0, 1, 1), Vector3.up), -90), "unit plane projection removes height before angle");
+            Require(Near(Vector3Extensions.SignedVectorAngleOnPlane(new Vector3(1, 1, 0), new Vector3(0, 1, 1), new Vector3(0, 2, 0)), -25.841932f), "nonunit plane normal remains unnormalized");
 
             Vector3 point = new Vector3(5, 9, -3);
             Require(Vector3Extensions.ProjectPointOnLine(Vector3.zero, new Vector3(10, 0, 0), ref point) && Same(point, new Vector3(5, 0, 0)), "interior projection discards perpendicular offset");
