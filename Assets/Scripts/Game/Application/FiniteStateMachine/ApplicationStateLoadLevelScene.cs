@@ -71,7 +71,7 @@ namespace HardlightProject
 			}
 			LevelManager levelManager = ProcessManager.GetSystem<LevelManager>();
 			yield return levelManager.LoadLevelSceneForFSM(parameters.LevelDefinition, sceneDefinition);
-			yield return new WaitUntil(() => levelManager.TryGetCurrentLevel(out LevelManagerLevel currentLevel) && currentLevel.SceneDefinition.GetGUID() == sceneDefinitionGUID);
+			yield return new WaitUntil(() => levelManager.IsLoadedSceneGUID(sceneDefinitionGUID));
 			if (levelManager.TryGetCurrentLevel(out LevelManagerLevel level))
 			{
 				levelManager.OnLevelLoaded(level);

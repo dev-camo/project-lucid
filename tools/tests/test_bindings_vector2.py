@@ -3,6 +3,9 @@ import copy
 import unittest
 from unittest.mock import patch
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lucidlib.bindings import LayoutError, _Comparison, compare_layouts
 import test_bindings as base_tests
 from test_bindings import attribute, field, named, record

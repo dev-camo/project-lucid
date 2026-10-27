@@ -3,6 +3,9 @@ import copy
 import json
 import unittest
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lucidlib.bindings import compare_layouts
 import test_bindings as base_tests
 from test_bindings import attribute, field, named, record

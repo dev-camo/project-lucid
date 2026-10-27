@@ -8877,6 +8877,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnControllerConnectedButtonTests." +
     "OnDestroyBeforeStartFaultsOnTheMissingControlMapping",
 ))
 
+# The level-load wait asks LevelManager.IsLoadedSceneGUID, as the original closure does (#580).
+EDITMODE_TESTS += ("ProjectLucid.Tests.ApplicationStateLoadLevelSceneWaitTests.LevelLoadWaitAsksTheLevelManagerWhetherTheSceneIsLoaded",)
 # Restored HardlightProject.OpenLocalisedURL (Game.Runtime 02000a15).
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OpenLocalisedUrlTests." + name for name in (
     "TheQrCodePublishesTheUrlStringAndItsEventOnce",
