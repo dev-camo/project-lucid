@@ -37,7 +37,10 @@ namespace ProjectLucid.Tests
             animator.Update(0f);
             SetActorProperty(scene.Enemy, "Animator", new ActorAnimator(animator));
             scene.Definition.Settings = new CharacterSettings { Collider = collider };
-            Assert.That(scene.Body.GravityForceEnabled, Is.True, "the body starts with the gravity force on");
+            // Awake would start the force from m_gravityForceStartsEnabled (true); Edit Mode sends none, so the
+            // enemy turns it on through its own API.
+            scene.Enemy.SetGravityForceEnabled(true);
+            Assert.That(scene.Body.GravityForceEnabled, Is.True, "the gravity force is on");
             Assert.That(scene.Enemy.GravityNormalised, Is.EqualTo(Vector3.down));
         }
 
