@@ -972,7 +972,8 @@ def run_layout_inventory(repo_root: Path, work_dir: Path, schema_path=None) -> d
     if schema_path is None:
         pointer = managed_path(work, "native-recovery", "latest-schemas.json")
         summary = json.loads(pointer.read_bytes())
-        if not isinstance(summary, dict) or summary.get("schema_version") != 1 or summary.get("command") != "schemas" or summary.get("status") != "ready":
+        if (not isinstance(summary, dict) or summary.get("schema_version") != 1 or summary.get("command") != "schemas"
+                or summary.get("status") != "ready" or summary.get("assembly") is not None):
             raise LayoutError("No complete generated native schema is available")
         selected = summary.get("evidence_report")
         if not isinstance(selected, str) or not Path(selected).is_absolute():

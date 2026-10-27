@@ -417,7 +417,8 @@ def _native_evidence_leased(input_path: Path, work_dir: Path, command: str, asse
     write_json(stage / "report.json", report)
     stage.replace(destination)
     write_json(managed_path(work_dir, "reports", f"native-{command}.json"), report)
-    if report["status"] == "ready":
+    # An --assembly schema run is diagnostic: only a complete run may become the schema prepare and layouts read.
+    if report["status"] == "ready" and (command != "schemas" or assembly is None):
         write_json(managed_path(work_dir, "native-recovery", f"latest-{command}.json"), report)
     return report
 

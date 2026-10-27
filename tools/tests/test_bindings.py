@@ -378,6 +378,18 @@ class BindingTests(unittest.TestCase):
                     self.assertEqual("failed", run_layout_inventory(root, work)["status"])
                 self.assertEqual(before, latest.read_bytes())
 
+    def test_editor_wrapper_rejects_a_filtered_schema_pointer(self):
+        # #569: a pointer written by an --assembly run names its assembly and is not the complete schema.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            work, pointer, inventory = self.wrapper_fixture(root)
+            pointer.write_text(json.dumps(dict(json.loads(pointer.read_text()), assembly="Game.Runtime")))
+            with patch("lucidlib.bootstrap.REPO_ROOT", root), patch("lucidlib.bootstrap.CACHE_ROOT", work), \
+                    patch("lucidlib.bindings.CACHE_ROOT", work), patch("lucidlib.verification.find_editor", return_value=root / "Unity"), \
+                    patch("lucidlib.bindings.run_owned", side_effect=AssertionError("no Editor runs on a partial schema")):
+                with self.assertRaisesRegex(LayoutError, "No complete generated native schema"):
+                    run_layout_inventory(root, work)
+
     def test_editor_wrapper_prunes_older_stages_but_keeps_latest_and_current(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
