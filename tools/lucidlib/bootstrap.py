@@ -1096,8 +1096,10 @@ def take_work_lock(path: Path, busy: str):
     """Take a process-held work lock; the OS releases it when its owner dies, so a leftover file is not a live owner."""
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_dir() and not path.is_symlink():
-        # An empty directory left by the earlier mkdir lock is not a live owner; a non-empty one raises.
-        path.rmdir()
+        # The earlier mkdir lock left only an empty directory, which cannot show whether its owner, an
+        # older version of this command, is still running; it stays busy until removed on purpose.
+        raise ValueError(busy + "; a lock directory from an earlier tool version is at " + str(path) +
+                         " (remove it if no older command is running)")
     try:
         stream = open_coordinator_lock(path, "Work lock")
     except ToolError as error:

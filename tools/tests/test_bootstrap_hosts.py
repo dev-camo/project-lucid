@@ -267,15 +267,20 @@ class WorkLockTests(unittest.TestCase):
         bootstrap.release_work_lock(bootstrap.take_work_lock(self.path, "busy"))
         self.assertTrue(self.path.is_file())
 
-    def test_empty_legacy_lock_directory_is_replaced(self):
+    def test_legacy_lock_directory_stays_busy_until_removed_on_purpose(self):
+        # An older command may still own it: it is neither removed nor bypassed, and the message says how to clear it.
         self.path.mkdir(parents=True)
+        with self.assertRaisesRegex(ValueError, "^busy; a lock directory from an earlier tool version is at .*work.lock"):
+            bootstrap.take_work_lock(self.path, "busy")
+        self.assertTrue(self.path.is_dir())
+        self.path.rmdir()
         bootstrap.release_work_lock(bootstrap.take_work_lock(self.path, "busy"))
         self.assertTrue(self.path.is_file())
 
     def test_non_empty_legacy_lock_directory_is_not_removed(self):
         self.path.mkdir(parents=True)
         (self.path / "owner").write_bytes(b"x")
-        with self.assertRaises(OSError):
+        with self.assertRaises(ValueError):
             bootstrap.take_work_lock(self.path, "busy")
         self.assertTrue((self.path / "owner").exists())
 
