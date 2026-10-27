@@ -137,18 +137,6 @@
         "com.unity.modules.ui": "1.0.0"
       }
     },
-    "com.projectlucid.applearcadesplash": {
-      "version": "file:com.projectlucid.applearcadesplash",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {}
-    },
-    "com.projectlucid.fairplay": {
-      "version": "file:com.projectlucid.fairplay",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {}
-    },
     "com.unity.addressables": {
       "version": "1.22.3",
       "depth": 0,
