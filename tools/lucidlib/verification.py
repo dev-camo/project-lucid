@@ -11121,6 +11121,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflineBootHookTests." + name for na
     "TheSplashListenerCallWaitsUntilTheGraphHasLeftBoot",
     "ArmWaitsForTheNamedSceneAndLeavesTheEventThere",
 ))
+# ProjectToNeighbourSlope casts each recontact ray before the step's movement (#589).
+EDITMODE_TESTS += ("ProjectLucid.Tests.ColliderTrackingNeighbourSlopeTests.RecontactRayStartsFromThePositionBeforeTheStep",)
 # D14: actual enable/disable and authored reactivation of shipped cross-promo entry shapes (#502).
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OfflineCrossPromoEntryPointTests.ShippedEntryShapesStayHiddenAcrossAuthoredReactivationAndRestoreWithAdapterOff",

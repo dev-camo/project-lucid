@@ -194,14 +194,15 @@ namespace HardlightProject
                     planeProjection = surfaceNormal * (Vector3.Dot(position, surfaceNormal) + surfacePlaneDistance);
                     raycastTransform.Position += surfaceMovement * queryInterval;
                 }
+                // The recontact ray starts where this step began; the step's movement follows it (0x6acb96, 0x6ac274).
+                Vector3 rayOrigin = position - planeProjection + surfaceNormal * RaycastProjectBackwardDistance;
                 for (int frameIndex = 0; frameIndex < RaycastAirFrameInterval; ++frameIndex)
                 {
                     velocity += gravity(velocity) * deltaTime;
                     position += velocity * deltaTime;
                 }
                 hitTime += queryInterval;
-                hitCount = Raycast(position - planeProjection + surfaceNormal * RaycastProjectBackwardDistance,
-                    -surfaceNormal, m_raycastHitResults, RaycastProjectForwardDistance, layerMask);
+                hitCount = Raycast(rayOrigin, -surfaceNormal, m_raycastHitResults, RaycastProjectForwardDistance, layerMask);
                 if (hitCount != 0 && hasBeenAirborne)
                     break;
                 hasBeenAirborne |= hitCount == 0;
