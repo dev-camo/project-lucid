@@ -10320,6 +10320,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCharacterSkinSelectionTes
     "TheParametersKeepTheirCharacterDefinition",
 ))
 
+# Offline achievements rebind to each session's enemy and character managers (#563).
+EDITMODE_TESTS += ("ProjectLucid.Tests.OfflineAchievementStartupRebindTests.EachGameplaySessionRebindsTheEnemyAndCharacterManagers",)
 # Restored HardlightProject.UIWidgetActiveCharacterImage.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetActiveCharacterImageTests." + name for name in (
     "EnablingShowsTheCurrentCharactersPortrait",
