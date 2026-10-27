@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Linq;
 using System.Reflection;
 using Hardlight;
@@ -101,46 +100,7 @@ namespace ProjectLucid
                 if (texture != null) UnityEngine.Object.DestroyImmediate(texture);
                 UnityEngine.Object.DestroyImmediate(go);
             }
-            Debug.Log("Project Lucid original widget/progression checks=" + checks + "; animation route requires bounded live proof");
-        }
-
-        // Actual PlayMode only: genuine Animation/legacy clips exercise both
-        // direct Play(string) calls and StopSameLayer semantics of that overload.
-        // This uses no authored artwork, asset loading or manager replacement.
-        public static IEnumerator RunLive()
-        {
-            GameObject go = new GameObject("Project Lucid original progression animation proof");
-            AnimationClip incoming = null, outgoing = null;
-            try
-            {
-                UIWidgetProgression widget = go.AddComponent<UIWidgetProgression>();
-                Animation animation = go.AddComponent<Animation>();
-                incoming = new AnimationClip { name = "ProjectLucidIncoming", legacy = true };
-                outgoing = new AnimationClip { name = "ProjectLucidOutgoing", legacy = true };
-                incoming.SetCurve("", typeof(Transform), "localPosition.x", AnimationCurve.Linear(0, 0, 1, 1));
-                outgoing.SetCurve("", typeof(Transform), "localPosition.x", AnimationCurve.Linear(0, 1, 1, 0));
-                animation.AddClip(incoming, incoming.name);
-                animation.AddClip(outgoing, outgoing.name);
-                Field("m_animation").SetValue(widget, animation);
-                Field("m_animateInClip").SetValue(widget, incoming);
-                Field("m_animateOutClip").SetValue(widget, outgoing);
-                yield return null;
-                widget.AnimateIn();
-                if (!animation.IsPlaying(incoming.name) || animation.IsPlaying(outgoing.name))
-                    throw new InvalidOperationException("original AnimateIn configured clip name");
-                yield return null;
-                widget.AnimateOut();
-                if (!animation.IsPlaying(outgoing.name) || animation.IsPlaying(incoming.name))
-                    throw new InvalidOperationException("original AnimateOut configured clip and Play(string) same-layer stop");
-                yield return null;
-                Debug.Log("Project Lucid original progression live animation checks=2; bounded engine routes, no authored UI parity");
-            }
-            finally
-            {
-                UnityEngine.Object.Destroy(go);
-                if (incoming != null) UnityEngine.Object.Destroy(incoming);
-                if (outgoing != null) UnityEngine.Object.Destroy(outgoing);
-            }
+            Debug.Log("Project Lucid original widget/progression checks=" + checks + "; animation route proof lives in UIWidgetProgressionTests");
         }
     }
 }
