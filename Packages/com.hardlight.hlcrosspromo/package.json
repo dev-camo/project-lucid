@@ -3,7 +3,7 @@
   "displayName": "Hardlight CrossPromo",
   "version": "0.1.0",
   "unity": "2022.3",
-  "description": "Preserved original CrossPromo configuration declarations.",
+  "description": "Locally maintained original CrossPromo system, download and resource managers, configuration parser and launch button source.",
   "dependencies": {
     "com.hardlight.hlunitycore": "0.1.0"
   }
