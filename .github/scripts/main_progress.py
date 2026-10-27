@@ -26,7 +26,6 @@ PR_COMPILATION_CONTEXT = 'Native compilation (PR head)'
 PR_OWNERSHIP_CONTEXT = 'Generated progress ownership (PR)'
 README_START = '<!-- LUCID_CODE_PROGRESS:START -->'
 README_END = '<!-- LUCID_CODE_PROGRESS:END -->'
-PROGRESS_BRANCH_PREFIX = 'lucid/progress-checks-'
 # needs.compile.result -> (state, description). Only a completed compile job may be
 # reported as success; skipped and cancelled jobs never are. A failed job is a compiler
 # failure only when pr_compile_job says so (see PR_COMPILE_OUTCOMES).
@@ -162,14 +161,6 @@ def seal_job(api, request, producer):
                           'report_base64': base64.b64encode(raw).decode()})
 
 
-def bot_progress_branch(request):
-    return request['head_repository'] == REPOSITORY and request['head_ref'].startswith(PROGRESS_BRANCH_PREFIX)
-
-
-def pr_by_bot(pr):
-    return pr.get('user', {}).get('login') == shared.BOT
-
-
 def pr_gate(api, event):
     if (os.environ.get('GITHUB_REPOSITORY') != REPOSITORY
             or os.environ.get('GITHUB_EVENT_NAME') != 'workflow_run'
@@ -178,15 +169,7 @@ def pr_gate(api, event):
     run = event.get('workflow_run', {})
     if run.get('event') != 'pull_request' or run.get('conclusion') != 'success':
         return None
-    request = shared.gate(api, event, os.environ['GITHUB_SHA'])
-    if request and bot_progress_branch(request):
-        pr = shared.require_current_pr(api, request)
-        if pr_by_bot(pr):
-            commit = api.request(f"/repos/{REPOSITORY}/commits/{request['head']}")
-            paths = {entry.get('filename') for entry in commit.get('files', [])}
-            if paths and paths <= {'README.md', 'docs/code-progress.json'}:
-                return None
-    return request
+    return shared.gate(api, event, os.environ['GITHUB_SHA'])
 
 
 def pr_staleness(api, request):
