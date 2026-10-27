@@ -22,8 +22,9 @@ namespace HardlightProject
             float speed = velocity.magnitude;
             var position = character.WorldPosition;
             var direction = -character.UpDirection;
-            float sine = Mathf.Sin(settings.StickToColliderAngleMax * Mathf.Deg2Rad);
-            float distance = (speed * deltaTime) * sine;
+            // _tanf at 0x6a9f8f: the reach is the drop per step on a slope of the maximum angle.
+            float tangent = Mathf.Tan(settings.StickToColliderAngleMax * Mathf.Deg2Rad);
+            float distance = (speed * deltaTime) * tangent;
             if (!Physics.Raycast(position, direction, out RaycastHit hit, distance, settings.StickToColliderMask))
                 return false;
 
