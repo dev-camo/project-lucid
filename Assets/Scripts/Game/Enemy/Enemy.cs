@@ -145,20 +145,21 @@ namespace HardlightProject
         protected override void DoOnFixedUpdatePreFSM(float deltaTime)
         {
             base.DoOnFixedUpdatePreFSM(deltaTime);
+            // Each site reads GravityNormalised itself and uses it unnegated (0x56c286, 0x56c315, 0x56c39e).
             if (m_simplifiedBody.GravityForceEnabled)
             {
                 Vector3 upDirection = UpDirection;
-                if (!((upDirection + WorldUp).sqrMagnitude < 9.99999944E-11f))
+                if (!((upDirection + GravityNormalised).sqrMagnitude < 9.99999944E-11f))
                 {
                     float radians = m_definition.Traits.RotateToGravityRadiansPerSecond * deltaTime;
-                    Vector3 direction = Vector3.RotateTowards(-upDirection, WorldUp, radians, 0f);
+                    Vector3 direction = Vector3.RotateTowards(-upDirection, GravityNormalised, radians, 0f);
                     OrientateToPlaneWithLookDirection(-direction, ForwardDirection);
                 }
             }
             CharacterSettings.ColliderSettings colliderSettings = m_definition.Settings.Collider;
             if (colliderSettings.StickToColliderMask.value != 0)
             {
-                Vector3 direction = m_simplifiedBody.GravityForceEnabled ? WorldUp : -UpDirection;
+                Vector3 direction = m_simplifiedBody.GravityForceEnabled ? GravityNormalised : -UpDirection;
                 if (Physics.Raycast(WorldPosition, direction, out RaycastHit hit,
                     colliderSettings.GroundCheckMinDistance, colliderSettings.StickToColliderMask))
                     SetWorldPosition(hit.point);

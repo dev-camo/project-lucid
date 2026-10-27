@@ -11191,6 +11191,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflinePlatformHookTests." + name fo
     "HookPolarityCheckRejectsInvertedConditions",
 ))
 EDITMODE_TESTS += ("ProjectLucid.Tests.UIContainerGameCenterAccessPointTests.StartEnablesTheCanvasScalerOnWindowsAndLinuxPlayersAsOnMacOS",)
+# Enemy gravity realignment and stick ray follow GravityNormalised (#586).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyGravityAlignmentTests." + name for name in (
+    "UprightEnemyUnderGravityIsNotRealigned",
+    "TiltedEnemyTurnsItsDownDirectionTowardsGravity",
+    "StickRayIsCastAlongGravity",
+))
 # SurfaceTracking cone test from the projected axis point (#525).
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.SurfaceTrackingConeOperandTests." + name for name in (
     "InteriorAndExteriorPointsKeepTheirResults",
