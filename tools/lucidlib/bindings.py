@@ -283,6 +283,29 @@ def _builtin_struct_specs():
 _BUILTIN_STRUCTS = _builtin_struct_specs()
 
 
+def _engine_native_class_specs():
+    """The literal 2022.3.54f1 declarations of engine classes the serializer stores natively.
+
+    Unity.SerializationLogic in the installed 2022.3.54f1 Editor names
+    UnityEngine.AnimationCurve among the engine classes it serializes without
+    the Serializable bit; the engine writes the curve itself, not its managed
+    m_Ptr handle. Recorded from the shipped IL2CPP schema and the installed
+    CoreModule; each side must match every row.
+    """
+    shared = "UnityEngine.SharedInternalsModule"
+    return {("UnityEngine.CoreModule", "UnityEngine.AnimationCurve"): {
+        "attributes": tuple(sorted((
+            (shared, "UnityEngine.Bindings.NativeHeaderAttribute",
+             (("primitive", "IL2CPP_TYPE_STRING", "Runtime/Math/AnimationCurve.bindings.h"),), ()),
+            (shared, "UnityEngine.Scripting.RequiredByNativeCodeAttribute", (), ()),
+            ("mscorlib", "System.Reflection.DefaultMemberAttribute", (("primitive", "IL2CPP_TYPE_STRING", "Item"),), ())), key=repr)),
+        "fields": (("m_Ptr", 3, ("named", "mscorlib", "System.IntPtr")),),
+    }}
+
+
+_ENGINE_NATIVE_CLASSES = _engine_native_class_specs()
+
+
 def _engine_module(assembly: str) -> bool:
     """The Unity engine's own module assemblies, not packages such as UnityEngine.UI."""
     return assembly == "UnityEngine" or (assembly.startswith("UnityEngine.") and assembly.endswith("Module"))
@@ -497,6 +520,9 @@ class _Comparison:
                 # an inherited component's payload as inline serialized data.
                 arity = 0 if arguments is None else len(largs)
                 if as_field and not left.get("is_enum") and not left.get("is_value_type") and self._unity_object(owner, arity):
+                    return
+                # The engine stores these classes natively; their managed fields are not the stored data.
+                if as_field and self._engine_native_class_contract(owner):
                     return
                 lbase, rbase = _substitute(left.get("base_type"), largs), _substitute(right.get("base_type"), rargs)
                 if lbase is None or rbase is None:
@@ -735,6 +761,49 @@ class _Comparison:
         """
         return self.unity_versions == ("2022.3.54f1", "2022.3.54f1") and (
             self._vector2_data_contract(key) or self._builtin_struct_contract(key))
+
+    def _engine_native_class_contract(self, key):
+        """Prove one complete literal natively serialized engine class on both graphs.
+
+        Only for Unity 2022.3.54f1 on both sides and the classes in
+        _ENGINE_NATIVE_CLASSES: exact name, flags without the Serializable bit,
+        a System.Object base, the complete CAD set, and every declared field in
+        order with its flags and type and no CAD, default or managed reference.
+        Anything else is refused.
+        """
+        spec = _ENGINE_NATIVE_CLASSES.get(key)
+        if spec is None or self.unity_versions != ("2022.3.54f1", "2022.3.54f1"):
+            return False
+        left, right = self.original.get(key), self.loaded.get(key)
+        if left is None or right is None:
+            raise LayoutError("Missing dual engine class declaration: " + key[1])
+        for record, original in ((left, True), (right, False)):
+            if (record.get("assembly"), record.get("full_name")) != key or (
+                    record.get("namespace"), record.get("name")) != tuple(key[1].rsplit(".", 1)):
+                raise LayoutError("Engine class declaration identity differs: " + key[1])
+            # 0x100009 is the shipped and installed flag value: no Serializable bit.
+            if type(record.get("attributes")) is not int or record["attributes"] != 0x100009:
+                raise LayoutError("Engine class declaration flags differ: " + key[1])
+            if (record.get("is_value_type") is not False or record.get("is_enum") is not False or
+                    record.get("is_abstract") is not False or "declaring_type" not in record or record["declaring_type"] is not None or
+                    record.get("unity_component") is not False or record.get("unity_scriptable_object") is not False or
+                    record.get("generic_parameters") != [] or "enum_underlying_type" not in record or record["enum_underlying_type"] is not None):
+                raise LayoutError("Engine class declaration shape differs: " + key[1])
+            if type_identity(record.get("base_type")) != ("named", "mscorlib", "System.Object"):
+                raise LayoutError("Engine class declaration has an invalid scoped Object base: " + key[1])
+            if _attributes(record, require_string_evidence=original) != spec["attributes"]:
+                raise LayoutError("Engine class type attributes differ: " + key[1])
+            fields = record["fields"]
+            if tuple(field["name"] for field in fields) != tuple(row[0] for row in spec["fields"]):
+                raise LayoutError("Engine class complete declared field order differs: " + key[1])
+            for field, (name, flags, identity) in zip(fields, spec["fields"]):
+                if field["attributes"] != flags or type_identity(field["field_type"]) != identity:
+                    raise LayoutError("Engine class declared field flags/type differ: " + name)
+                if _attributes(field, require_string_evidence=original) != () or field["serialize_reference"] is not False:
+                    raise LayoutError("Engine class declared field attributes differ: " + name)
+                if field.get("has_default_value") is not False or field.get("default_value_complete") is not True:
+                    raise LayoutError("Engine class declared field default evidence is incomplete: " + name)
+        return True
 
     def _unserialized_class(self, left, right):
         """Prove a field type is a plain class Unity2022 never serializes.

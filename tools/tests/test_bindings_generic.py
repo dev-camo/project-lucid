@@ -233,9 +233,13 @@ class UnserializedClassFieldTests(unittest.TestCase):
         for report in (original, loaded):
             by_name(report, "Example.Table")["attributes"] |= 0x20
         self.assertEqual("blocked", candidate(original, loaded)["status"])
-        # AnimationCurve has no Serializable bit yet the engine serializes it natively.
+        # AnimationCurve has no Serializable bit yet the engine serializes it natively. It is never skipped:
+        # only its literal engine declaration is admitted (test_bindings_engine_classes), so this lookalike
+        # declaration is refused by that contract and stays blocked.
         original, loaded = self.fixture(assembly="UnityEngine.CoreModule", name="UnityEngine.AnimationCurve")
-        self.assertIn("field_type_eligibility_unverified", reasons(candidate(original, loaded)))
+        result = candidate(original, loaded)
+        self.assertEqual("blocked", result["status"])
+        self.assertIn("incomplete_or_invalid_layout", reasons(result))
         original, loaded = self.fixture()
         for report in (original, loaded):
             widget_field = by_name(report, "Example.Widget")["fields"][1]
