@@ -1,7 +1,0 @@
-{
-  "name": "com.projectlucid.applearcadesplash",
-  "displayName": "Apple Arcade splash screen preservation source",
-  "version": "0.1.0",
-  "unity": "2022.3",
-  "description": "Locally maintained original Apple.Arcade.SplashScreen managed source."
-}
