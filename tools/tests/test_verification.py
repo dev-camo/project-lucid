@@ -538,6 +538,7 @@ class IsolationVerdictTests(unittest.TestCase):
     CONTROLLER = "ProjectLucid.Tests.ControllerActionTests"
     CONTROLLER_GAP = "ProjectLucid.Tests.OriginalControllerSubscriptionGapTests"
     SURFACE_MESH_PLAY = "ProjectLucid.Tests.SurfaceMeshSplineGeneratorAwakeTests"
+    AUTO_PLAY_CAMERA = "ProjectLucid.Tests.AutoPlayCameraStartPointTests"
 
     def test_side_effects_pin_the_native_changes_modes_and_registered_fixtures(self):
         effects = verification.ISOLATION_SIDE_EFFECTS
@@ -551,7 +552,9 @@ class IsolationVerdictTests(unittest.TestCase):
         self.assertEqual(tuple(self.native_row_changes("Hardlight.ScalablePerformance")),
                          effects["PerformanceDependency..cctor"]["changes"])
         self.assertEqual({"editmode": (self.TIMING, self.TIMING_PRESERVATION)}, effects["TimeScaledUtilities..cctor"]["fixtures"])
-        self.assertEqual({"playmode": (self.SURFACE_MESH_PLAY,)}, effects["TimeScaledComponent..cctor"]["fixtures"])
+        # Native issue554-retention-red observed the exact permanent-row tuple at the first camera case.
+        self.assertEqual({"editmode": (self.AUTO_PLAY_CAMERA,), "playmode": (self.SURFACE_MESH_PLAY,)},
+                         effects["TimeScaledComponent..cctor"]["fixtures"])
         self.assertEqual({"editmode": (self.GAP, self.PRESERVATION), "playmode": (self.DESTROY_PLAY,)},
                          effects["PerformanceDependency..cctor"]["fixtures"])
         self.assertEqual(tuple(self.native_row_changes("HardlightProject.InputSystem")),
@@ -598,6 +601,46 @@ class IsolationVerdictTests(unittest.TestCase):
         verdict = self.side_effect_verdict("editmode", [(self.GAP + ".DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers",
                                                          "clean", [])])
         self.assertEqual(("complete", [], []), (verdict["status"], verdict["errors"], verdict["side_effects"]))
+
+    def test_camera_first_use_accepts_only_the_observed_tuple_not_deferred_work(self):
+        first = self.AUTO_PLAY_CAMERA + ".AwakeForcesTheVirtualCamerasToTheStartPoint"
+        original = self.native_row_changes("Hardlight.TimeManager")
+        accepted = self.side_effect_verdict("editmode", [(first, "leak", original)])
+        self.assertEqual("complete", accepted["status"], accepted["errors"])
+        self.assertEqual("TimeScaledComponent..cctor", accepted["side_effects"][0]["side_effect"])
+        deferred = "changed system row 'Hardlight.TimeManager' typed reference 'Hardlight.TimeManager' deferred InvokeOnValid work"
+        unrelated = "ProjectLucid.Tests.OriginalConditionalTriggerEventTests.EnablingFaultsOnAConditionThatIsNotAPersistentBoolean"
+        for test, changes in ((first, [deferred]), (first, original + [deferred]),
+                              (first, original[:-1]), (first, original[1:] + original[:1]),
+                              (unrelated, original), (unrelated, [deferred])):
+            with self.subTest(test=test, changes=changes):
+                verdict = self.side_effect_verdict("editmode", [(test, "leak", changes)])
+                self.assertEqual("incomplete", verdict["status"])
+                self.assertEqual([], verdict["side_effects"])
+                self.assertTrue(verdict["leaks"])
+
+    def test_the_same_permanent_row_cannot_be_added_by_two_initializer_names(self):
+        changes = self.native_row_changes("Hardlight.TimeManager")
+        camera = self.AUTO_PLAY_CAMERA + ".AwakeForcesTheVirtualCamerasToTheStartPoint"
+        timing = self.TIMING + ".OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes"
+        cases = [(camera, "leak", changes), (timing, "leak", changes)]
+        for ordered in (cases, list(reversed(cases))):
+            with self.subTest(order=[case[0] for case in ordered]):
+                verdict = self.side_effect_verdict("editmode", ordered)
+                self.assertEqual("incomplete", verdict["status"])
+                self.assertTrue(any("identical permanent changes" in error for error in verdict["errors"]), verdict["errors"])
+                self.assertEqual({"TimeScaledComponent..cctor", "TimeScaledUtilities..cctor"},
+                                 {entry["side_effect"] for entry in verdict["side_effects"]})
+
+    def test_different_permanent_rows_can_each_be_added_once(self):
+        camera = self.AUTO_PLAY_CAMERA + ".AwakeForcesTheVirtualCamerasToTheStartPoint"
+        performance = self.GAP + ".DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers"
+        verdict = self.side_effect_verdict("editmode", [
+            (camera, "leak", self.native_row_changes("Hardlight.TimeManager")),
+            (performance, "leak", self.native_row_changes("Hardlight.ScalablePerformance"))])
+        self.assertEqual("complete", verdict["status"], verdict["errors"])
+        self.assertEqual({"TimeScaledComponent..cctor", "PerformanceDependency..cctor"},
+                         {entry["side_effect"] for entry in verdict["side_effects"]})
 
     def test_side_effect_seen_twice_in_one_report_fails(self):
         changes = list(verification.ISOLATION_SIDE_EFFECTS["PerformanceDependency..cctor"]["changes"])
@@ -672,15 +715,19 @@ class IsolationVerdictTests(unittest.TestCase):
                 '</test-suite></test-run>')
             Path(command[command.index("-logFile") + 1]).write_text("Unity Editor version: " + verification.UNITY_VERSION)
             if write_isolation:
-                # As a native run: each side effect once, from the first case of an
-                # allowed fixture, and an allowlisted test leaking exactly its changes.
+                # As a native run: one birth per permanent row, even when multiple
+                # initializers share it; allowlisted tests retain their exact changes.
                 allowlist, pending, lines = verification.ISOLATION_ALLOWLIST, dict(verification.ISOLATION_SIDE_EFFECTS), []
+                emitted_changes = set()
                 for name in names:
                     changes = list(allowlist[name]["changes"]) if name in allowlist else []
                     effect = next((key for key, entry in pending.items()
                                    if any(name.startswith(fixture + ".") for fixture in entry["fixtures"].get(mode, ()))), None)
                     if not changes and effect is not None:
-                        changes = list(pending.pop(effect)["changes"])
+                        candidate = tuple(pending.pop(effect)["changes"])
+                        if candidate not in emitted_changes:
+                            changes = list(candidate)
+                            emitted_changes.add(candidate)
                     lines.append(self.line(name, "leak" if changes else "clean", changes,
                                            nonce=env["LUCID_ISOLATION_NONCE"]) + "\n")
                 Path(env["LUCID_ISOLATION_REPORT"]).write_text("".join(lines))
@@ -691,6 +738,21 @@ class IsolationVerdictTests(unittest.TestCase):
                 verification, "find_editor", return_value=root / "inert-editor"), patch.object(
                 verification, "current_identity", return_value=identity), patch.object(verification, "run_owned", side_effect=supplied):
             return verification.run_tests(root, work, mode), seen, identity
+
+    def test_supplied_edit_run_emits_one_birth_for_the_shared_permanent_row(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            carrier = root / "Assets/Tests/Editor/ProjectLucidFontReferenceConversionCarrier.cs.meta"
+            carrier.parent.mkdir(parents=True)
+            carrier.write_text("guid: " + "a" * 32 + "\n")
+            converter = root / "tools/lucidlib/fontreferences.py"
+            converter.parent.mkdir(parents=True)
+            converter.write_text("# inert converter identity for supplied XML\n")
+            report, _, _ = self.supplied_run(root, root / "cache", "editmode", write_isolation=True)
+            self.assertEqual("complete", report["status"], report["errors"])
+            births = [entry for entry in report["isolation"]["side_effects"]
+                      if entry["changes"] == self.native_row_changes("Hardlight.TimeManager")]
+            self.assertEqual(1, len(births))
 
     def test_run_tests_requires_this_runs_isolation_report_and_receipts_recheck_it(self):
         with tempfile.TemporaryDirectory() as temporary:

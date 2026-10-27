@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -21,8 +22,8 @@ namespace ProjectLucid.Tests
     // (0x020009f5, 0x6AECB0..0x6AF3CF). The Editor may send OnValidate while a component is added, and
     // TimeScaledComponent_SDT.OnValidate reads its s_config lookup, so each case installs an owned,
     // empty TimeCategoryLookup in that cache and restores the prior value. The hooks are called
-    // directly; m_ignoreEnable is set so the inherited OnEnable returns before asking for the
-    // TimeManager, and the TimeManager row is leased because the shutdown path reads its static reference.
+    // directly. Single-enable cases retain their authored ignore flag; repeated-enable cases
+    // register an owned manager because the original flag is consumed on the first call.
     public sealed class OriginalConditionalTriggerEventTests
     {
         private static readonly Type CheckTypeEnum = typeof(ConditionalTriggerEvent).GetNestedType("CheckType", BindingFlags.NonPublic);
@@ -31,6 +32,11 @@ namespace ProjectLucid.Tests
         private static void WithOwned(Action<Owned> body) => Owned.Run(owned =>
         {
             owned.LeaseRow<TimeManager>();
+            WithTimeLookup(owned, body);
+        });
+
+        private static void WithTimeLookup(Owned owned, Action<Owned> body)
+        {
             object prior = TimeConfig.GetValue(null);
             try
             {
@@ -41,9 +47,28 @@ namespace ProjectLucid.Tests
             {
                 TimeConfig.SetValue(null, prior);
             }
+        }
+
+        // Original 06000eb1 consumes the ignore flag once; a second enable needs
+        // a real manager. Subscribe 06000e90 returns for None before reading tables.
+        private static void WithRegisteredNoneManager(Action<Owned, TimeManager> body) => Owned.RunAttemptAll(managerOwned =>
+        {
+            var lease = managerOwned.Lease(new TimeScaledManagerLease());
+            GameObject host = managerOwned.Host("Lucid conditional trigger time manager", false);
+            // Observed original Editor Reset dereferences its unassigned configuration.
+            LogAssert.Expect(LogType.Exception, new Regex("NullReferenceException"));
+            TimeManager manager = host.AddComponent<TimeManager>();
+            lease.AttachManager(manager);
+            lease.RegisterManager();
+            Owned.RunAttemptAll(owned =>
+            {
+                owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(lease.Unregister));
+                WithTimeLookup(owned, value => body(value, manager));
+            });
         });
 
-        private static T Add<T>(Owned owned, string name) where T : Component => owned.Host(name, false).AddComponent<T>();
+        private static T Add<T>(Owned owned, string name) where T : Component =>
+            TimeScaledReferenceLease.Add<T>(owned.Host(name, false));
 
         // AddComponent in Edit Mode leaves the four UnityEvent fields and m_conditions null (run30: CheckIsValid
         // 0x6AEC30 reads all four with GetPersistentEventCount and faulted). The restored bodies follow the native
@@ -399,7 +424,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void EnablingFaultsOnAConditionThatIsNotAPersistentBoolean()
         {
-            WithOwned(owned =>
+            WithRegisteredNoneManager((owned, manager) =>
             {
                 // PersistentLevelObject's field initialiser asks for GetSystemRef<MissionManager>(), which creates the row.
                 owned.LeaseRow<MissionManager>();
@@ -414,6 +439,50 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<List<TriggerCondition_PersistentLevelObjectBoolean>>(trigger, "m_persistentConditions"), Is.EqualTo(new[] { condition }));
                 Assert.That(log, Is.Empty);
             });
+        }
+
+        private static object CurrentTimeReference()
+        {
+            var registry = (IDictionary)Field(typeof(ProcessManager), "s_systemDictionary").GetValue(null);
+            object row = registry[typeof(TimeManager).FullName];
+            return row == null ? null : Get<IDictionary>(row, "SystemRefDictionary")[typeof(TimeManager).FullName];
+        }
+
+        [Test]
+        public void RepeatedEnableFaultsLeaveNoDeferredWorkAndReleaseTheOwnedManagerAfterFailure()
+        {
+            var primary = new InvalidOperationException("conditional trigger body failure");
+            TimeManager manager = null; GameObject managerHost = null, triggerHost = null;
+            SystemRef<TimeManager> reference = null;
+            int entryScopes = TimeScaledReferenceLease.ActiveCount;
+            Exception actual = Assert.Throws<InvalidOperationException>(() => WithRegisteredNoneManager((owned, current) =>
+            {
+                manager = current; managerHost = current.gameObject;
+                owned.LeaseRow<MissionManager>();
+                var (trigger, condition, log) = NewPersistentTrigger(owned);
+                triggerHost = trigger.gameObject;
+                reference = (SystemRef<TimeManager>)Field(typeof(TimeScaledComponent), "m_timeManagerRef").GetValue(null);
+                Assert.That(CurrentTimeReference(), Is.SameAs(reference));
+                Assert.That(reference.GetSafe(), Is.SameAs(manager));
+                Assert.That(Get<object>(reference, "m_actionOnSystemValid"), Is.Null);
+                Assert.That(Get<IDictionary>(manager, "m_updateObjects"), Is.Empty, "None needs no fabricated phase tables");
+                Set(trigger, "m_conditions", new TriggerCondition[] { Add<TriggerConditionProbe>(owned, "Lucid wrong condition") });
+                Assert.Throws<InvalidCastException>(() => Call(trigger, "OnEnable"));
+                Assert.That(Get<bool>(trigger, "m_ignoreEnable"), Is.False);
+                Set(trigger, "m_conditions", new TriggerCondition[] { condition, null });
+                Assert.Throws<NullReferenceException>(() => Call(trigger, "OnEnable"));
+                Assert.That(Get<object>(reference, "m_actionOnSystemValid"), Is.Null);
+                Assert.That(Get<IDictionary>(manager, "m_updateObjects"), Is.Empty);
+                Assert.That(log, Is.Empty);
+                throw primary;
+            }));
+            Assert.That(actual, Is.SameAs(primary));
+            Assert.That(manager == null && managerHost == null && triggerHost == null, Is.True);
+            Assert.That(reference, Is.Not.Null);
+            Assert.That(reference.IsNull(), Is.True);
+            Assert.That(Get<object>(reference, "m_actionOnSystemValid"), Is.Null);
+            Assert.That(CurrentTimeReference(), Is.SameAs(reference));
+            Assert.That(TimeScaledReferenceLease.ActiveCount, Is.EqualTo(entryScopes));
         }
 
         // OnValidate 0x6AECB0 runs the inherited validation, then logs one error through HLOutput for

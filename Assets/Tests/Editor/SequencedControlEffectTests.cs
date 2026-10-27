@@ -277,7 +277,7 @@ namespace ProjectLucid.Tests
             object prior = config.GetValue(null);
             var emptyLookup = ScriptableObject.CreateInstance<TimeCategoryLookup>();
             config.SetValue(null, emptyLookup);
-            try { return owned.Host(name, false).AddComponent<T>(); }
+            try { return TimeScaledReferenceLease.Add<T>(owned.Host(name, false)); }
             finally
             {
                 config.SetValue(null, prior);

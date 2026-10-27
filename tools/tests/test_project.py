@@ -47,24 +47,44 @@ class ProjectTests(unittest.TestCase):
     def isolation(work, mode, names):
         """Supplied isolation lines for each name, as a native run writes them; returns the receipt's isolation entry.
 
-        Each side effect for this mode is reported once, by the first name in a
-        fixture allowed to cause it, with exactly its changes; an allowlisted
+        Each permanent row birth is reported once, by the first permitted
+        initializer, even when two initializers share its changes; an allowlisted
         test leaks exactly its listed changes; every other line is clean.
         """
         nonce = mode + "-synthetic-nonce"
         path = work / "reports" / (mode + "-isolation.jsonl")
         pending = dict(verification.ISOLATION_SIDE_EFFECTS)
+        emitted_changes = set()
         lines = []
         for name in names:
             changes = list(verification.ISOLATION_ALLOWLIST[name]["changes"]) if name in verification.ISOLATION_ALLOWLIST else []
             effect = next((key for key, entry in pending.items()
                            if any(name.startswith(fixture + ".") for fixture in entry["fixtures"].get(mode, ()))), None)
             if not changes and effect is not None:
-                changes = list(pending.pop(effect)["changes"])
+                candidate = tuple(pending.pop(effect)["changes"])
+                if candidate not in emitted_changes:
+                    changes = list(candidate)
+                    emitted_changes.add(candidate)
             lines.append(json.dumps({"nonce": nonce, "test": name, "status": "leak" if changes else "clean",
                                      "changes": changes}) + "\n")
         path.write_text("".join(lines))
         return {"nonce": nonce, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+
+    def test_synthetic_isolation_emits_a_shared_row_once_in_either_fixture_order(self):
+        camera = "ProjectLucid.Tests.AutoPlayCameraStartPointTests.AwakeForcesTheVirtualCamerasToTheStartPoint"
+        timing = "ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests.OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes"
+        performance = "ProjectLucid.Tests.OriginalPerformanceDependencyGapTests.DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers"
+        for first, second in ((camera, timing), (timing, camera)):
+            with self.subTest(first=first), tempfile.TemporaryDirectory() as temporary:
+                work = Path(temporary)
+                (work / "reports").mkdir()
+                self.isolation(work, "editmode", [first, second, performance])
+                rows = [json.loads(line) for line in (work / "reports/editmode-isolation.jsonl").read_text().splitlines()]
+                self.assertEqual([first, second, performance], [row["test"] for row in rows])
+                self.assertEqual(["leak", "clean", "leak"], [row["status"] for row in rows])
+                self.assertEqual("added system row 'Hardlight.TimeManager'", rows[0]["changes"][1])
+                self.assertEqual([], rows[1]["changes"])
+                self.assertEqual("added system row 'Hardlight.ScalablePerformance'", rows[2]["changes"][1])
 
     def test_release_build_never_runs_editor_when_game_unresolved(self):
         with tempfile.TemporaryDirectory() as temporary:

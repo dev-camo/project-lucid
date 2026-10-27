@@ -41,7 +41,7 @@ namespace ProjectLucid.Tests
         {
             host = host != null ? host : time.Objects.Create(name);
             host.SetActive(false);
-            return host.AddComponent<T>();
+            return TimeScaledReferenceLease.Add<T>(host);
         }
 
         // The sources read the manager's current character only through TryGetCurrentCharacter.

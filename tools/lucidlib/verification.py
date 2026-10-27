@@ -337,6 +337,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.TimeScaledManagerOwnershipTests." + 
 ))
 
 
+# #554: repeated original enables use an owned manager and must leave no deferred work.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalConditionalTriggerEventTests.RepeatedEnableFaultsLeaveNoDeferredWorkAndReleaseTheOwnedManagerAfterFailure",
+)
+
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.TimeScaledReferenceOwnershipTests." + name for name in (
     "ExplicitRetentionPreservesExactEntryAndReleasesOnlyTemporaryEntries(False)",
     "ExplicitRetentionPreservesExactEntryAndReleasesOnlyTemporaryEntries(True)",
@@ -1011,15 +1016,15 @@ ISOLATION_SIDE_EFFECTS = {
     # 0x1b19ff0) stores GetSystemRef<TimeManager>(null, true) (0x1b1a04a..
     # 0x1b1a051) in its readonly static m_timeManagerRef, which every
     # descendant shares, appending the same null 'Hardlight.TimeManager' row as
-    # TimeScaledUtilities above. No other Play Mode fixture runs a
-    # TimeScaledComponent descendant; the SurfaceMeshSplineGenerator Awake
-    # fixture does (its OnDisable reads the reference), so its first case in
-    # Play Mode order causes these changes once. Not yet recorded natively.
+    # TimeScaledUtilities above. Native issue554-retention-red recorded this exact
+    # tuple in AutoPlayCameraStartPoint's first real descendant construction.
+    # The existing Play Mode SurfaceMeshSplineGenerator fixture is unchanged.
     "TimeScaledComponent..cctor": {
         "reason": "TimeScaledComponent's type initializer 0x06000ec7 appends the permanent 'Hardlight.TimeManager' "
                   "row that holds its readonly m_timeManagerRef; removing it would detach that reference",
         "changes": _first_use_row_changes("Hardlight.TimeManager"),
-        "fixtures": {"playmode": ("ProjectLucid.Tests.SurfaceMeshSplineGeneratorAwakeTests",)},
+        "fixtures": {"editmode": ("ProjectLucid.Tests.AutoPlayCameraStartPointTests",),
+                     "playmode": ("ProjectLucid.Tests.SurfaceMeshSplineGeneratorAwakeTests",)},
     },
     # PerformanceDependency's static initializer 06000d75 (x86-64 0x1b10280)
     # stores GetSystemRef<ScalablePerformance>(null, true) (0x1b102e1) in its
@@ -1133,6 +1138,7 @@ def isolation_verdict(path, nonce, xml, mode, allowlist=None, side_effects=None)
             records.setdefault(record["test"], []).append(record)
     leaks, allowlisted, permanent = [], [], []
     seen_effects = {}
+    seen_permanent_changes = {}
     for test in sorted(records):
         for record in records[test]:
             detail = "; ".join(record["changes"])
@@ -1143,6 +1149,7 @@ def isolation_verdict(path, nonce, xml, mode, allowlist=None, side_effects=None)
                 allowlisted.append({"test": test, "changes": record["changes"], "reason": allowlist[test]["reason"]})
             elif record["status"] == "leak" and effect is not None:
                 seen_effects.setdefault(effect, []).append(test)
+                seen_permanent_changes.setdefault(tuple(record["changes"]), []).append((effect, test))
                 permanent.append({"test": test, "side_effect": effect, "changes": record["changes"],
                                   "reason": side_effects[effect]["reason"]})
             elif record["status"] == "leak" and test in allowlist:
@@ -1159,6 +1166,11 @@ def isolation_verdict(path, nonce, xml, mode, allowlist=None, side_effects=None)
         if len(seen_effects[effect]) > 1:
             errors.append("Isolation side effect " + effect + " seen more than once in one report: " +
                           ", ".join(seen_effects[effect]))
+    # Distinct initializers can share one permanent row; that row is still born only once.
+    for entries in seen_permanent_changes.values():
+        if len({effect for effect, _ in entries}) > 1:
+            errors.append("Isolation identical permanent changes seen under multiple side effects in one report: " +
+                          "; ".join(effect + ": " + test for effect, test in entries))
     for test in ISOLATION_HOOK_CONTROLS[mode]:
         if [record["status"] for record in records.get(test, ())] != ["clean"]:
             errors.append("Isolation hook control has no single clean line: " + test)
