@@ -3,8 +3,9 @@ name: Refresh native progress
 on:
   push:
     branches: [main]
+    # A human README-only push still refreshes progress, so a measurement skipped because main moved is
+    # caught up. The generated progress commit carries [skip ci], which keeps the publisher from looping.
     paths-ignore:
-      - README.md
       - docs/code-progress.json
   workflow_dispatch:
 
