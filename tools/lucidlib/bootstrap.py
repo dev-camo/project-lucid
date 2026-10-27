@@ -1092,6 +1092,30 @@ def open_coordinator_lock(path: Path, label: str):
         raise ToolError(f"Could not open {label.lower()} {path}: {exc}") from exc
 
 
+def take_work_lock(path: Path, busy: str):
+    """Take a process-held work lock; the OS releases it when its owner dies, so a leftover file is not a live owner."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_dir() and not path.is_symlink():
+        # An empty directory left by the earlier mkdir lock is not a live owner; a non-empty one raises.
+        path.rmdir()
+    try:
+        stream = open_coordinator_lock(path, "Work lock")
+    except ToolError as error:
+        raise ValueError(str(error)) from error
+    if not try_lock(stream):
+        stream.close()
+        raise ValueError(busy)
+    return stream
+
+
+def release_work_lock(stream) -> None:
+    """Release a work lock; the file stays so every owner locks the same inode."""
+    try:
+        unlock(stream)
+    finally:
+        stream.close()
+
+
 def _release_lease(stream) -> None:
     try:
         unlock(stream)

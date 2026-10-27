@@ -93,18 +93,13 @@ def _replace(path, content):
 def generate_progress(repo_root, work_dir, input_path, target="macos", stage=False):
     if stage:
         return check_staged_progress(repo_root)
-    from .bootstrap import managed_path, validate_work_dir
+    from .bootstrap import managed_path, release_work_lock, take_work_lock, validate_work_dir
     work = validate_work_dir(work_dir)
-    lock = managed_path(work, "locks", "progress-publication.lock")
-    lock.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        lock.mkdir()
-    except FileExistsError as error:
-        raise ValueError("Another progress publication owns the lock") from error
+    lock = take_work_lock(managed_path(work, "locks", "progress-publication.lock"), "Another progress publication owns the lock")
     try:
         return _generate_progress(repo_root, work, input_path, target, stage)
     finally:
-        lock.rmdir()
+        release_work_lock(lock)
 
 
 def _generate_progress(repo_root, work_dir, input_path, target, stage):

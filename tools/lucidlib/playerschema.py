@@ -11,7 +11,7 @@ import uuid
 from . import bindings, playercode
 from .bootstrap import (run_owned, NO_BUILD_SERVER_ARGS, dotnet_environment, host_lock, load_lock, managed_path,
                         validate_work_dir, write_json, reader_build_paths, tool_work_dir,
-                        verified_tool_path)
+                        verified_tool_path, take_work_lock, release_work_lock)
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
 PROFILE = "zone-theme-v1"
@@ -396,10 +396,7 @@ def run_player_schema(repo_root, work_dir, target, profile=PROFILE):
         raise ValueError("Player metadata requires the matching project Unity version")
     latest = managed_path(work, "player-schema", "latest-" + target + "-" + profile + ".json")
     if latest.exists(): playercode._regular(latest, MAX_SCHEMA)
-    lock = managed_path(work, "locks", "player-schema.lock")
-    lock.parent.mkdir(parents=True, exist_ok=True)
-    try: lock.mkdir()
-    except FileExistsError as error: raise ValueError("Another player metadata run owns the generated lock") from error
+    lock = take_work_lock(managed_path(work, "locks", "player-schema.lock"), "Another player metadata run owns the generated lock")
     run, created = None, False
     try:
         source = artifact_fingerprint(root)
@@ -462,4 +459,4 @@ def run_player_schema(repo_root, work_dir, target, profile=PROFILE):
                                  "generated_by": "ProjectLucid.run_player_schema"})
         raise
     finally:
-        lock.rmdir()
+        release_work_lock(lock)

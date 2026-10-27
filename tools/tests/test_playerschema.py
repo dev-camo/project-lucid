@@ -133,7 +133,7 @@ class PlayerSchemaTests(unittest.TestCase):
         with self.assertRaises((ValueError, OSError, bindings.LayoutError)) as result: self.run_schema()
         if match: self.assertRegex(str(result.exception), match)
         self.assertEqual(self.old, self.latest.read_bytes())
-        self.assertFalse((self.work / "locks/player-schema.lock").exists())
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.work / "locks/player-schema.lock", "still held"))
 
     def test_valid_metadata_is_never_layout_or_asset_approval(self):
         result = self.run_schema()
@@ -274,7 +274,7 @@ class PlayerSchemaTests(unittest.TestCase):
         with patch.object(playerschema, "run_owned", side_effect=KeyboardInterrupt):
             with self.assertRaises(KeyboardInterrupt): self.run_schema()
         self.assertEqual(self.old, self.latest.read_bytes())
-        self.assertFalse((self.work / "locks/player-schema.lock").exists())
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.work / "locks/player-schema.lock", "still held"))
 
     def test_fresh_only_run_retains_existing_directory(self):
         from uuid import UUID

@@ -575,7 +575,7 @@ class WrapperPublicationTests(unittest.TestCase):
 
     def assert_retained(self):
         self.assertEqual(b"previous validated receipt bytes", self.prior.read_bytes())
-        self.assertFalse((self.work / "locks/code-progress.lock").exists())
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.work / "locks/code-progress.lock", "still held"))
 
     def test_success_publishes_only_after_all_source_input_and_module_checks(self):
         result = self.invoke()
@@ -583,7 +583,7 @@ class WrapperPublicationTests(unittest.TestCase):
         self.assertEqual(1, result["public"]["totals"]["implemented_source_bodies"])
         self.assertFalse(result["behavior_parity_verified"])
         self.assertEqual(result, json.loads(self.prior.read_bytes()))
-        self.assertFalse((self.work / "locks/code-progress.lock").exists())
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.work / "locks/code-progress.lock", "still held"))
 
     def test_error_or_interruption_does_not_replace_previous_validated_output(self):
         for failure in ("reader_exit", "interrupted", "nonce", "approval", "compiler", "late_output", "input", "host", "reader_tree", "context", "late_document"):

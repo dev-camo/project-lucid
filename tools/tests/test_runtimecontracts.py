@@ -153,7 +153,7 @@ class RuntimeContractPublicationTests(unittest.TestCase):
         self.change=kind
         with self.assertRaises((ValueError,subprocess.SubprocessError)):self.invoke()
         self.assertEqual(self.latest.read_bytes(),self.before);self.assertEqual(self.initial_input.read_bytes(),b'untouched')
-        self.assertFalse((self.work/'locks/runtime-contracts.lock').exists())
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.work/'locks/runtime-contracts.lock', "still held"))
     def test_success_publishes_only_metadata_and_false_approvals(self):
         result=self.invoke();self.assertEqual(result['status'],'metadata-ready');receipt=json.loads(self.latest.read_bytes());self.assertEqual(receipt['identity_status'],'complete')
         self.assertEqual(receipt['generated_by'],'ProjectLucid.run_runtime_contracts');self.assertFalse(result['remap_approved']);self.assertFalse(result['runtime_verified'])
@@ -177,9 +177,12 @@ class RuntimeContractPublicationTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.invoke()
         self.assertEqual(self.initial_input.read_bytes(),b'untouched')
     def test_existing_lock_does_not_remove_foreign_lock(self):
-        lock=self.work/'locks/runtime-contracts.lock';lock.mkdir(parents=True)
-        with self.assertRaises(ValueError):self.invoke()
-        self.assertTrue(lock.is_dir());self.assertEqual(self.latest.read_bytes(),self.before)
+        lock=self.work/'locks/runtime-contracts.lock';owner=bootstrap.take_work_lock(lock,'test owner')
+        try:
+            with self.assertRaises(ValueError):self.invoke()
+            self.assertTrue(lock.is_file())
+        finally:bootstrap.release_work_lock(owner)
+        self.assertEqual(self.latest.read_bytes(),self.before)
 
 
 class RuntimeContractConsumerTests(unittest.TestCase):

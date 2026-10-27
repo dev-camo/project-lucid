@@ -12,7 +12,7 @@ import struct
 import subprocess as _subprocess
 import uuid
 
-from .bootstrap import managed_path, run_owned, validate_work_dir, write_json
+from .bootstrap import release_work_lock, take_work_lock, managed_path, run_owned, validate_work_dir, write_json
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
 
@@ -445,10 +445,7 @@ def run_player_code(repo_root, work_dir, target):
     editor = _regular(find_editor(), 2 * 1024**3)
     latest = managed_path(work, "player-code", "latest-" + target + ".json")
     if latest.exists(): _regular(latest, MAX_REPORT)
-    lock = managed_path(work, "locks", "player-code.lock")
-    lock.parent.mkdir(parents=True, exist_ok=True)
-    try: lock.mkdir()
-    except FileExistsError as error: raise ValueError("Another player compilation owns the generated lock") from error
+    lock = take_work_lock(managed_path(work, "locks", "player-code.lock"), "Another player compilation owns the generated lock")
     run = None
     run_created = False
     try:
@@ -516,4 +513,4 @@ def run_player_code(repo_root, work_dir, target):
             write_json(failure, {"status": "failed", "target": target, "error": str(error), "generated_by": "ProjectLucid.run_player_code"})
         raise
     finally:
-        lock.rmdir()
+        release_work_lock(lock)
