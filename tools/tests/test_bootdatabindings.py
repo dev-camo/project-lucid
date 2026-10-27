@@ -151,12 +151,15 @@ class HighlightTests(unittest.TestCase):
 
 class BootDataRosterTests(unittest.TestCase):
     def test_roster_and_sources(self):
-        # The separate authored Image rule adds one member to the original 42-rule roster.
+        # The separate authored Image rule and the authored TransformRotator rule (#554) each add one member to
+        # the original 42-rule roster.
         image_identity = ("UnityEngine.UI", "UnityEngine.UI.Image")
+        rotator_identity = ("Game.Runtime", "HardlightProject.TransformRotator")
         identities = [(rule["assembly"], rule["full_name"]) for rule in RULES]
-        self.assertEqual(42, len([identity for identity in identities if identity != image_identity]))
+        self.assertEqual(42, len([identity for identity in identities if identity not in (image_identity, rotator_identity)]))
         self.assertEqual([image_identity], [identity for identity in identities if identity == image_identity])
-        self.assertEqual(43, len(RULES))
+        self.assertEqual([rotator_identity], [identity for identity in identities if identity == rotator_identity])
+        self.assertEqual(44, len(RULES))
         self.assertEqual(["HardlightProject.TimeCategoryLookup", "HardlightProject.DevicePerformanceGroup",
                           "HardlightProject.DevicePerformance_iOS", "HardlightProject.DevicePerformance_macOS",
                           "HardlightProject.DevicePerformance_tvOS", "Hardlight.UIHighlightDefinition", "Hardlight.UIHighlight"],
