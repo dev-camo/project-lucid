@@ -728,7 +728,8 @@ def resolve_bindings(repo_root, work_dir, exported_project, asset_map, *, input_
     schema_summary = json.loads(_owned_file(work, "native-recovery/latest-schemas.json").read_bytes())
     schema_source = schema_summary.get("source", {})
     if schema_summary.get("status") != "ready" or schema_summary.get("command") != "schemas" or schema_summary.get(
-            "evidence_report") != str(schema_path) or schema.get("status") != "ready" or schema.get("command") != "schemas":
+            "assembly") is not None or schema_summary.get("evidence_report") != str(schema_path) or schema.get(
+            "status") != "ready" or schema.get("command") != "schemas":
         raise ValueError("Original schema source proof is incomplete")
     if schema_digest != comparison.get("original_schema_sha256") or schema_digest != summary.get("original_schema_sha256"):
         raise ValueError("Original schema differs from the Unity layout proof")

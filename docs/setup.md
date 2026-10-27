@@ -42,8 +42,9 @@ Preparation requires the matching Unity Editor to check restored script bindings
 Install the Editor, then run `recover-code` and `native-schema` before `prepare`.
 They write different outputs. `recover-code` writes declarations and serialization schemas
 (`reports/code-recovery-schemas.json`). `native-schema` writes the original native serialization
-evidence (`native-recovery/latest-schemas.json`, updated only by a run that reports `ready` in
-`reports/native-schemas.json`), which the script-binding layout proof in `prepare` reads; when
+evidence (`native-recovery/latest-schemas.json`, updated only by a complete run, without `--assembly`,
+that reports `ready` in `reports/native-schemas.json`; a filtered run is a diagnostic and never replaces it),
+which the script-binding layout proof in `prepare` reads; when
 that proof applies and the file is missing, `prepare` fails before Unity starts. On first use `native-schema`
 bootstraps a pinned .NET SDK and builds its harness inside the cache. Neither step shows that
 the assets are complete or that the game is playable.

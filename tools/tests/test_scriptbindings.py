@@ -237,6 +237,11 @@ class ScriptBindingTests(unittest.TestCase):
                 with self.subTest(key=key), patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
                     with self.assertRaisesRegex(ValueError, "supplied release"):
                         resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
+            # #569: a pointer from a filtered --assembly schema run is not the complete schema's proof.
+            source_path.write_text(json.dumps(dict(original, assembly="Game.Runtime")))
+            with patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
+                with self.assertRaisesRegex(ValueError, "source proof"):
+                    resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
             source_path.write_text(json.dumps(original))
             Path(summary["schema_path"]).write_text("{}")
             with patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):

@@ -105,15 +105,15 @@ class NativeHelpersTests(unittest.TestCase):
             (output / "isil.txt").write_text("0 Return\n")
         return {"returncode": 0, "timed_out": False, "log": str(self.work / "process.log")}
 
-    def invoke(self, runner=None, method=False):
+    def invoke(self, runner=None, method=False, assembly="Game.Runtime"):
         patches = self.input_patches()
         with patches[0], patches[1], patches[2], patches[3], mock.patch.object(native, "run_logged", side_effect=runner or self.runner) as run:
             result = (native.native_method(self.app, self.work, "Game.Runtime", "0x060039b9") if method else
-                      native.native_schema(self.app, self.work, "Game.Runtime"))
+                      native.native_schema(self.app, self.work, assembly))
         return result, run
 
     def test_schema_run_promotes_complete_evidence_atomically(self):
-        report, run = self.invoke()
+        report, run = self.invoke(assembly=None)
         self.assertEqual(report["status"], "ready")
         full = json.loads(Path(report["evidence_report"]).read_text())
         self.assertEqual(full["output_dir"], report["evidence_dir"])
@@ -123,6 +123,17 @@ class NativeHelpersTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs["env"]["DOTNET_TieredCompilation"], "0")
         self.assertTrue((self.work / "native-recovery/latest-schemas.json").is_file())
         self.assertEqual(list((self.work / "native-recovery/runs").glob(".stage-*")), [])
+
+    def test_filtered_schema_run_leaves_the_complete_pointer_untouched(self):
+        # #569: a ready --assembly run is diagnostic; prepare and the layout inventory keep the complete schema.
+        pointer = self.work / "native-recovery/latest-schemas.json"
+        pointer.parent.mkdir(parents=True, exist_ok=True)
+        pointer.write_text('{"complete": "previous"}')
+        report, run = self.invoke(assembly="Game.Runtime")
+        self.assertEqual(report["status"], "ready")
+        self.assertEqual("Game.Runtime", report["assembly"])
+        self.assertEqual('{"complete": "previous"}', pointer.read_text())
+        self.assertEqual("Game.Runtime", json.loads((self.work / "reports/native-schemas.json").read_text())["assembly"])
 
     def test_native_method_keeps_raw_evidence_and_bounded_timeout(self):
         report, run = self.invoke(method=True)
