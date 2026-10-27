@@ -8,11 +8,11 @@ namespace ProjectLucid.Offline
     // compiler-generated names stay exact. Three shapes are used:
     //  - the guard at the top: `if (Active) { <adapter call>; return ...; }`;
     //  - the mid-method hook, placed where the original diverges, after statements the original
-    //    still runs first (H-001, H-010, H-013, H-017, H-053);
+    //    still runs first;
     //  - fall-through bookkeeping, which does adapter work (a stop check, remembering a manager)
-    //    and then continues into the original body (H-031, H-033..H-035, H-037, H-039..H-042).
-    // Every hook is listed in docs/offline-hooks.md
-    // and found by searching for "OfflineAdapters.Active".
+    //    and then continues into the original body.
+    // docs/offline-hooks.md lists every hook and which hooks use each shape; search for
+    // "OfflineAdapters.Active" to find them in source.
     //
     // This type lives in HLUnityCore.Runtime because that assembly references nothing and every
     // hooked assembly (HLUnityCore, HLAnalytics, HLInput, Game.Runtime) already references it,
