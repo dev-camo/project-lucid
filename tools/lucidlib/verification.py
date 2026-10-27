@@ -8913,6 +8913,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIAnimatingCounterTests." + name for
     "EnablingStartsTheDeferredAnimationOnly",
 ))
 
+# RigidbodyForceTrigger keeps the original VelocityChange force-mode default (#576).
+EDITMODE_TESTS += ("ProjectLucid.Tests.RigidbodyForceTriggerDefaultsTests.NewTriggerKeepsTheOriginalConstructorDefaults",)
 # Restored HardlightProject.UIContainerBossHealth (Game.Runtime 0200087b).
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerBossHealthTests." + name for name in (
     "ConstructionStartsHiddenWithoutAHealthTotal",

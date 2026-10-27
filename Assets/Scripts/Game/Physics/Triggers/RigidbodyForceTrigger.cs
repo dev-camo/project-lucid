@@ -66,7 +66,7 @@ namespace HardlightProject
         // Original 0x04001b98.
         [UnityEngine.SerializeField()]
         [UnityEngine.TooltipAttribute("Force mode only applies for Additive and Reflect types.")]
-        private ForceMode m_forceMode = ForceMode.Impulse;
+        private ForceMode m_forceMode = ForceMode.VelocityChange;
         // Original 0x04001b99.
         [UnityEngine.SerializeField()]
         [UnityEngine.TooltipAttribute("Direction the force will be applied in.")]
