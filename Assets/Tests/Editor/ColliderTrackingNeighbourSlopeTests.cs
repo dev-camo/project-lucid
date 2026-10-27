@@ -9,7 +9,9 @@ namespace ProjectLucid.Tests
     // calls the gravity callback for its five frames, then casts the recontact ray from the position the step started
     // at: the position locals are written only by the integration block after the cast (0x6ac274/0x6ac288) and the ray
     // origin reads them unchanged (0x6acb96). Here a character leaves the top of a wall straight up under a constant
-    // gravity stub and falls back past the lip; the recontact point is the pre-step position projected on the wall.
+    // gravity stub and falls back past the lip. Both orders probe the same positions, so the recontact point is the
+    // same; casting after the movement probes each position one step earlier, which the hit time (one query interval
+    // less) and the gravity call count (five fewer) show.
     public sealed class ColliderTrackingNeighbourSlopeTests
     {
         private static readonly Vector3 Base = new Vector3(200f, 30f, 200f);
@@ -48,7 +50,6 @@ namespace ProjectLucid.Tests
                 bool airborne = false;
                 float expectedTime = 0f;
                 Vector3 expectedOrigin = Vector3.zero;
-                Vector3 nextPosition = Vector3.zero;
                 int steps = 0;
                 for (int step = 0; step < 32; step++)
                 {
@@ -64,7 +65,6 @@ namespace ProjectLucid.Tests
                     if (hit && airborne)
                     {
                         expectedOrigin = origin;
-                        nextPosition = position;
                         break;
                     }
                     airborne |= !hit;
@@ -78,7 +78,6 @@ namespace ProjectLucid.Tests
                 Assert.That(hitPosition.x, Is.EqualTo(Base.x).Within(1e-4f));
                 Assert.That(hitPosition.y, Is.EqualTo(expectedOrigin.y).Within(1e-4f));
                 Assert.That(hitPosition.z, Is.EqualTo(Base.z).Within(1e-4f));
-                Assert.That(Mathf.Abs(hitPosition.y - nextPosition.y), Is.GreaterThan(0.05f), "not the position after the step");
                 Assert.That(hitNormal, Is.EqualTo(Vector3.back));
             });
         }
