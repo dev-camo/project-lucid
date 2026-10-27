@@ -326,6 +326,16 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ImportedKeywordContextTests." + name
 ))
 
 # Complete authored TransformRotator serialization and binding admission (#554).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.TimeScaledManagerOwnershipTests." + name for name in (
+    "ActualDescendantRetainsOriginalAssociationAfterOrderedManagerTeardown",
+    "FailureAfterRealComponentPublicationPreservesPrimaryAndPermanentReference",
+    "CleanupFailureStillUnregistersAndDestroysManager(False)",
+    "CleanupFailureStillUnregistersAndDestroysManager(True)",
+    "NoDescendantLeavesAdmittedRegistryUnchangedWithoutRegistration",
+    "RegistrationFailureAfterPublicationUnregistersItsExactManager",
+    "BorrowedRegistryObserversAreRejectedWithoutInvocationOrRemoval",
+))
+
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.TransformRotatorAuthoredTests." + name for name in (
     "EveryAuthoredDocumentRetainsOriginalValuesAndReferencesAcrossInactiveRoundtrip",
     "PreparedAssetsHaveTheExactVerifiedTransformRotatorBinding",

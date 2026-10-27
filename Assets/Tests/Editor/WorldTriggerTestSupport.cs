@@ -181,6 +181,17 @@ namespace ProjectLucid.Tests
                     owned.ReleaseLeases);
             }
 
+            // Ordered nested custody uses this variant so a failed object
+            // release cannot prevent later objects or manager leases releasing.
+            internal static void RunAttemptAll(Action<Owned> body)
+            {
+                var owned = new Owned();
+                VerificationFixtureOwnership.RunThenCleanUp(() => body(owned),
+                    () => VerificationFixtureOwnership.RunThenCleanUp(() => { }, owned.m_objects
+                        .Select<Object, Action>(value => () => { if (value != null) Object.DestroyImmediate(value); }).ToArray()),
+                    owned.ReleaseLeases);
+            }
+
             // Newest first, each release attempted even after an earlier one failed.
             private void ReleaseLeases()
             {

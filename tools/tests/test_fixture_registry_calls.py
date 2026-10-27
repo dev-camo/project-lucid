@@ -80,6 +80,8 @@ ALLOWED = {
     "Assets/Tests/Editor/OwnedCoreErrorLog.cs": (2, OWNED),
     "Assets/Tests/Editor/SharedStateSnapshotTests.cs": (4, OWNED),
     "Assets/Tests/Editor/SystemConfigurationVerificationOwnershipTests.cs": (1, OWNED),
+    # Genuine manager registration retains only observed original permanent references.
+    "Assets/Tests/Editor/TimeScaledManagerLease.cs": (2, OWNED),
     "Assets/Tests/Editor/WorldTriggerTestSupport.cs": (4, OWNED),
     "Assets/Tests/Editor/VerificationFixtureOwnershipTests.cs": (19, OWNED),
     "Assets/Tests/PlayMode/CloudFacadeTests.cs": (2, PROOF),
