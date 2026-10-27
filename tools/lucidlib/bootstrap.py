@@ -746,9 +746,10 @@ def group_has_live_members(pgid: int) -> bool:
 
 def stop_process_group(process: subprocess.Popen) -> None:
     """SIGTERM a session leader's group, SIGKILL what outlives the grace, then reap the leader."""
-    # The leader stays unreaped until the group has stopped, so its PID, and with it the
-    # group id, cannot be reused by an unrelated group while it is being signalled (#235).
-    # The leader is a member of its own group, so the group probe also reports its exit.
+    # The group id cannot be reused by an unrelated group while it is being signalled (#235): on a
+    # timeout or interrupt the leader is still unreaped, and after a normal exit (the leader already
+    # reaped) its live members keep the id reserved. The leader is a member of its own group, so the
+    # group probe also reports its exit.
     pgid = process.pid
     try:
         os.killpg(pgid, signal.SIGTERM)
