@@ -11185,6 +11185,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Editor.Tests.InputSystemControllerProvider
     "SourceKeepsTheOriginalCastForGameControllerProvidersAndWithTheAdaptersOff",
     "MonitorFixtureReleasesEveryBindingCloneItCreates",
 ))
+# StickToCollider reach and pull-down use the tangent of the angle (#581).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterPhysicsUtilitiesTests." + name for name in (
+    "ReachIsTheStepTimesTheTangentOfTheAngle",
+    "FloorBeyondTheTangentReachIsNotTouched",
+    "PullDownIsTheTangentReachTimesTheForce",
+))
 # Distinct per-instance rendering-layer readback from real renderers (#516).
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.RenderingLayerInstancingTests." + name for name in (
     "EnvUnlitForwardWritesEachInstancesRenderingLayers",
