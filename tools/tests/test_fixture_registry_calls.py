@@ -57,6 +57,7 @@ ALLOWED = {
     "Assets/Tests/Editor/HLOutputDiagnosticCapture.cs": (2, OWNED),
     "Assets/Tests/Editor/CrossPromoGameTestSupport.cs": (3, OWNED),
     "Assets/Tests/Editor/OfflineAchievementLifecycleTests.cs": (10, OWNED),
+    "Assets/Tests/Editor/OfflineAchievementStartupRebindTests.cs": (6, OWNED),
     "Assets/Tests/Editor/OriginalAnimatorHelperTests.cs": (2, OWNED),
     "Assets/Tests/Editor/OriginalCatchConnectorTests.cs": (2, OWNED),
     "Assets/Tests/Editor/OriginalDispatchUtilitiesTests.cs": (2, UNLEASED),

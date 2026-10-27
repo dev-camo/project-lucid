@@ -77,13 +77,8 @@ namespace HardlightProject
 
         private void AddCollectableAchievements(CollectableManager collectableManager)
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-032: the original waited for the enemy manager through OnSystemStartup; we invoke on a valid reference
-            {
-                if (m_offlineStopped) return;
-                m_collectableManager = collectableManager;
-                ProcessManager.GetSystemRef<EnemyManager>(null, true).InvokeOnValid(AddEnemyAchievements);
+            if (ProjectLucid.Offline.OfflineAdapters.Active && m_offlineStopped) // Offline hook H-032: the adapter can stop the subscriptions; the original had no stop state
                 return;
-            }
             m_collectableManager = collectableManager;
             ProcessManager.GetSystemRef<EnemyManager>(null, true).OnSystemStartup += AddEnemyAchievements;
         }
@@ -232,13 +227,8 @@ namespace HardlightProject
 
         private void AddEnemyAchievements(EnemyManager enemyManager)
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-036: the original waited for the character manager through OnSystemStartup; we invoke on a valid reference
-            {
-                if (m_offlineStopped) return;
-                m_enemyManager = enemyManager;
-                ProcessManager.GetSystemRef<CharacterManager>(null, true).InvokeOnValid(AddCharacterAchievements);
+            if (ProjectLucid.Offline.OfflineAdapters.Active && m_offlineStopped) // Offline hook H-036: the adapter can stop the subscriptions; the original had no stop state
                 return;
-            }
             m_enemyManager = enemyManager;
             ProcessManager.GetSystemRef<CharacterManager>(null, true).OnSystemStartup += AddCharacterAchievements;
         }
@@ -257,6 +247,9 @@ namespace HardlightProject
             {
                 if (m_offlineStopped) return;
                 m_saveManager = saveManager;
+                // Each later gameplay session reruns this chain; the new binding replaces the last one and, like the
+                // original's CurrentSave check, binds at once when a save is already open.
+                m_offlineSaveBinding?.Dispose();
                 m_offlineSaveBinding = new ProjectLucid.Offline.LocalAchievementSaveBinding(saveManager, AddSaveDataAchievements, Shutdown);
                 m_offlineSaveBinding.Start();
                 return;
