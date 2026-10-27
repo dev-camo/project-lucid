@@ -144,7 +144,8 @@ namespace Hardlight
                 float leftDistance = (PointAlongSpline(leftT, ref controls) - point).sqrMagnitude;
                 float currentDistance = (PointAlongSpline(currentT, ref controls) - point).sqrMagnitude;
                 float rightDistance = (PointAlongSpline(rightT, ref controls) - point).sqrMagnitude;
-                if (!(currentDistance <= leftDistance && currentDistance <= rightDistance))
+                // Ordered tests (0x1a7cc55, 0x1a7cc5f): a NaN distance keeps currentT.
+                if (currentDistance > leftDistance || currentDistance > rightDistance)
                     currentT = leftDistance < rightDistance ? leftT : rightT;
             }
             return currentT;
