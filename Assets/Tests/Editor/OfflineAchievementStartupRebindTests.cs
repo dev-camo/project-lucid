@@ -13,7 +13,10 @@ namespace ProjectLucid.Tests
     // AddCollectableAchievements (0x060005a6) ends with SystemRef<EnemyManager>.add_OnSystemStartup (0x535cf0) and
     // AddEnemyAchievements (0x060005ac) with SystemRef<CharacterManager>.add_OnSystemStartup (0x537570). Each gameplay
     // session registers new level-managed Enemy and Character managers, and the chain binds to them again. H-038 replaces
-    // its save binding on each rerun.
+    // its save binding on each rerun. The original AddMissionAchievements (0x060005a9 @0x535FF0) subscribes MissionCompleted
+    // with System.Delegate::Combine (call at 0x53630f, field 0x38 of the mission manager) straight after its zone-count check
+    // (IReadOnlyCollection.get_Count at 0x5362c4, return when zero at 0x5362c8), with no duplicate check, so every rerun adds
+    // one more subscription to the application-scoped MissionManager; H-084 lets the offline stop remove them all.
     public sealed class OfflineAchievementStartupRebindTests
     {
         private const BindingFlags Members = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -93,5 +96,43 @@ namespace ProjectLucid.Tests
                 Assert.That(Subscriptions<EnemyManager>("AddEnemyAchievements"), Is.EqualTo(0), "no enemy startup subscription survives the stop");
             });
         }
+
+        [Test]
+        public void EachGameplaySessionAddsAMissionCompletedSubscriptionAndTheStopRemovesThemAll()
+        {
+            Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline case requires the offline adapters.");
+            // An open save, a real LevelManager whose authored GameLevels holds a zone, and a real MissionManager.
+            LevelRequirementWorld.Run((owned, world) =>
+            {
+                world.AddZone("lucid-zone", world.NewLevel("lucid-level", false));
+                Assert.That(world.GameLevels.GetZones().Count, Is.EqualTo(1));
+                Assert.That(world.Save.CurrentSave, Is.Not.Null, "the save is open");
+                LevelManager levelManager = ProcessManager.GetSystem<LevelManager>();
+                var achievements = new Achievements();
+                // Released first, also if an assertion fails: the stop, then any subscription it did not remove.
+                owned.Lease(new ReleaseAction(() =>
+                {
+                    Call(achievements, "StopOfflineAchievementSubscriptions");
+                    var completed = (Action<MissionState>)Delegate.CreateDelegate(typeof(Action<MissionState>), achievements, "MissionCompleted");
+                    while (MissionCompletedSubscriptions(world.Missions) > 0) world.Missions.OnMissionCompleted -= completed;
+                }));
+
+                for (int session = 1; session <= 2; session++)
+                {
+                    // Mission manager exists, so AddLevelAchievements reaches AddMissionAchievements and subscribes
+                    // MissionCompleted. Only the achievement behaviours that follow need a ready local AchievementsManager
+                    // lease, which this fixture does not build, so the first one throws; the subscription is already made.
+                    Assert.Throws<NullReferenceException>(() => Call(achievements, "AddLevelAchievements", levelManager), "session " + session);
+                    Assert.That(MissionCompletedSubscriptions(world.Missions), Is.EqualTo(session),
+                        "one more MissionCompleted subscription per session, as in the original");
+                }
+
+                Call(achievements, "StopOfflineAchievementSubscriptions");
+                Assert.That(MissionCompletedSubscriptions(world.Missions), Is.EqualTo(0), "no MissionCompleted subscription survives the stop");
+            });
+        }
+
+        private static int MissionCompletedSubscriptions(MissionManager missions) =>
+            missions.OnMissionCompleted == null ? 0 : missions.OnMissionCompleted.GetInvocationList().Count(entry => entry.Method.Name == "MissionCompleted");
     }
 }

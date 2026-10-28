@@ -123,6 +123,7 @@ namespace HardlightProject
                 return;
             }
             missionManager.OnMissionCompleted += MissionCompleted;
+            if (ProjectLucid.Offline.OfflineAdapters.Active) m_offlineMissionCompletedSubscriptions++; // Offline hook H-084: counted so the adapter's stop can remove every repeated subscription
             AddAchievementBehaviour(AppleFTUEPrefix + AchievementIdentifier.Day_Dreamer2.GetString(), 1,
                 ref m_levelManager.OnLevelExit, HasFTUEBeenCompleted);
             AddAchievementBehaviour(AchievementIdentifier.Beach_Combing.GetString(), 3,
@@ -402,6 +403,8 @@ namespace HardlightProject
         private MissionManager m_offlineProgressionMissionManager;
         // Each gameplay session's enemy startup adds one more character subscription; the stop removes them all.
         private int m_offlineCharacterStartupSubscriptions;
+        // Each gameplay session's level startup adds one more MissionCompleted subscription on the same mission manager; the stop removes them all.
+        private int m_offlineMissionCompletedSubscriptions;
         // Method group instead of a lambda, so Initialise gains no generated member the original lacks.
         private bool IsOfflineSaveBindingOpen() => m_offlineSaveBinding != null && m_offlineSaveBinding.IsOpen;
 
@@ -418,7 +421,8 @@ namespace HardlightProject
             if (m_levelManager != null) ProjectLucid.Offline.LocalAchievementRuntime.DetachEvaluators(m_achievementsManager, ref m_levelManager.OnLevelExit);
             if (m_offlineMissionManager != null)
             {
-                m_offlineMissionManager.OnMissionCompleted -= MissionCompleted;
+                for (; m_offlineMissionCompletedSubscriptions > 0; m_offlineMissionCompletedSubscriptions--)
+                    m_offlineMissionManager.OnMissionCompleted -= MissionCompleted;
                 ProjectLucid.Offline.LocalAchievementRuntime.DetachEvaluators(m_achievementsManager, ref m_offlineMissionManager.OnRewardCountChanged);
             }
             ProjectLucid.Offline.LocalAchievementRuntime.DetachEvaluators(m_achievementsManager, ref OnMissionCompleted);
