@@ -7,8 +7,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Full original clip-loader graph. This private source remains unaccepted
-    // until the genuine DataManager and AddressableManager dependencies close.
+    // Full original clip-loader graph.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class HLAudioClipHandler

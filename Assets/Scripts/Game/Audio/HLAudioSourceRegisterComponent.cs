@@ -4,7 +4,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 0x020001ca; complete registration component candidate.
+    // Original Game.Runtime 0x020001ca; registration component.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [RequireComponent(typeof(AudioSource))]

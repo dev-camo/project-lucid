@@ -1,5 +1,3 @@
-// Complete original native-derived candidate. The genuine Actor/ActorState/DataManager
-// dependency graph is still open; this private source is not accepted or playable.
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;

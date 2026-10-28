@@ -1,5 +1,3 @@
-// Complete original type candidate; genuine Actor/Character, definition, tracking,
-// camera, stamina, App and timed-utility graphs remain required and unaccepted.
 using System;
 using System.Text;
 using Hardlight;

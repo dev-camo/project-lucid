@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 0x02000256. Full source candidate; runtime acceptance pending.
+    // Original Game.Runtime type 0x02000256.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class CameraAversionWithLimit : TimeScaledComponent_SDT

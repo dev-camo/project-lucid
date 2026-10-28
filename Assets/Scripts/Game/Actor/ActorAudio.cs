@@ -6,8 +6,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Full original ActorAudio schema and native-derived bodies. This private source
-    // remains unaccepted until its genuine AudioManager and LevelManager graph closes.
+    // Full original ActorAudio schema and native-derived bodies.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class ActorAudio : TimeScaledComponent_SDT

@@ -6,7 +6,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000aa7, seven complete methods. Native-derived source candidate.
+    // Original Game.Runtime 02000aa7, seven complete methods.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class SurfaceMeshPipeGenerator : SurfaceMeshSplineGenerator

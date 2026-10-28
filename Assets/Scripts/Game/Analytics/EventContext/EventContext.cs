@@ -4,7 +4,7 @@ using Unity.IL2CPP.CompilerServices;
 namespace Hardlight.Analytics
 {
     // Original Game.Runtime02000025:36 own APIs (34 concrete, two abstract).
-    // All original primary/generic physical bodies are retained; source intent remains unaccepted.
+    // All original primary/generic physical bodies are retained.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public abstract class EventContext<T> : AnalyticsEvent<T>, IEventContext

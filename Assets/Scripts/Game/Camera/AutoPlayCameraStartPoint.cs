@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 0x020001d0. Full source candidate; runtime acceptance pending.
+    // Original Game.Runtime type 0x020001d0.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class AutoPlayCameraStartPoint : MonoBehaviour

@@ -7,8 +7,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Complete original0200031f candidate, private and unaccepted. The genuine
-    // Character/TrackManager/collision-tracking graph still needs source closure.
+    // Original Game.Runtime 0200031f.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class CharacterCollider

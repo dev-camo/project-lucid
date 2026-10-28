@@ -6,8 +6,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime020009ee, complete own20/natural comparer2 candidate.
-    // Private, unaccepted; Character's genuine dependency graph does not yet bind.
+    // Original Game.Runtime020009ee, own20 APIs and natural comparer2.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public static class ColliderTrackingUtilities

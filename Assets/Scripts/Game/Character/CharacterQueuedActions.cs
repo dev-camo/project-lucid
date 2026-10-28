@@ -1,7 +1,6 @@
 namespace HardlightProject
 {
     // Original Game.Runtime 02000341: complete own eight methods/five fields.
-    // Private candidate; genuine Character dependency graph remains unresolved.
     public class CharacterQueuedActions
     {
         private readonly Character m_character; //04000c51

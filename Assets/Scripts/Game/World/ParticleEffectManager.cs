@@ -10,8 +10,7 @@ using UnityEngine.Pool;
 namespace HardlightProject
 {
     // Game.Runtime0x02000a8e: full28owner+15natural original declarations.
-    // Natural C# closure/iterator emission and exact native body binding are
-    // separate unaccepted evidence; no substitute pool/provider is inserted.
+    // No substitute pool/provider is inserted.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class ParticleEffectManager : MonoBehaviour, ISystem

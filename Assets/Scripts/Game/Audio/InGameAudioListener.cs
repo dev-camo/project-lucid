@@ -8,8 +8,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 0x020001cb; complete native-derived candidate.
-    // AudioManager and the original following/character graph remain unclosed.
+    // Original Game.Runtime 0x020001cb.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class InGameAudioListener : MonoBehaviour

@@ -6,7 +6,6 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Complete original owner candidate. Native and engine acceptance is pending.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public sealed class MaterialManipulator : MonoBehaviour

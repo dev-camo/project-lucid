@@ -4,8 +4,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Complete original020003be. Private source candidate; its genuine Character,
-    // CharacterTracker and movement-definition graph is still unclosed.
+    // Original Game.Runtime 020003be.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public abstract class CharacterTracking

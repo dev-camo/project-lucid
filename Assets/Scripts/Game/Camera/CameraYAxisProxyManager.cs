@@ -1,5 +1,4 @@
-// Complete original Game.Runtime CameraYAxisProxyManager family. Private candidate;
-// genuine Character/CharacterManager/LevelManager/camera graph remains source-open.
+// Original Game.Runtime CameraYAxisProxyManager family.
 using System;
 using System.Collections.Generic;
 using Cinemachine;

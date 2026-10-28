@@ -7,7 +7,7 @@ using Unity.IL2CPP.CompilerServices;
 namespace HardlightProject
 {
     // Original Game.Runtime 02000aa9; complete abstract owner, 31 concrete methods and three abstract contracts.
-    // Native-derived source candidate. Exceptional numerical/native pointer behavior is not universal CLR parity.
+    // Exceptional numerical/native pointer behavior is not universal CLR parity.
     [RequireComponent(typeof(MeshFilter))]
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]

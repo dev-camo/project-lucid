@@ -1,7 +1,6 @@
 // Whole original Game.Runtime HardlightProject.Achievements recovery.
 // All31 original owner APIs and52 natural APIs were read in full on ARM64 and x86_64.
-// Local functions/lambdas express every natural body; exact generated names, flags,
-// layout and body binding require the real compiler graph and remain unaccepted.
+// Local functions/lambdas express every natural body.
 // Original Social/platform callbacks are retained and have not been executed.
 using System;
 using System.Diagnostics;

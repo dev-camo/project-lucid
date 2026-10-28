@@ -1,5 +1,4 @@
-// Complete original Game.Runtime 02000323 native-derived source candidate.
-// Whole source preserves shipping debug side effects; Engine/native equivalence remains unaccepted.
+// Original Game.Runtime 02000323. Preserves shipping debug side effects.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

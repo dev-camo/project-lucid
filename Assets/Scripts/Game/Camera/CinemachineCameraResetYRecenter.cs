@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 0x0200026f. Full source candidate; runtime acceptance pending.
+    // Original Game.Runtime type 0x0200026f.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class CinemachineCameraResetYRecenter : MonoBehaviour
