@@ -16,6 +16,8 @@ namespace ProjectLucid.Tests
             Assert.That(ImportedKeywordContext.DeclaresFoveatedFor(BuildTarget.iOS), Is.True);
             Assert.That(ImportedKeywordContext.DeclaresFoveatedFor(BuildTarget.VisionOS), Is.True);
             Assert.That(ImportedKeywordContext.DeclaresFoveatedFor(BuildTarget.PS5), Is.True);
+            // The shader compiler names tvOS UNITY_PLATFORM_TVOS, a macro the Core RP predicate does not test.
+            Assert.That(ImportedKeywordContext.DeclaresFoveatedFor(BuildTarget.tvOS), Is.False);
             Assert.That(ImportedKeywordContext.DeclaresFoveatedFor(BuildTarget.StandaloneWindows64), Is.False);
             Assert.That(ImportedKeywordContext.DeclaresFoveatedFor(BuildTarget.StandaloneLinux64), Is.False);
             Assert.That(ImportedKeywordContext.DeclaresFoveatedFor(BuildTarget.Android), Is.False);
