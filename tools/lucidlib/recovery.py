@@ -271,16 +271,18 @@ def _managed_files(directory: Path) -> list[Path]:
 
 
 def _dumper(thin: Path, metadata: Path, work_dir: Path, run_id: str) -> dict:
-    installed = bootstrap(work_dir, ["dumper"])
+    installed = bootstrap(work_dir, ["dumper"])  # also installs and verifies the dotnet artifact
     item = installed["tools"]["dumper"]
     if item["status"] != "ready":
         return {"tool": "dumper", "status": "failed", "error": item.get("error", "Bootstrap failed")}
     output = managed_path(work_dir, "recovery", run_id, "dumper")
     output.mkdir(parents=True, exist_ok=False)
-    runtime = managed_path(tool_work_dir(work_dir), "tools", "runtime6")
+    # The net6 Il2CppDumper build runs on the pinned .NET 10 runtime; Major roll-forward lets
+    # the net6 framework reference bind to it (its dump output is byte-identical to .NET 6).
+    runtime = managed_path(tool_work_dir(work_dir), "tools", "dotnet")
     process = run_logged([str(executable(runtime / "dotnet")), item["path"], str(thin), str(metadata), str(output)],
                          work_dir, f"dumper-{run_id}.log", timeout=300,
-                         env=dotnet_environment(work_dir, runtime))
+                         env={**dotnet_environment(work_dir, runtime), "DOTNET_ROLL_FORWARD": "Major"})
     files = _managed_files(output / "DummyDll")
     ready = (not process["returncode"] and not process["timed_out"] and bool(files)
              and (output / "dump.cs").is_file() and (output / "script.json").is_file())

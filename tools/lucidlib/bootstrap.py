@@ -1402,7 +1402,7 @@ def bootstrap(work_dir: Path, selected=None) -> dict:
     selection = [selected] if isinstance(selected, str) else list(["assetripper", "cpp2il"] if selected is None else selected)
     if selection == ["all"]:
         selection = ["assetripper", "cpp2il", "dumper"]
-    allowed = {"assetripper", "assetripper-source", "cpp2il", "dumper", "dotnet", "runtime6"}
+    allowed = {"assetripper", "assetripper-source", "cpp2il", "dumper", "dotnet"}
     if not selection or any(name not in allowed for name in selection):
         raise ValueError(f"Selected tools must be one of {', '.join(sorted(allowed))}")
     pinned = host_lock(lock)
@@ -1421,7 +1421,7 @@ def bootstrap(work_dir: Path, selected=None) -> dict:
                     item = _ensure_assetripper_source(lock, work_dir)
                 else:
                     if name == "dumper":
-                        _install("runtime6", lock, work_dir)
+                        _install("dotnet", lock, work_dir)  # the net6 dumper runs on the pinned .NET 10
                     destination = _install(name, lock, work_dir)
                     artifact = pinned["artifacts"][name]
                     item = {"status": "ready", "path": str(destination / artifact["entrypoint"]),

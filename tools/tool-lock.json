@@ -33,18 +33,6 @@
       "max_unpacked_bytes": 2000000000,
       "entrypoint": "dotnet"
     },
-    "runtime6": {
-      "version": "6.0.36",
-      "license": "MIT and component notices",
-      "source": "https://github.com/dotnet/runtime",
-      "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/6.0.36/dotnet-runtime-6.0.36-osx-arm64.tar.gz",
-      "filename": "dotnet-runtime-6.0.36-osx-arm64.tar.gz",
-      "sha512": "d13fa060270c376307c7086da52cff71a02f8550a3a21812e25127308970c99a32d3c4834e342f23365869600c0b51fce03236906e13fe76456fc78964c531d4",
-      "format": "tar",
-      "strip_components": 0,
-      "max_unpacked_bytes": 300000000,
-      "entrypoint": "dotnet"
-    },
     "cpp2il-source": {
       "version": "b5ad444b82267cb1e4b88b8b373c008105bdea52",
       "license": "MIT",
@@ -115,18 +103,6 @@
           "strip_components": 0,
           "max_unpacked_bytes": 2000000000,
           "entrypoint": "dotnet.exe"
-        },
-        "runtime6": {
-          "version": "6.0.36",
-          "license": "MIT and component notices",
-          "source": "https://github.com/dotnet/runtime",
-          "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/6.0.36/dotnet-runtime-6.0.36-win-x64.zip",
-          "filename": "dotnet-runtime-6.0.36-win-x64.zip",
-          "sha512": "935db5c6cee19f2c016e67168bfae7b491044735de76c673abb3b125dd325fd5e779d7efe12ba80178d46689ae70a25e558a3fa846417d44c5f4ca256e7f4bf2",
-          "format": "zip",
-          "strip_components": 0,
-          "max_unpacked_bytes": 300000000,
-          "entrypoint": "dotnet.exe"
         }
       }
     },
@@ -143,18 +119,6 @@
           "format": "tar",
           "strip_components": 0,
           "max_unpacked_bytes": 2000000000,
-          "entrypoint": "dotnet"
-        },
-        "runtime6": {
-          "version": "6.0.36",
-          "license": "MIT and component notices",
-          "source": "https://github.com/dotnet/runtime",
-          "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/6.0.36/dotnet-runtime-6.0.36-linux-x64.tar.gz",
-          "filename": "runtime6-6.0.36-linux-x64.tar.gz",
-          "sha512": "afb6018fcabec468ccd7ae2f1131d8c9de7f4de7645b8f0c223efbbdbfdc515fb0642a399ebfe372c02044416c4cae463c9c802cd156b9da4181efff0e33ee94",
-          "format": "tar",
-          "strip_components": 0,
-          "max_unpacked_bytes": 300000000,
           "entrypoint": "dotnet"
         },
         "assetripper": {
