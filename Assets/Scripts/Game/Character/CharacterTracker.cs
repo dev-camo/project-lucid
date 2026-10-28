@@ -1,6 +1,6 @@
 // Original Game.Runtime 0x020003bc: 44-method CharacterTracker.
 // Natural C# deferred iterator preserves six captured generated method behaviors;
-// the original generated names, metadata tokens and native layout are not reproduced.
+// original generated iterator type is <DeferTrackerTeleportRoutine>d__58.
 using System;
 using System.Collections;
 using System.Collections.Generic;

@@ -200,7 +200,7 @@ namespace Hardlight.Analytics
 
         // 0x0600009c. Both CPUs convert Single to Int32, then widen to Int64.
         // Exceptional Single conversions differ between the original CPU slices;
-        // cross-platform native parity for those inputs remains unaccepted.
+        // cross-platform native parity for those inputs is not guaranteed.
         private void EndSession(bool unknownSessionTime = false, bool processSessionData = false)
         {
             if (m_sessionNumber < LowestValidSessionNumber)

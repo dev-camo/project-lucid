@@ -8,9 +8,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 02000336. These bodies preserve the real manager;
-    // all outer/cache bodies have native-derived candidates. The genuine dependency
-    // graph remains incomplete, and natural compiler identities are not yet verified.
+    // Original Game.Runtime type 02000336. These bodies preserve the real manager.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class CharacterManager : ISystem

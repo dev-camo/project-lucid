@@ -7,8 +7,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Original 0200032f: 30 owner API rows (one compiler local function), nine
-    // fields.
+    // Original 0200032f: 30 owner API rows (one compiler local function), nine fields.
     [Serializable]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
