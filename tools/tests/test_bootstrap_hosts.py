@@ -5,10 +5,12 @@ import os
 import stat
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from unittest import mock
 
@@ -312,6 +314,38 @@ class WorkLockTests(unittest.TestCase):
             child.wait(timeout=10)
             child.stdout.close()
         self.assertTrue(self.path.is_file())
+        bootstrap.release_work_lock(bootstrap.take_work_lock(self.path, "busy"))
+
+    @unittest.skipUnless(os.name == "posix", "SIGKILL is POSIX; a Windows job kills the tree with its owner")
+    def test_killed_owner_keeps_the_lock_while_its_command_runs(self):
+        # The owned command runs in its own session and survives its owner's SIGKILL; until it stops,
+        # nobody else may take the lock and start another command against the same work.
+        code = ("import sys\nsys.path.insert(0, sys.argv[2])\nfrom pathlib import Path\nfrom tools.lucidlib import bootstrap\n"
+                "owner = bootstrap.take_work_lock(Path(sys.argv[1]), 'busy')\n"
+                "bootstrap.run_owned([sys.executable, '-I', '-c', 'import os, time; print(os.getpid(), flush=True); time.sleep(60)'],"
+                " timeout=120)\n")
+        root = Path(__file__).resolve().parents[2]
+        owner = subprocess.Popen([sys.executable, "-I", "-c", code, str(self.path), str(root)], cwd=root,
+                                 stdout=subprocess.PIPE)
+        command = None
+        try:
+            command = int(owner.stdout.readline())
+            owner.kill()
+            owner.wait(timeout=10)
+            with self.assertRaisesRegex(ValueError, "^busy$"):
+                bootstrap.take_work_lock(self.path, "busy")
+        finally:
+            owner.kill()
+            owner.wait(timeout=10)
+            owner.stdout.close()
+            if command is not None:
+                os.kill(command, signal.SIGKILL)
+                for _ in range(100):
+                    try:
+                        os.kill(command, 0)
+                    except ProcessLookupError:
+                        break
+                    time.sleep(0.1)
         bootstrap.release_work_lock(bootstrap.take_work_lock(self.path, "busy"))
 
 
