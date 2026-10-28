@@ -30,8 +30,8 @@ import uuid
 
 from .audio import normalize_audio
 from .bootstrap import (ToolError, executable as native_executable, host_lock,
-                        managed_path, tool_work_dir, tree_seal, validate_work_dir,
-                        verified_install_seal, verified_tool_path, install_path)
+                        install_path, managed_path, tool_work_dir, tree_seal, validate_work_dir,
+                        verified_install_seal, verified_tool_path)
 from . import inputvariants
 from .inspection import _manifest, sha256_file
 

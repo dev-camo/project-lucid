@@ -118,6 +118,8 @@ class ToolCacheTrustTests(unittest.TestCase):
         (outside / "keep").write_bytes(b"must survive")
         link = self.work / "tools/dotnet-fixture-pin-0000000000aa"
         link.symlink_to(outside, target_is_directory=True)
+        # A link nested inside a superseded tree is removed as an entry, never followed.
+        (first / "nested-link").symlink_to(outside, target_is_directory=True)
         with mock.patch.object(bootstrap, "load_lock", return_value=self.lock):
             result = bootstrap.bootstrap(self.work, ["dotnet"])
         self.assertEqual("ready", result["status"], result)
@@ -128,6 +130,15 @@ class ToolCacheTrustTests(unittest.TestCase):
         self.assertTrue(unrelated.is_dir())
         self.assertTrue(link.is_symlink())
         self.assertEqual(b"must survive", (outside / "keep").read_bytes())
+
+    def test_failed_pruning_is_reported_without_failing_the_bootstrap(self):
+        first, _ = self.older_pin_install()
+        with mock.patch.object(bootstrap, "load_lock", return_value=self.lock), \
+                mock.patch.object(bootstrap, "_remove_unpacked_tree", side_effect=PermissionError("denied")):
+            result = bootstrap.bootstrap(self.work, ["dotnet"])
+        self.assertEqual("ready", result["status"], result)
+        self.assertIn(str(first), result["tools"]["dotnet"]["cleanup_warnings"][0])
+        self.assertTrue(first.is_dir())
 
     def test_archive_verified_install_can_be_revalidated_without_marker_authority(self):
         destination = self.install_fixture()

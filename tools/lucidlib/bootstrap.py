@@ -363,8 +363,12 @@ def _remove_unpacked_tree(directory: Path) -> None:
     Each directory is made owner-accessible before it is listed, so no pinned mode can
     hide children from the walk; any failure propagates instead of being skipped.
     """
-    if directory.is_symlink() or not directory.is_dir():
-        directory.unlink()
+    if _is_link(directory) or not directory.is_dir():
+        # A link (symlink or junction) is removed as an entry; its target is never traversed.
+        try:
+            directory.unlink()
+        except IsADirectoryError:
+            os.rmdir(directory)
         return
     directory.chmod(0o700)
     for child in directory.iterdir():
@@ -973,12 +977,15 @@ def install_path(work_dir: Path, name: str, lock: dict | None = None) -> Path:
     return managed_path(tool_work_dir(work_dir), "tools", install_dir_name(name, artifact))
 
 
-def _prune_superseded(name: str, lock: dict, work_dir: Path) -> None:
+def _prune_superseded(name: str, lock: dict, work_dir: Path) -> list[str]:
     """Remove this tool's installs of other pins, including the unversioned layout of older checkouts.
 
-    Only names of the pattern this module creates are touched, never links. A failure
-    is ignored because the current install is already verified and the leftover is inert.
+    Only names of the pattern this module creates are touched, never links, and links
+    inside a tree are removed as entries. A failure is returned as a warning because the
+    current install is already verified and the leftover is inert. A process of the same
+    checkout still running from an older pin (a branch switch mid-run) loses that tree.
     """
+    warnings: list[str] = []
     current = install_dir_name(name, host_lock(lock)["artifacts"][name])
     older = re.compile(re.escape(name) + r"-.+-[0-9a-f]{12}")
     for path in sorted(managed_path(work_dir, "tools").iterdir()):
@@ -988,8 +995,9 @@ def _prune_superseded(name: str, lock: dict, work_dir: Path) -> None:
             continue
         try:
             _remove_unpacked_tree(path)
-        except OSError:
-            pass
+        except OSError as exc:
+            warnings.append(f"Could not remove superseded install {path}: {exc}")
+    return warnings
 
 
 def _install(name: str, lock: dict, work_dir: Path) -> Path:
@@ -1464,8 +1472,10 @@ def bootstrap(work_dir: Path, selected=None) -> dict:
                             "version": artifact["version"]}
                 result["tools"][name] = item
                 # Only after the pinned install is verified: the old trees are not needed any more.
-                for installed in _INSTALLS_OF.get(name, (name,)):
-                    _prune_superseded(installed, lock, work_dir)
+                warnings = [warning for installed in _INSTALLS_OF.get(name, (name,))
+                            for warning in _prune_superseded(installed, lock, work_dir)]
+                if warnings:
+                    item["cleanup_warnings"] = warnings
             except (ToolError, OSError, ValueError) as exc:
                 result["status"] = "failed"
                 result["tools"][name] = {"status": "failed", "error": str(exc)}
