@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "AssetRipper.Checksum": {
+        "type": "Direct",
+        "requested": "[1.1.0, )",
+        "resolved": "1.1.0",
+        "contentHash": "jbzAzpuQ2XxaKcJhcaJRi38pTX57Q8+OYmNwhx1Jp6adMwazJ0mj0yWwzfOQdk5r2D752vqSdfjoLF4ZsiLSCQ==",
+        "dependencies": {
+          "System.IO.Hashing": "9.0.7"
+        }
+      },
+      "AssetRipper.SourceGenerated": {
+        "type": "Direct",
+        "requested": "[1.4.0, )",
+        "resolved": "1.4.0",
+        "contentHash": "8LaqBVtgzqHBtVN/PGyU2DZ+hHp/0vz0vuuPZv8imYlHNKPWA/VMof6ctPzlunRHgR2+uWO7YNp4OnIvDB0Oxg=="
+      },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "YlTamXppEQls6DYWt7RdUuwWDb0lyw/vXCaGeQpLCpsLmfwGuCkOz/vIGgMTV7ECsJcavkCOkxZXv9s8rdAHkQ=="
+      },
+      "AssetRipper.IO.Endian": {
+        "type": "Transitive",
+        "resolved": "2.1.0",
+        "contentHash": "d6WM+Az+bhBvoKrLLu8iqSGhCAgcODSt4sek3CQbfRDkx2jb6cQoFSSIkMJkj25oC45+nHEYQvFg+wnmIZwxhg==",
+        "dependencies": {
+          "AssetRipper.Primitives": "3.2.0"
+        }
+      },
+      "AssetRipper.Primitives": {
+        "type": "Transitive",
+        "resolved": "3.2.0",
+        "contentHash": "UtDpl72yG5/KUj3BsNP7k2sF13nqqeaJ4sTANZZd/gb+t9YULYYzcyNfxuvdptenlsQIUBmMwTVHUn6TZ61Jqg=="
+      },
+      "K4os.Compression.LZ4": {
+        "type": "Transitive",
+        "resolved": "1.3.8",
+        "contentHash": "LhwlPa7c1zs1OV2XadMtAWdImjLIsqFJPoRcIWAadSRn0Ri1DepK65UbWLPmt4riLqx2d40xjXRk0ogpqNtK7g=="
+      },
+      "SharpCompress": {
+        "type": "Transitive",
+        "resolved": "0.50.4",
+        "contentHash": "/hxjUR7DEX6mky8/LQXyrnrKioOL6D6veAID1EZpro+q4s02x5dHEYBV3qjEN6lDYYilDoQQ76BcmQj+lRx51w=="
+      },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "9.0.7",
+        "contentHash": "2sMrwd/AHYipeiOwYcoqD99c4U8F2x7GalonEYxkHUvTLNzE9Pxx2lz8ygS9cOqyDsruYARZAYL5pPVFh/s3lw=="
+      },
+      "ZstdSharp.Port": {
+        "type": "Transitive",
+        "resolved": "0.8.8",
+        "contentHash": "UIDFkA5DC3en3tOJ3Mof11yBx9kUQLsaeo/oFdvN6Bbkr9E9+VCqfIadHci8cu+I51K2Sl7XYWVl2R/mA75NBQ=="
+      },
+      "assetripper.assets": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.IO.Files": "[2.0.0, )"
+        }
+      },
+      "assetripper.io.files": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.IO.Endian": "[2.1.0, )",
+          "AssetRipper.Primitives": "[3.2.0, )",
+          "K4os.Compression.LZ4": "[1.3.8, )",
+          "SharpCompress": "[0.50.4, )",
+          "ZstdSharp.Port": "[0.8.8, )"
+        }
+      },
+      "assetripper.numerics": {
+        "type": "Project"
+      }
+    },
+    "net10.0/osx-arm64": {}
+  }
+}

@@ -35,7 +35,7 @@ def parser():
         if name == "shader-evidence":
             command.add_argument("--input", type=Path, required=True, help="an exported Shader .asset or export asset directory")
         if name == "bootstrap":
-            command.add_argument("--tool", action="append", choices=("assetripper", "cpp2il", "dumper"))
+            command.add_argument("--tool", action="append", choices=("assetripper", "assetripper-source", "cpp2il", "dumper"))
         if name == "recover-code":
             command.add_argument("--mode", choices=("schemas", "bodies", "analysis"), default="schemas")
         if name in ("native-schema", "native-method"):

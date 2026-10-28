@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import platform
+import re
 import shutil
 import signal
 import stat
@@ -1277,6 +1278,123 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
     return result
 
 
+ASSETRIPPER_SOURCE_DIR = REPO_ROOT / "tools" / "assetripper"
+_ASSETRIPPER_BUILD_SCHEMA = 1
+_MANIFEST_LINE = re.compile(r"([0-9a-f]{64})  ((?!/)(?:[^/\\\0\n]+/)*[^/\\\0\n]+)")
+
+
+def _source_manifest(manifest: Path) -> dict[str, str]:
+    """Parse "sha256  relative/path" lines; anything malformed, unsorted or duplicated is refused."""
+    result = {}
+    for number, line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
+        match = _MANIFEST_LINE.fullmatch(line)
+        if match is None or ".." in match[2].split("/") or match[2] in result:
+            raise ToolError(f"Invalid source manifest line {number}: {manifest.name}")
+        result[match[2]] = match[1]
+    if not result or list(result) != sorted(result):
+        raise ToolError(f"Empty or unsorted source manifest: {manifest.name}")
+    return result
+
+
+def verify_source_manifest(source: Path, manifest: Path, *, allow_extra: bool = False,
+                           skip: frozenset = frozenset()) -> str:
+    """Require the tree to be exactly the manifest's files, byte for byte.
+
+    The installer's own lucid-install.json is not source. With allow_extra (after a
+    build) new files are tolerated, but every listed file must still match; skip names
+    files a build step replaces on purpose. Returns the manifest's sha256."""
+    expected = _source_manifest(manifest)
+    actual = {path: record["sha256"] for path, record in tree_seal(source).items() if "sha256" in record}
+    actual.pop("lucid-install.json", None)
+    for path, digest in expected.items():
+        if path not in skip and actual.get(path) != digest:
+            raise ToolError(f"AssetRipper source differs from the pinned manifest: {path}")
+    if not allow_extra:
+        extra = sorted(set(actual) - set(expected))
+        if extra:
+            raise ToolError(f"Additional unpinned AssetRipper source: {extra[0]}")
+    return _digest(manifest, "sha256")
+
+
+def _assetripper_locks(rid: str) -> tuple[dict[str, Path], str]:
+    """The committed packages.lock.json files for this rid, keyed by project-relative path."""
+    root = ASSETRIPPER_SOURCE_DIR / "locks" / rid
+    if _is_link(root) or not root.is_dir():
+        raise ToolError(f"No committed AssetRipper package locks for {rid}")
+    locks = {}
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        if _is_link(path) or (path.is_file() and path.name != "packages.lock.json") or \
+                not (path.is_file() or path.is_dir()):
+            raise ToolError(f"Unexpected entry in the AssetRipper package locks: {relative}")
+        if path.is_file():
+            locks[relative] = path
+    if not locks:
+        raise ToolError(f"No committed AssetRipper package locks for {rid}")
+    digest = hashlib.sha256(json.dumps({key: _digest(path, "sha256") for key, path in locks.items()},
+                                       sort_keys=True).encode()).hexdigest()
+    return locks, digest
+
+
+def _ensure_assetripper_source(lock: dict, work_dir: Path) -> dict:
+    """Build AssetRipper from the pinned source; the prebuilt "assetripper" artifact is unaffected."""
+    work_dir = tool_work_dir(work_dir)
+    dotnet_root = _install("dotnet", lock, work_dir)
+    source = _install("assetripper-source", lock, work_dir)
+    pinned = host_lock(lock)
+    rid = pinned["rid"]
+    artifact = pinned["artifacts"]["assetripper-source"]
+    manifest = ASSETRIPPER_SOURCE_DIR / "source-manifest.txt"
+    nuget_config = ASSETRIPPER_SOURCE_DIR / "nuget.config"
+    locks, locks_digest = _assetripper_locks(rid)
+    identity = {"commit": artifact["version"], "archive_sha256": artifact["sha256"],
+                "source_manifest_sha256": verify_source_manifest(source, manifest),
+                "lock_files_sha256": locks_digest, "nuget_config_sha256": _digest(nuget_config, "sha256"),
+                "sdk": pinned["artifacts"]["dotnet"]["version"], "runtime": rid,
+                "publish_aot": False, "build_schema": _ASSETRIPPER_BUILD_SCHEMA}
+    tools = managed_path(work_dir, "tools")
+
+    def build(stage: Path, build_id: str, warnings: list) -> dict:
+        build_source = tools / f".assetripper-source-{build_id}"
+        try:
+            shutil.copytree(source, build_source)
+            verify_source_manifest(build_source, manifest)
+            # Replace the source's feed configuration and add the locks; both are committed here.
+            shutil.copyfile(nuget_config, build_source / "nuget.config")
+            for relative, path in locks.items():
+                if not (build_source / PurePosixPath(relative).parent).is_dir():
+                    raise ToolError(f"AssetRipper package lock has no project: {relative}")
+                shutil.copyfile(path, build_source / relative)
+            process = run_logged([
+                str(executable(dotnet_root / "dotnet")), "publish", str(build_source / artifact["entrypoint"]),
+                "-c", "Release", "-r", rid, "--self-contained", "true", "-p:PublishAot=false",
+                "-p:RestorePackagesWithLockFile=true", "-p:RestoreLockedMode=true", "-p:NuGetAudit=false",
+                "-p:RestoreConfigFile=" + str(build_source / "nuget.config"),
+                "-p:SourceRevisionId=" + identity["commit"],
+                "-o", str(stage), *NO_BUILD_SERVER_ARGS,
+            ], work_dir, "assetripper-source-build.log", timeout=1800,
+                env=dotnet_environment(work_dir, dotnet_root), cwd=build_source)
+            if process["returncode"] or process["timed_out"] or not executable(stage / "AssetRipper.GUI.Free").is_file():
+                raise ToolError(f"Pinned AssetRipper build failed; inspect {process['log']}")
+            # The build may add its own outputs, but no pinned source file may have changed.
+            verify_source_manifest(build_source, manifest, allow_extra=True, skip=frozenset({"nuget.config"}))
+            shutil.copyfile(source / "LICENSE.md", stage / "LICENSE.txt")
+            write_json(stage / "lucid-build.json", identity)
+            return process
+        finally:
+            _remove_tree(build_source, warnings)
+
+    directory, process, warnings = leased_build(work_dir, "assetripper-source", "AssetRipper source", identity,
+                                                build, scratch=".assetripper-source-*")
+    result = {"status": "ready", "path": str(executable(directory / "AssetRipper.GUI.Free")),
+              "version": identity["commit"]}
+    if process is not None:
+        result["build"] = process
+    if warnings:
+        result["cleanup_warnings"] = warnings
+    return result
+
+
 def bootstrap(work_dir: Path, selected=None) -> dict:
     """Install selected pinned tools. Defaults to AssetRipper and Cpp2IL."""
     work_dir = tool_work_dir(work_dir)
@@ -1284,7 +1402,7 @@ def bootstrap(work_dir: Path, selected=None) -> dict:
     selection = [selected] if isinstance(selected, str) else list(["assetripper", "cpp2il"] if selected is None else selected)
     if selection == ["all"]:
         selection = ["assetripper", "cpp2il", "dumper"]
-    allowed = {"assetripper", "cpp2il", "dumper", "dotnet", "runtime6"}
+    allowed = {"assetripper", "assetripper-source", "cpp2il", "dumper", "dotnet", "runtime6"}
     if not selection or any(name not in allowed for name in selection):
         raise ValueError(f"Selected tools must be one of {', '.join(sorted(allowed))}")
     pinned = host_lock(lock)
@@ -1299,6 +1417,8 @@ def bootstrap(work_dir: Path, selected=None) -> dict:
             try:
                 if name == "cpp2il":
                     item = _ensure_cpp2il(lock, work_dir)
+                elif name == "assetripper-source":
+                    item = _ensure_assetripper_source(lock, work_dir)
                 else:
                     if name == "dumper":
                         _install("runtime6", lock, work_dir)
