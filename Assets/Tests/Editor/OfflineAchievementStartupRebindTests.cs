@@ -47,8 +47,8 @@ namespace ProjectLucid.Tests
                 Set(save, "m_currentSave", null);
                 owned.Lease(new ReleaseAction(() => Set(save, "m_currentSave", openSave)));
                 var achievements = new Achievements();
-                // Released first: the sessions' managers leave their rows, then every startup subscription the
-                // chain made (the original adds one more character subscription per session) and the binding go.
+                // Released first, and also if an assertion fails before the stop below: the sessions' managers leave
+                // their rows, then any startup subscription the chain made and the binding go.
                 owned.Lease(new ReleaseAction(() =>
                 {
                     Call(achievements, "StopOfflineAchievementSubscriptions");
@@ -86,6 +86,11 @@ namespace ProjectLucid.Tests
                     if (session == 1) firstBinding = bindings[0];
                     else Assert.That(bindings[0], Is.Not.SameAs(firstBinding));
                 }
+
+                // The offline stop removes every startup subscription the chain made, the repeated character ones included.
+                Call(achievements, "StopOfflineAchievementSubscriptions");
+                Assert.That(Subscriptions<CharacterManager>("AddCharacterAchievements"), Is.EqualTo(0), "no character startup subscription survives the stop");
+                Assert.That(Subscriptions<EnemyManager>("AddEnemyAchievements"), Is.EqualTo(0), "no enemy startup subscription survives the stop");
             });
         }
     }
