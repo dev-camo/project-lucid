@@ -1,0 +1,1269 @@
+{
+ "origin": {
+  "asset_map_catalog_sha256": "02a6803f2ae6b963de9566c4a703050b569c53a5a0a516591584914acdc5a027",
+  "input_fingerprint_sha256": "7f7af864f06ca17d0f7be4aa10b44a4b43d496a4b4af78db7957dc4d507c878e"
+ },
+ "schema_version": 1,
+ "shaders": [
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "01177b66d20567c4fb723cc93ab56746",
+   "name": "Hidden_Universal Render Pipeline_Debug_DebugReplacement"
+  },
+  {
+   "category": "Sky",
+   "class": "game_folder",
+   "guid": "029018aa5570911489282f3efd2e81cf",
+   "name": "HL_Sky_Trippy"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "0511c89546018e54090fab643247a8df",
+   "name": "Hidden_Shader Graph_FallbackError_23"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "0579a0d317cbe1140bedf5b7ccbbf74f",
+   "name": "Hidden_Shader Graph_FallbackError_42"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "060dbe7be9027484dbe00db16a4c8141",
+   "name": "Hidden_Shader Graph_FallbackError_18"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "06d4b19865f370a47b4b9cd3bf599a52",
+   "name": "Hidden_Universal Render Pipeline_PaniniProjection"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "0773fcc2ed5b75f4a8d0c1cf94a374a4",
+   "name": "Hidden_Shader Graph_FallbackError_29"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "07acad702179dcb439a55b71bbd0280e",
+   "name": "Hidden_Shader Graph_FallbackError_36"
+  },
+  {
+   "category": "Character",
+   "class": "game_folder",
+   "guid": "07afcdc7cc70212439bca8be8a805cc0",
+   "name": "HL_Char_Ghosted_Eye"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "08c37c0e3e3574c4c9ac4036a3544c5c",
+   "name": "depthmask"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "09c20082abacfd14c93d02456f3c8d0a",
+   "name": "TMP_SDF-Mobile"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "0abb5b50cf3e47f4590b841c287c9fc8",
+   "name": "Hidden_Shader Graph_FallbackError_26"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "0b02d93d6cd1c6146bf81bb6b3b49487",
+   "name": "Hidden_Universal Render Pipeline_Stop NaN"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "0b60d1c2470443745ad22fa69683acca",
+   "name": "Hidden_Shader Graph_FallbackError_46"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "0e1ca3150ccc9fa4c8a3302f1207ff24",
+   "name": "HL_Env_Zone2_Goo_Pipes"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "108cd9be8e1077a42af39dfe5ffa6c2c",
+   "name": "Hidden_Universal Render Pipeline_LensFlareDataDriven"
+  },
+  {
+   "category": "Gameplay",
+   "class": "game_folder",
+   "guid": "109d879a0e474224f9576baad15f0273",
+   "name": "HL_Gameplay_Eggman_Logo"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "1209488cc0579ad469df9c49b8962d3e",
+   "name": "Hidden_Shader Graph_FallbackError_52"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "182915e64702eb742bf1bfb0783e5a17",
+   "name": "Hidden_Shader Graph_FallbackError_58"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "1a180774ac0e842438e7ce02939af35a",
+   "name": "Hidden_Shader Graph_FallbackError_22"
+  },
+  {
+   "category": "Particle",
+   "class": "game_folder",
+   "guid": "1c06f37850a088a48b21d6ac2c69ea32",
+   "name": "HL_Shockwave_nightmare"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "1c872840b5e88d34d9e7f5883ad37197",
+   "name": "Hidden_ProBuilder_VertexPicker"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "1c9aca7ea7e24f444bae7f5546837ffb",
+   "name": "Hidden_Shader Graph_FallbackError_15"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "1d9ed5e4b1ad01d4b85bc19c173c758a",
+   "name": "HL_Env_Zone1_Water"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "1dfb9a9c5d611c543ab4c2430f8fb60f",
+   "name": "Hidden_Universal Render Pipeline_DBufferClear_0"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "1e284fea22d1a004182a8f55a99576c5",
+   "name": "Lit"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "1f5978d767fff9e4ca1dbf642ec34268",
+   "name": "FallbackShader"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "208aa98650b62d04e823b0368bf9326a",
+   "name": "Hidden_Shader Graph_FallbackError_61"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "22056f8a589ee2f4db00e4ff1596eb40",
+   "name": "HL_Env_Splatmap"
+  },
+  {
+   "category": "Sky",
+   "class": "game_folder",
+   "guid": "25aa679e9f8555d459542325f9fd9c14",
+   "name": "HL_Skybox_Portal"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "263e7ca97ab99654c8faa42cf66feded",
+   "name": "HL_Env_Zone1_Cliffs"
+  },
+  {
+   "category": "Character",
+   "class": "game_folder",
+   "guid": "269ce84e7a03e7b4a8c80eb1ecdf93ed",
+   "name": "HL_Char_Eye"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "271e3795517b2a9419805ccd013b82df",
+   "name": "Hidden_Universal Render Pipeline_LutBuilderHdr"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "2793c6e9ed5a4ca468d6879edc7f0c56",
+   "name": "HardLight_Particle_HL_Particle_Main"
+  },
+  {
+   "category": "Character",
+   "class": "game_folder",
+   "guid": "28c8c73cf4147ed4286a3a805ed7ad93",
+   "name": "HL_Char_Ariem_Stars"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "2dfa83f1d36bc4d4da3ef03d9c361c31",
+   "name": "Hidden_Universal Render Pipeline_MaterialError"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "2eeebaf16baeedb48b10c258484c6cb6",
+   "name": "Universal Render Pipeline_2D_Sprite-Unlit-Default"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "2f678879e366ed547b64ff779d71a011",
+   "name": "Hidden_Shader Graph_FallbackError_30"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "2ffc3c337ca29314eba00210af7400b8",
+   "name": "ProBuilder_UnlitVertexColor"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "3166feccb3618fb4dafd14bd6bcbeaee",
+   "name": "Hidden_Shader Graph_FallbackError_59"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "318c702f1027d89449a197f841435776",
+   "name": "Hidden_Core_FallbackError"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "31f9c92858f8b0249b28b684c490fc17",
+   "name": "Hidden_ProBuilder_HideVertices"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "32c03f8c0f654bf46bf5657aad443dfb",
+   "name": "Hidden_Shader Graph_FallbackError_7"
+  },
+  {
+   "category": "RenderFeatures",
+   "class": "game_folder",
+   "guid": "3518f69d26ca6d140b0b1b2d67fc8dea",
+   "name": "HL_FullScreen_Effects"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "3723e2b6550d7f64a9ddeba53d8af994",
+   "name": "Hidden_Universal_CoreBlit"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "38e34a872d7e2e947b5064e29bea6157",
+   "name": "Hidden_Shader Graph_FallbackError_28"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "3b12cdc72702b4b41b4be70abc8f5cb5",
+   "name": "Hidden_Universal Render Pipeline_FinalPost"
+  },
+  {
+   "category": "Gameplay",
+   "class": "game_folder",
+   "guid": "3be3cd85a9eb4b64884c8372e136710f",
+   "name": "HL_Gameplay_Laser"
+  },
+  {
+   "category": "Particle",
+   "class": "game_folder",
+   "guid": "3d28166e35482e444b56af851ff24084",
+   "name": "HL_Particle_Trail"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "3e415dec08016e04fb6a3b35cd243f19",
+   "name": "Hidden_Shader Graph_FallbackError_44"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "40f47d3b8d2c1c148be2be56348982ff",
+   "name": "softmasketc1premultipliedalpha"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "42ab3a2d36429ec47a6d916550618764",
+   "name": "Hidden_Shader Graph_FallbackError_2"
+  },
+  {
+   "category": "Gameplay",
+   "class": "game_folder",
+   "guid": "439e8a81d893fa244a6c338d94b5b25b",
+   "name": "HL_Gameplay_Timed_Platform"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "48b0a323ed002f246bd17468ad31f329",
+   "name": "HardLight_Character_HL_Char_Boss_03_Body"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "4b890db766468e0499bf8d28de347f51",
+   "name": "Hidden_Shader Graph_FallbackError_32"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "4c01dbdbfcfdbad46ae6fe2b8c64288e",
+   "name": "Hidden_Universal Render Pipeline_FallbackError"
+  },
+  {
+   "category": "Gameplay",
+   "class": "game_folder",
+   "guid": "4cd63add086047e448053c613c3ea10e",
+   "name": "HL_Gameplay_Dash_Ring_Light"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "4d26c4fd06ceab348930f5e1384d2c3f",
+   "name": "Hidden_Shader Graph_FallbackError_39"
+  },
+  {
+   "category": "Gameplay",
+   "class": "game_folder",
+   "guid": "4d86ae3a07402f4438849f05090abbad",
+   "name": "HL_Gameplay_Dream_Orb"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "4ef0b223b7393164e85d3e6d70854347",
+   "name": "Hidden_Shader Graph_FallbackError_55"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "50764e92534097d419ca043c1436aab6",
+   "name": "Hidden_Shader Graph_FallbackError_43"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "5367cace296c0a64794ff50aa63d7686",
+   "name": "HL_Env_Zone4_Cloud_Plane"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "57928240d22bdaa4d9173f78dd1bf280",
+   "name": "maskblend"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "5822a9fcdc6f2ec4ba250e7a276c09c9",
+   "name": "Hidden_Shader Graph_FallbackError_60"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "584729e7fbcc14b4bafeb47359303f04",
+   "name": "Hidden_Universal Render Pipeline_CameraMotionBlur"
+  },
+  {
+   "category": "Character",
+   "class": "game_folder",
+   "guid": "5958bf96c5aa33e43a8a750f1b76bb40",
+   "name": "HL_Char_Boss_4_Eggman"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "59bc8bf3ef01d1e4bba8aa1a86b94fe9",
+   "name": "TextMeshPro_Distance Field"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "5ac9661153468a64984bf40e7013b18d",
+   "name": "Hidden_Shader Graph_FallbackError"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "5af3412dcfb96164fbda694643236fcb",
+   "name": "PhysicalMaterial3DsMax"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "5bd8cc986944a52448c57fea5bd41fb5",
+   "name": "HL_Env_Zone4_Background_Windows"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "5c5794901bfadfd429b999754c9f7fc7",
+   "name": "Hidden_HardLight_Particle_HL_Particle_Dream_Ripple"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "5de4beb767497fc4aaccc43cc4b26f9f",
+   "name": "Hidden_Shader Graph_FallbackError_1"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "5e3c3fe84a6cde344b72b4b339e3263a",
+   "name": "rendermask"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "5efc561ff3c693b43812c4b4569e2e50",
+   "name": "Unlit"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "5fad8ca2b48124e43b9c783cedb811b6",
+   "name": "Hidden_Shader Graph_FallbackError_13"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "602867083a96936469e5f1dcdcc2ee28",
+   "name": "TextMeshPro_Mobile_Distance Field"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "60b6241488e5b5f4ca1d9798720cb342",
+   "name": "Hidden_TerrainEngine_Details_UniversalPipeline_BillboardWavingDoublePass"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "60f6b649330493f43a3fe019913c8b4c",
+   "name": "HL_Env_FoliageWind"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "61cc3abdd56fe2d419a8d57fabbcdb2a",
+   "name": "Hidden_Universal Render Pipeline_CameraMotionVectors"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "6322120ddcb02f040a2c573eba9a37ab",
+   "name": "Hidden_Shader Graph_FallbackError_25"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "63ac00dcc87ca994a9ceeed73d1e5e8b",
+   "name": "HL_Env_Zone5_Goo"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "63e2adf799e96f5498d0c5162ce09664",
+   "name": "Hidden_Universal_CoreBlitColorAndDepth"
+  },
+  {
+   "category": "Character",
+   "class": "game_folder",
+   "guid": "6499a3a7f1326c14e8a2ee6cd0c8d04d",
+   "name": "HL_Char_Boss_02_Goo"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "6654c34f8f4c73b4084ce675c2f0423f",
+   "name": "HL_Env_Zone3_Spikes"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "67714342bd47b3d48a5a54a2fde61031",
+   "name": "Hidden_Shader Graph_FallbackError_40"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "679ff6b12bf4fe14d8d7ac57df9a6a87",
+   "name": "Hidden_Shader Graph_FallbackError_38"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "68230e94c17f67740b31cd2bd60754e5",
+   "name": "UnlitVertexColor"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "6902e95daedffa74490778b79d976390",
+   "name": "Hidden_Shader Graph_FallbackError_5"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "6a4b4db5745880f4a825ce51cb935971",
+   "name": "Hidden_Universal Render Pipeline_XR_XROcclusionMesh"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "6ab5fa0672e908c4495f9884f86418d2",
+   "name": "Hidden_Universal Render Pipeline_Scaling Setup"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "6b011597c0ef1634ab56ead81e9ec1fe",
+   "name": "Hidden_Shader Graph_FallbackError_6"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "7338fd15c8b98374881b341976d81301",
+   "name": "Hidden_Universal Render Pipeline_XR_XRMirrorView"
+  },
+  {
+   "category": "Character",
+   "class": "game_folder",
+   "guid": "78c329c1d2e2b1f498a41271fa63ce7e",
+   "name": "HL_Char_Boss_03_Body_Blobs"
+  },
+  {
+   "category": "Gameplay",
+   "class": "game_folder",
+   "guid": "79454e735e6b2824d92c0ebe4fc51d38",
+   "name": "HL_Gameplay_Collectable"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "7ae4648230b724644897f5464b84b50e",
+   "name": "Hidden_Universal Render Pipeline_BokehDepthOfField"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "7bd994467f6d93a4ea44c5abd4f3eb73",
+   "name": "TMP_SDF"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "7cca9db02636595498218667f917cc78",
+   "name": "Hidden_Universal Render Pipeline_GaussianDepthOfField"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "7dd4bdf4e3cf27a4298e38a2fea03725",
+   "name": "Hidden_Shader Graph_FallbackError_34"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "7df52b87c3032714db51897701929c91",
+   "name": "Hidden_Shader Graph_FallbackError_62"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "7e030e184580eef4381798903f9c9f8c",
+   "name": "mask"
+  },
+  {
+   "category": "Gameplay",
+   "class": "game_folder",
+   "guid": "7ef43191960ad5943897719c2515fc82",
+   "name": "HL_Gameplay_Zone2_Tube_Door"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "7f630ba187ffe2c4e930d11d36f87ff1",
+   "name": "Hidden_Universal Render Pipeline_StencilDeferred"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "7fbc68e6356af1948bc6403b1583eef7",
+   "name": "Hidden_Shader Graph_FallbackError_27"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "8000959fd76ca0e42b797e238f3c14cb",
+   "name": "ParticlesUnlit"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "80677c2191fd51c4eaced391c62df6ae",
+   "name": "Hidden_TerrainEngine_Details_UniversalPipeline_WavingDoublePass"
+  },
+  {
+   "category": "Particle",
+   "class": "game_folder",
+   "guid": "80a924db35b9fa644acb6d04a8c126cb",
+   "name": "HL_Particle_Dream"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "80eb5feddf5bb0140b5c358685097d0a",
+   "name": "Hidden_Shader Graph_FallbackError_41"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "8311a68f3e699dc47ab7b4af3cee94be",
+   "name": "HL_Env_Zone4_Hologram"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "834e4dabaab6ec8428bd6a64115a2c5c",
+   "name": "HL_Env_Zone2_Goo"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "855c33171251f3a4d90fa9ae93916f43",
+   "name": "Hidden_ProBuilder_FacePicker"
+  },
+  {
+   "category": "Particle",
+   "class": "game_folder",
+   "guid": "85932df1a688126428c9b215b646e7ff",
+   "name": "HL_Particle_Trail_Vertexoffset"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "875d4b66f75d5e641a816654f4fbb253",
+   "name": "Hidden_Universal Render Pipeline_FallbackLoading"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "89aa1b470a96afe49a9b172ec8300d40",
+   "name": "Hidden_HardLight_RenderFeature_HL_FullScreen_Effects"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "8a8821453229ab448873955ba355ca0b",
+   "name": "Hidden_Shader Graph_FallbackError_3"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "8bf95efa9123aae4ba7ee118f702df73",
+   "name": "Hidden_Universal_BlitHDROverlay"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "8c9e3733641edf04c96646d984b8272a",
+   "name": "HardLight_Gameplay_Blob Shadow_HL_Blob_Shadow"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "8d5ec02a43f216c41b3303b77aec9f24",
+   "name": "Hidden_Shader Graph_FallbackError_49"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "8e8f358773ca69749aec9704ca3a5006",
+   "name": "HL_Env_Crowd"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "9044bb9912081ae4eb303730e057a84b",
+   "name": "Hidden_Shader Graph_FallbackError_45"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "91da4653e6c7f8e409a7ac5232d7885c",
+   "name": "Hidden_Shader Graph_FallbackError_11"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "92fce635b935f0d45adddd2ef5b0c895",
+   "name": "Hidden_Shader Graph_FallbackError_31"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "930f6198a3f459f4aa543c5355a50a73",
+   "name": "Hidden_Universal Render Pipeline_CopyDepth"
+  },
+  {
+   "category": "Gameplay",
+   "class": "game_folder",
+   "guid": "93a675ddf129efd40864a975e8f45a20",
+   "name": "HL_Blob_Shadow"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "94bc840a6ba39ea4180c49d456ca9aa0",
+   "name": "blend"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "94ee156d2bdf84f49bfb55a801c5dd39",
+   "name": "Hidden_Universal_HDRDebugView"
+  },
+  {
+   "category": "Hub",
+   "class": "game_folder",
+   "guid": "959ce1e53b9a11e449afa3188de59610",
+   "name": "HL_Hub_Standard_Unlit"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "9813a90d21eee0046b96c54bde9f6e84",
+   "name": "Hidden_Shader Graph_FallbackError_9"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "98d3ba0feed728748a015524a7c16b6c",
+   "name": "Hidden_Shader Graph_FallbackError_21"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "9946434b2708fce4281e7c6654cb6098",
+   "name": "Hidden_Shader Graph_FallbackError_17"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "9aa8e850e20b37043a5b17abc47a7c6b",
+   "name": "Hidden_HardLight_Environment_HL_Env_WaterShoreline"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "9bc05d4d1cadff24098d38f4b4792d73",
+   "name": "FallbackError"
+  },
+  {
+   "category": "UI",
+   "class": "game_folder",
+   "guid": "9c34bc750cbdd2047aca5c74c4ace89d",
+   "name": "HL_UI_Dream_Effect"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "9c3a9550943c2134c916691f34cbb0d4",
+   "name": "blendcache"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "9cd381e4098d3ef4da0577f0f62cd257",
+   "name": "Hidden_Shader Graph_FallbackError_54"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "9e434fb85cdd1c642916e62934ce4321",
+   "name": "processonly"
+  },
+  {
+   "category": "Gameplay",
+   "class": "game_folder",
+   "guid": "9e626579d1f15764fb66332d338bae7f",
+   "name": "HL_Gameplay_Electricity"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "a0302705ca0a5804f90b9af81dc0a315",
+   "name": "Hidden_Shader Graph_FallbackError_14"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "a0e125a42f7a07847929d98aa26e4218",
+   "name": "Hidden_Shader Graph_FallbackError_12"
+  },
+  {
+   "category": "Particle",
+   "class": "game_folder",
+   "guid": "a39de842318b98643a7250ed212218ce",
+   "name": "HL_Particle_AnimMesh"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "a506b26e9a453f0429b452ab93f4ed1c",
+   "name": "Hidden_Shader Graph_FallbackError_8"
+  },
+  {
+   "category": "Particle",
+   "class": "game_folder",
+   "guid": "a5da1a8df03ee0a47abd64594b7661b4",
+   "name": "HL_Particle_ScreenDistortion"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "a5dbbaa2c88030a40a1f1b64e45bf39d",
+   "name": "Hidden_Universal Render Pipeline_ObjectMotionVectors"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "a60b67ac416fed744ac9b0c4a4f64208",
+   "name": "Hidden_Universal Render Pipeline_SubpixelMorphologicalAntialiasing"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "a72e090418778644c8fe8198ad56d6f5",
+   "name": "AutodeskInteractive"
+  },
+  {
+   "category": "UI",
+   "class": "game_folder",
+   "guid": "a95546cc3cafd984991d36b57cd01ce7",
+   "name": "HL_UI_Core_Loop_Transition"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "ab66c1d73ebd4cc4faa29527057a5703",
+   "name": "softmaskpremultipliedalpha"
+  },
+  {
+   "category": "Particle",
+   "class": "game_folder",
+   "guid": "aca849accd727724585fa4b4f236f834",
+   "name": "HL_Particle_SmokeMesh"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "ae05e3fda4799aa49a92776741aa42c4",
+   "name": "HardLight_RenderFeature_HL_UI_Blur_Render_Feature"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "aea03fbf55edc744f86f594b52b8de6d",
+   "name": "HL_Env_Zone5_Track"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "af6da4f6308a6cd45b8544e8d821d998",
+   "name": "HL_Env_Standard_TriPlanar"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "b02f19d3f6503774ea5c5925523cd875",
+   "name": "Hidden_Universal Render Pipeline_Sampling"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "b1fa398fc98816343be12666e1a6449a",
+   "name": "Universal Render Pipeline_Simple Lit"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "b54df1429a197f2498482bf535f60a98",
+   "name": "Hidden_Universal Render Pipeline_Bloom"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "b80f53890662c464bb9092721f5f36c8",
+   "name": "softmasketc1"
+  },
+  {
+   "category": "Particle",
+   "class": "game_folder",
+   "guid": "ba5eacaba0746ef4c95ee4fe05feb050",
+   "name": "HL_Sky_dream_effect_panning"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "bb5aea8309d852943b8b022d2e64f6cb",
+   "name": "Hidden_Shader Graph_FallbackError_57"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "bbf922fd2cd8cea478eb1ec3118c6239",
+   "name": "Hidden_Shader Graph_FallbackError_4"
+  },
+  {
+   "category": "Particle",
+   "class": "game_folder",
+   "guid": "beb9536db5dec634f9859840dcb2976b",
+   "name": "HL_Particle_Main"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "bf1d176d1daeee14eb8d6e9412df7a0c",
+   "name": "SimpleLit"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "bf4c82e70ee177f45be870c94d234981",
+   "name": "HL_Env_Standard_Lit"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "bf688f78684c81b4e9108bbe9f9e1830",
+   "name": "Hidden_HardLight_Environment_HL_Env_Water"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "bf757782d180e1849a9a1011c3caff3b",
+   "name": "HardLight_Character_HL_Char_Boss_01_Shockwave"
+  },
+  {
+   "category": "Character",
+   "class": "game_folder",
+   "guid": "c18e3bc73f2c52c458bbc4569a3d42a1",
+   "name": "HL_Char_Ghosted"
+  },
+  {
+   "category": "Sky",
+   "class": "game_folder",
+   "guid": "c24466ea4a824924e820666d8ffb14a4",
+   "name": "HL_Sky_Cubemap"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "c29578c9520a4984bac19cdf705c1b01",
+   "name": "Hidden_Shader Graph_FallbackError_53"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "c2ce2878411a5814c9b813a8ce6b47b7",
+   "name": "HardLight_UI_HL_UI_Sprite_Blur"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "c4f8ea5017c8564469907f9da1f3668a",
+   "name": "ProBuilder_Standard Vertex Color"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "c6d7e466e18456242a97d63cb54ff5e7",
+   "name": "HL_Env_Zone2_Barrier"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "c7de6cf0c6a85624dbcb498df15a0e13",
+   "name": "depthmaskblend"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "c845764ae1b84bd409e005c3ee80eaf0",
+   "name": "ArnoldStandardSurface"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "c866257831f1263448389ea844047f3e",
+   "name": "Hidden_Shader Graph_FallbackError_37"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "c87ae30891453ad4d840f482578b0a18",
+   "name": "Hidden_Universal Render Pipeline_LutBuilderLdr"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "c9a17d5552b1f0c47acce3702c92b057",
+   "name": "Hidden_Universal Render Pipeline_Edge Adaptive Spatial Upsampling"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "ca885f86c79e05b4bb0dd865854fa0ed",
+   "name": "HardLight_UI_HL_UI_Worldspace_AlwaysOnTop"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "cac4aca18b548d945a10f1b5af4d8e5d",
+   "name": "TextMeshPro_Sprite"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "cc0010b8a80a22647ab43ce940675452",
+   "name": "Hidden_Shader Graph_FallbackError_19"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "ccfc70e40a7e6a74385421abe4e85ad8",
+   "name": "HL_Env_Standard_Unlit"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "cf0602c757e26a941aec3158ec1ac1f0",
+   "name": "Hidden_ProBuilder_EdgePicker"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "d02b025f3d62fc54dabc0a4faace610f",
+   "name": "Hidden_Shader Graph_FallbackError_16"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "d0eb54912bcd7ad43bea5269eae26ed0",
+   "name": "Hidden_Shader Graph_FallbackError_51"
+  },
+  {
+   "category": "Gameplay",
+   "class": "game_folder",
+   "guid": "d357db6b343d23f4a9385855676c9473",
+   "name": "HL_Gameplay_LightningBolt"
+  },
+  {
+   "category": "Particle",
+   "class": "game_folder",
+   "guid": "d3731901c626f6e49b5f60aa88da48cc",
+   "name": "HL_Particle_AnimMesh_BallSpin"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "d3999c2e7b8b8424ca157f4cd3c26a9c",
+   "name": "HL_Env_Clouds"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "d6b8a4aa096ef6847b85c5efee4177a8",
+   "name": "Hidden_Shader Graph_FallbackError_0"
+  },
+  {
+   "category": "Hub",
+   "class": "game_folder",
+   "guid": "da114adcf264a2340a6474c5fc76fa72",
+   "name": "HL_Hub_Matcap_Unlit"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "dea05fefabb03de40ae3ac6496dd42c1",
+   "name": "Hidden_TerrainEngine_Details_UniversalPipeline_Vertexlit"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "dfc585d73eabae64ea0c41277894fd0b",
+   "name": "Hidden_Shader Graph_FallbackError_24"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "e04f6d29157b0734bad1617856e697ad",
+   "name": "Hidden_Universal Render Pipeline_UberPost"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "e0a3fa978f5b83844986a32e6c07673f",
+   "name": "Hidden_Shader Graph_FallbackError_35"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "e20d111cdd9c0e94fb89b9b165bc4a26",
+   "name": "Hidden_Shader Graph_FallbackError_48"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "e2ba261eb396c6a44abe279d83926107",
+   "name": "Hidden_HardLight_Prototype_Standard Vertex Color"
+  },
+  {
+   "category": null,
+   "class": "game_outside_folder",
+   "guid": "e3f415b2336da4b428f724a065145dae",
+   "name": "HardLight_UI_HL_UI_Dream_Effect"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "e4260b0b41ab4624ebfd948635d8b708",
+   "name": "Hidden_Universal Render Pipeline_Blit"
+  },
+  {
+   "category": "Gameplay",
+   "class": "game_folder",
+   "guid": "e5071b70cd80f5b48ac389075c4513f1",
+   "name": "HL_Gameplay_Dream_Barrier"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "e7b6d436c2837284f887725af2baf82b",
+   "name": "softmask"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "e81a290a702fda94880923519f8af3c7",
+   "name": "Hidden_Shader Graph_FallbackError_56"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "e87be4ae2e76b774cb5b73181e103368",
+   "name": "Hidden_Shader Graph_FallbackError_33"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "ea0eb48d868a06e4d8b1001d324c49cc",
+   "name": "Hidden_Universal Render Pipeline_TemporalAA"
+  },
+  {
+   "category": "Particle",
+   "class": "game_folder",
+   "guid": "eb77dff1bca503f43903d55ab1540df0",
+   "name": "HL_FX_AlphaBlendAdd"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "ec7edba63eff617448b281750d9b31e9",
+   "name": "Hidden_Shader Graph_FallbackError_20"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "ed692a23ae207ac43a0d40772f3d9754",
+   "name": "HL_Env_Waterfall"
+  },
+  {
+   "category": "Character",
+   "class": "game_folder",
+   "guid": "f2136b208a7a29b45a6d9d4d729c3927",
+   "name": "HL_Char_Boss_4_Eggman_Moustache"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "f3cd8f32ba510e142b9be4e268761b9b",
+   "name": "Hidden_Shader Graph_FallbackError_50"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "f4331142e8fb6b942bef0740edd2c9be",
+   "name": "Hidden_Shader Graph_FallbackError_47"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "f5b6158d57d69614dab89fcf8cc57e3b",
+   "name": "Hidden_Shader Graph_FallbackError_10"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "f7c947ff1252985489ad6357a1dc6845",
+   "name": "Hidden_Universal Render Pipeline_DBufferClear"
+  },
+  {
+   "category": "Character",
+   "class": "game_folder",
+   "guid": "fb495c01c5fd7534590903b8e77f3281",
+   "name": "HL_Char_Standard"
+  },
+  {
+   "category": "Environment",
+   "class": "game_folder",
+   "guid": "fc62d258c9bcd2648b4158e86c2d4178",
+   "name": "HL_Matcap"
+  },
+  {
+   "category": null,
+   "class": "engine",
+   "guid": "fcc9a71c2dc986548ad4bff654ac1d8b",
+   "name": "Hidden_Universal Render Pipeline_CopyDepth_0"
+  },
+  {
+   "category": null,
+   "class": "third_party",
+   "guid": "fefede57bccfe974db96b42f51c8bc7a",
+   "name": "base"
+  }
+ ]
+}
