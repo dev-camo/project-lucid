@@ -209,7 +209,7 @@ def _build_reader(root,work,run,engine):
     declarations=playercode._regular(project.with_name("LoadedDeclarations.cs"),1024*1024)
     sources=[playercode._file_record(project),playercode._file_record(code),playercode._file_record(declarations)]
     sdk=host_lock(load_lock())["artifacts"].get("dotnet",{})
-    if sdk.get("version")!="10.0.401" or re.fullmatch(r"[a-f0-9]{128}",sdk.get("sha512","")) is None:
+    if sdk.get("version")!="10.0.403" or re.fullmatch(r"[a-f0-9]{128}",sdk.get("sha512","")) is None:
         raise ValueError("Contract reader requires the pinned SDK")
     host=verified_tool_path(work,"dotnet");host_seal=playercode._file_record(host)
     env=dotnet_environment(work,host.parent)
@@ -285,7 +285,7 @@ def _reader_check(root, work, run, reader):
     _keys(reader, {"host","sdk_version","sdk_archive_sha512","sources","binary","output","log"},
           "Contract reader build")
     sdk=host_lock(load_lock())["artifacts"].get("dotnet",{})
-    if (sdk.get("version")!="10.0.401" or reader.get("sdk_version")!=sdk.get("version") or
+    if (sdk.get("version")!="10.0.403" or reader.get("sdk_version")!=sdk.get("version") or
         reader.get("sdk_archive_sha512")!=sdk.get("sha512") or
         re.fullmatch(r"[a-f0-9]{128}",sdk.get("sha512","")) is None):
         raise ValueError("Contract reader SDK provenance differs")

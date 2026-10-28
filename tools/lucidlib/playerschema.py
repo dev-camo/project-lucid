@@ -273,7 +273,7 @@ def _build_reader(root, work, run, engine):
     sources = [playercode._file_record(project), playercode._file_record(code)]
     lock = load_lock()
     sdk = host_lock(lock)["artifacts"].get("dotnet", {})
-    if sdk.get("version") != "10.0.401" or not isinstance(sdk.get("sha512"), str) or re.fullmatch(r"[a-f0-9]{128}", sdk["sha512"]) is None:
+    if sdk.get("version") != "10.0.403" or not isinstance(sdk.get("sha512"), str) or re.fullmatch(r"[a-f0-9]{128}", sdk["sha512"]) is None:
         raise ValueError("Player metadata reader requires the pinned .NET SDK")
     host = verified_tool_path(work, "dotnet")
     host_seal = playercode._file_record(host)

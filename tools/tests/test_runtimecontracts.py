@@ -486,7 +486,7 @@ class RuntimeContractReaderBuildTests(unittest.TestCase):
             assembly_name='ProjectLucid.ThemeContracts', mvid='11111111-1111-1111-1111-111111111111')
         self.output = [{'relative_path': self.binary_path.name, **rc.playercode._file_record(self.binary_path)}]
         self.reader = {
-            'host': rc.playercode._file_record(self.host), 'sdk_version': '10.0.401',
+            'host': rc.playercode._file_record(self.host), 'sdk_version': '10.0.403',
             'sdk_archive_sha512': 'a' * 128,
             'sources': [rc.playercode._file_record(source) for source in self.sources],
             'binary': copy.deepcopy(self.module), 'output': copy.deepcopy(self.output),
@@ -496,7 +496,7 @@ class RuntimeContractReaderBuildTests(unittest.TestCase):
                       mock.patch.object(bootstrap, 'CACHE_ROOT', self.work),
                       mock.patch.object(rc, 'load_lock', return_value={'platform': bootstrap.host_name(),
                           'rid': 'fixture-host', 'artifacts': {'dotnet': {
-                          'version': '10.0.401', 'sha512': 'a' * 128}}}),
+                          'version': '10.0.403', 'sha512': 'a' * 128}}}),
                       mock.patch.object(rc, '_seal', return_value=self.module),
                       mock.patch.object(rc.playerschema, '_tree_records', return_value=self.output)]:
             patch.start(); self.addCleanup(patch.stop)
