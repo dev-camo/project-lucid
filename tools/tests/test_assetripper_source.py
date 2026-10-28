@@ -144,7 +144,25 @@ class AssetRipperSourceTests(unittest.TestCase):
             bootstrap._ensure_assetripper_source(self.lock, self.work)
         self.assertEqual([], list((self.work / "tools/assetripper-source-builds").glob("[0-9a-f]*")))
 
-    def test_patch_drift_is_rejected_before_any_build_and_the_patch_is_applied_after_the_manifest_check(self):
+    def test_patch_is_applied_only_after_the_copied_tree_passes_the_manifest(self):
+        checked = []
+        real = bootstrap.verify_source_manifest
+
+        def spy(source, manifest, **kwargs):
+            target = Path(source) / "Source/Other/Other.csproj"
+            checked.append((Path(source).name, kwargs, target.read_bytes() if target.is_file() else None))
+            return real(source, manifest, **kwargs)
+
+        with mock.patch.object(bootstrap, "verify_source_manifest", side_effect=spy):
+            _, seen, _ = self.build()
+        # The build's own copy is checked strictly (no extras, nothing skipped) while it still holds the pinned
+        # bytes; only after that does the build see the patched file.
+        strict_copy_checks = [content for name, kwargs, content in checked
+                              if name.startswith(".assetripper-source-") and not kwargs]
+        self.assertEqual([b"verified dependency\n"], strict_copy_checks)
+        self.assertEqual(PATCHED["Source/Other/Other.csproj"], seen["patched"]["Source/Other/Other.csproj"])
+
+    def test_patch_drift_is_rejected_before_any_build(self):
         (self.committed / "lucid-identity.patch").write_bytes(PATCH + b"--- /dev/null\n+++ b/Source/Other/More.cs\n@@ -0,0 +1 @@\n+more\n")
         with mock.patch.object(bootstrap, "run_logged") as runner, \
                 self.assertRaisesRegex(bootstrap.ToolError, "differs from the pinned patch_sha256"):

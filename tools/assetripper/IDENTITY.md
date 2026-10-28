@@ -45,8 +45,8 @@ true (`not_exported` counts the others) it writes one entry:
 
 ## Why it is inert
 
-It adds three calls to `ExportCollection.ExportMeta` and `ProjectExporter.Export` and one
-new class. Everything it calls is a read: `collection.Assets`, `collection.ExportableAssets`,
+It adds five calls (`NotePath` in `ExportCollection.ExportMeta`; `Reset`, `Begin`, `End` and
+`Write` in `ProjectExporter.Export`) and one new class. Everything it calls is a read: `collection.Assets`, `collection.ExportableAssets`,
 `collection.GetExportID`, `ExportCollection.GUID`, and each object's `Collection.Name`,
 `PathID` and `ClassID`. Nothing it computes flows back into the export: no GUID, fileID,
 path, order or exporter decision reads it. Exceptions from `GUID` and `GetExportID` are
