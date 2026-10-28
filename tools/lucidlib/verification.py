@@ -10320,8 +10320,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCharacterSkinSelectionTes
     "TheParametersKeepTheirCharacterDefinition",
 ))
 
-# Offline achievements rebind to each session's enemy and character managers (#563).
-EDITMODE_TESTS += ("ProjectLucid.Tests.OfflineAchievementStartupRebindTests.EachGameplaySessionRebindsTheEnemyAndCharacterManagers",)
+# Offline achievements rebind to each session's enemy and character managers (#563), and the
+# offline stop removes every repeated startup and MissionCompleted subscription.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflineAchievementStartupRebindTests." + name for name in (
+    "EachGameplaySessionRebindsTheEnemyAndCharacterManagers",
+    "EachGameplaySessionAddsAMissionCompletedSubscriptionAndTheStopRemovesThemAll",
+))
 # Restored HardlightProject.UIWidgetActiveCharacterImage.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetActiveCharacterImageTests." + name for name in (
     "EnablingShowsTheCurrentCharactersPortrait",
