@@ -50,8 +50,9 @@ def mvid_range(data: bytes) -> tuple[int, int] | None:
         parts = [struct.unpack_from("<IIII", data, table + 40 * i + 8) for i in range(sections)]
 
         def offset(rva: int) -> int:
-            for size, virtual, raw_size, raw in parts:
-                if virtual <= rva < virtual + max(size, raw_size):
+            for _size, virtual, raw_size, raw in parts:
+                # Only the section's raw data is in the file; a virtual-only tail has no bytes to read.
+                if virtual <= rva < virtual + raw_size:
                     return raw + rva - virtual
             raise ValueError(rva)
 
@@ -86,7 +87,7 @@ def mvid_range(data: bytes) -> tuple[int, int] | None:
 
 
 def same_apart_from_mvid(a: bytes, b: bytes) -> bool:
-    """Equal-length assemblies that differ only inside their module MVID field (and have a non-trivial change)."""
+    """Equal-length assemblies that differ only inside their module MVID field (identical inputs also return True)."""
     where = mvid_range(a)
     if len(a) != len(b) or where is None or where != mvid_range(b):
         return False
