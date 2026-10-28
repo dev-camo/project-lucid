@@ -20,7 +20,7 @@ from unittest import mock
 import zipfile
 
 from tools.lucidlib.bootstrap import (CACHE_ROOT, REPO_ROOT, ToolError, _communicate, _release_tree, bootstrap,
-                                   download_artifact, managed_path, run_logged, run_owned,
+                                   download_artifact, host_lock, install_dir_name, managed_path, run_logged, run_owned,
                                    unpack_archive, validate_work_dir)
 from tools.lucidlib import recovery
 from tools.lucidlib.recovery import _managed_files, classify_il, recover_code
@@ -61,7 +61,8 @@ class RecoverySafetyTests(unittest.TestCase):
                 mock.patch.object(recovery, "run_logged", side_effect=fake_run):
             result = recovery._dumper(self.work / "thin", self.work / "meta", self.work, "run")
         boot.assert_called_once_with(self.work, ["dumper"])
-        root = self.work / "tools" / "dotnet"
+        # Pin-keyed install of the locked .NET 10 artifact (#611), not an unversioned tools/dotnet.
+        root = self.work / "tools" / install_dir_name("dotnet", host_lock()["artifacts"]["dotnet"])
         self.assertEqual("failed", result["status"])
         self.assertEqual(str(root), seen["env"]["DOTNET_ROOT"])
         self.assertEqual("Major", seen["env"]["DOTNET_ROLL_FORWARD"])
