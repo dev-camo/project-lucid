@@ -1345,7 +1345,8 @@ def apply_add_only_patch(tree: Path, patch: Path) -> dict[str, str]:
 
     Strict by design: no fuzz, offsets, removals or renames. Each hunk's context must match
     at its stated line, existing files must be named by the patch and new files must not
-    exist yet. Anything else raises, so a patch cannot change what the source already does."""
+    exist yet. Anything else raises, so no pinned line is removed or edited; whether the added lines
+    are inert is shown by review and the export gates in tools/assetripper/IDENTITY.md."""
     lines = patch.read_bytes().split(b"\n")
     if lines.pop() != b"":
         raise ToolError(f"AssetRipper patch does not end with a newline: {patch.name}")
