@@ -231,6 +231,7 @@ namespace HardlightProject
                 return;
             m_enemyManager = enemyManager;
             ProcessManager.GetSystemRef<CharacterManager>(null, true).OnSystemStartup += AddCharacterAchievements;
+            if (ProjectLucid.Offline.OfflineAdapters.Active) m_offlineCharacterStartupSubscriptions++; // Offline hook H-083: counted so the adapter's stop can remove every repeated subscription
         }
 
         private void AddCharacterAchievements(CharacterManager characterManager)
@@ -399,6 +400,8 @@ namespace HardlightProject
         private MissionManager m_offlineMissionManager;
         private ChallengeManager m_offlineChallengeManager;
         private MissionManager m_offlineProgressionMissionManager;
+        // Each gameplay session's enemy startup adds one more character subscription; the stop removes them all.
+        private int m_offlineCharacterStartupSubscriptions;
         // Method group instead of a lambda, so Initialise gains no generated member the original lacks.
         private bool IsOfflineSaveBindingOpen() => m_offlineSaveBinding != null && m_offlineSaveBinding.IsOpen;
 
@@ -431,7 +434,9 @@ namespace HardlightProject
             if (progressionMissionManager != null && !ReferenceEquals(progressionMissionManager, m_offlineMissionManager))
                 ProjectLucid.Offline.LocalAchievementRuntime.DetachEvaluators(m_achievementsManager, ref progressionMissionManager.OnRewardCountChanged);
             SystemRef<CharacterManager> characterManagerRef = ProcessManager.GetSystemRef<CharacterManager>(null, false);
-            if (characterManagerRef != null) characterManagerRef.OnSystemStartup -= AddCharacterAchievements;
+            if (characterManagerRef != null)
+                for (; m_offlineCharacterStartupSubscriptions > 0; m_offlineCharacterStartupSubscriptions--)
+                    characterManagerRef.OnSystemStartup -= AddCharacterAchievements;
             SystemRef<EnemyManager> enemyManagerRef = ProcessManager.GetSystemRef<EnemyManager>(null, false);
             if (enemyManagerRef != null) enemyManagerRef.OnSystemStartup -= AddEnemyAchievements;
             if (m_saveManager != null) m_saveManager.OnLoadCompleted -= AddSaveDataAchievements;
