@@ -43,8 +43,9 @@ jobs:
           LUCID_CI_SANDBOX_ROOT: '1'
 
   python-windows:
-    # A real Windows runner for the Job Object process-tree teardown (#458). The rest of
-    # tools/tests assumes POSIX paths and runs on Ubuntu above. 3.9 is the supported
+    # A real Windows runner for the Job Object process-tree teardown (#458): the recovery
+    # tests and the three player-code Editor teardown tests. The rest of tools/tests
+    # assumes POSIX paths and runs on Ubuntu above. 3.9 is the supported
     # minimum, whose Popen interruption handling differs on Windows.
     name: Python process trees (windows-2025, ${{ matrix.python }})
     runs-on: windows-2025
@@ -68,6 +69,12 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m unittest tools.tests.test_recovery -v
+      - name: Editor process-tree teardown before the command lock is released
+        run: >-
+          python -m unittest -v
+          tools.tests.test_playercode.PlayerCodeTests.test_editor_timeout_stops_child_and_grandchild_before_releasing_lock
+          tools.tests.test_playercode.PlayerCodeTests.test_editor_interruption_stops_child_and_grandchild_before_releasing_lock
+          tools.tests.test_playercode.PlayerCodeTests.test_editor_success_stops_surviving_descendants_before_releasing_lock
 
   artifact-identity:
     name: C# identity (${{ matrix.os }})
