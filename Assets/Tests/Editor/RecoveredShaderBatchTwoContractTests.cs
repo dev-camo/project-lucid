@@ -348,17 +348,6 @@ namespace ProjectLucid.Tests
         }
         private static string ShaderPath(string name) => "Assets/Shaders/Recovered/" + name + ".shader";
 
-        // URP's FoveatedRenderingKeywords.hlsl declares this dynamic branch only when compiling for an Apple
-        // platform, so the editor reports it in the Metal masks only while the build target is one.
-        private const string Foveated = "_FOVEATED_RENDERING_NON_UNIFORM_RASTER";
-
-        private static bool DeclaresFoveated(string name)
-        {
-            if (name != Foveated) return true;
-            BuildTarget target = EditorUserBuildSettings.activeBuildTarget;
-            return target == BuildTarget.StandaloneOSX || target == BuildTarget.iOS || target == BuildTarget.tvOS;
-        }
-
         private static void CheckDeclarations(string path, string[] names, byte[] flags, int[][] masks, string[] unmasked)
         {
             string source = File.ReadAllText(path);
@@ -378,11 +367,10 @@ namespace ProjectLucid.Tests
                 for (int stage = 0; stage < 2; stage++)
                 {
                     ShaderType type = stage == 0 ? ShaderType.Vertex : ShaderType.Fragment;
-                    var expected = new List<string>();
+                    var original = new List<string>();
                     foreach (int index in masks[pass * 2 + stage])
                     {
-                        if (!DeclaresFoveated(names[index])) continue;
-                        expected.Add(names[index]);
+                        original.Add(names[index]);
                         activeIndices.Add(index);
                     }
                     var actual = new List<string>();
@@ -392,16 +380,10 @@ namespace ProjectLucid.Tests
                         actual.Add(keyword.name);
                         actualUnion.Add(keyword.name);
                     }
-                    Assert.That(actual, Is.EquivalentTo(expected), path + " original Metal pass " + pass + " " + type + " mask");
+                    ImportedKeywordContext.AssertPass(actual, original, path + " original Metal pass " + pass + " " + type + " mask");
                 }
             }
-            foreach (int index in activeIndices)
-            {
-                LocalKeyword keyword = shader.keywordSpace.FindKeyword(names[index]);
-                Assert.That(keyword.isValid, Is.True, names[index]);
-                Assert.That(keyword.isOverridable, Is.EqualTo((flags[index] & 1) == 0), names[index]);
-                Assert.That(keyword.isDynamic, Is.EqualTo((flags[index] & 2) != 0), names[index]);
-            }
+            foreach (int index in activeIndices) ImportedKeywordContext.AssertKeyword(shader, names[index], flags[index]);
             // Serialized table entries with no stage mask have no surviving pass location to declare.
             foreach (string name in unmasked) Assert.That(actualUnion.Contains(name), Is.False, name);
         }
