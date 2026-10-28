@@ -7807,6 +7807,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.PromptTriggerActionTests." + name fo
     "HidingAllPromptsHidesEveryActivePrompt",
     "AnEffectWhosePromptIsRefusedCompletesAtOnce",
     "TheEffectCompletesWhenItsOwnPromptIsHiddenAndIgnoresOthers",
+    "ShouldShowPromptLambdasKeepTheOriginalNames",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.TimeTrialLeaderboardDevTests." + name for name in (
     "TheDevLeaderboardIsAlwaysReadyAndIgnoresChallenges",
