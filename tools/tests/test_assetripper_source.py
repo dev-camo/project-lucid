@@ -155,11 +155,23 @@ class AssetRipperSourceTests(unittest.TestCase):
     def test_sdk_drift_is_rejected_and_the_sdk_is_part_of_the_identity(self):
         result, _, _ = self.build()
         self.assertEqual("fixture-pin", json.loads(Path(result["path"]).with_name("lucid-build.json").read_text())["sdk"])
+        pinned_sdk = bootstrap.install_path(self.work, "dotnet", self.lock)
+        # Installs are keyed by the pin (#611), so a new SDK pin installs beside the old one instead of
+        # failing its closure check; the build identity (sdk) is what rejects the changed pin.
         self.lock["artifacts"]["dotnet"]["version"] = "other-sdk"
         with mock.patch.object(bootstrap, "run_logged") as second, \
-                self.assertRaisesRegex(bootstrap.ToolError, "dotnet executable/dependency closure differs"):
+                self.assertRaisesRegex(bootstrap.ToolError, "changed during this process"):
             bootstrap._ensure_assetripper_source(self.lock, self.work)
         second.assert_not_called()
+        self.assertTrue(pinned_sdk.is_dir())
+        # The original check: the same pinned SDK with different content is still refused.
+        self.lock["artifacts"]["dotnet"]["version"] = "fixture-pin"
+        (pinned_sdk / "dotnet").write_bytes(b"tampered SDK")
+        bootstrap._INSTALL_SEALS.pop(pinned_sdk)
+        with mock.patch.object(bootstrap, "run_logged") as third, \
+                self.assertRaisesRegex(bootstrap.ToolError, "dotnet executable/dependency closure differs"):
+            bootstrap._ensure_assetripper_source(self.lock, self.work)
+        third.assert_not_called()
 
     def test_missing_or_unexpected_locks_are_rejected(self):
         for label in ("no rid", "stray file", "orphan project"):
@@ -191,7 +203,9 @@ class AssetRipperSourceTests(unittest.TestCase):
                 mock.patch.object(bootstrap, "_ensure_cpp2il", return_value={"status": "ready"}), \
                 mock.patch.object(bootstrap, "_install", return_value=self.work / "tools/assetripper"), \
                 mock.patch.object(bootstrap, "load_lock", return_value=dict(self.lock, artifacts={
-                    "assetripper": {"version": "2.0.0", "entrypoint": "AssetRipper.GUI.Free"}})):
+                    "assetripper": {"version": "2.0.0", "sha256": "0" * 64, "entrypoint": "AssetRipper.GUI.Free"},
+                    # Pruned after a cpp2il selection (the installs it leaves in use).
+                    "dotnet": {"version": "1", "sha256": "1" * 64}, "cpp2il-source": {"version": "2", "sha256": "2" * 64}})):
             bootstrap.bootstrap(self.work, ["assetripper"])
             bootstrap.bootstrap(self.work)
         source.assert_not_called()
