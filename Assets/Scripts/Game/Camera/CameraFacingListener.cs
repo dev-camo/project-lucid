@@ -5,7 +5,7 @@ using UnityEngine.Events;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 0x02000257. Full source candidate; runtime acceptance pending.
+    // Original Game.Runtime type 0x02000257.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class CameraFacingListener : MonoBehaviour

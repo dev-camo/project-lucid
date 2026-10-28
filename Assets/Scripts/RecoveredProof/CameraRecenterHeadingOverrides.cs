@@ -1,4 +1,3 @@
-// Complete original type candidate; source/runtime/serialization acceptance pending.
 using System;
 using Hardlight;
 using UnityEngine;

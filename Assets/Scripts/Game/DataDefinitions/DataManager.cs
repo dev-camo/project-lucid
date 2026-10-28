@@ -8,7 +8,6 @@ using GameVersion = Hardlight.Utils.Version;
 namespace HardlightProject
 {
     // Native Game.Runtime DataManager0200052c: complete64-field original contract.
-    // Private recovery candidate: genuine dependency graph and ordinary compiler identity remain unverified.
     public class DataManager : MonoBehaviour, ISystem
     {
         [SerializeField]

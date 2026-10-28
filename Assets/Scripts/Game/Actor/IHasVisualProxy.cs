@@ -1,4 +1,3 @@
-// Genuine complete original Game.Runtime interface; zero native body credit.
 namespace HardlightProject
 {
     public interface IHasVisualProxy // original02000079

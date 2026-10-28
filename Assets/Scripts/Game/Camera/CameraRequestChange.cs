@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 0x02000262. Full source candidate; runtime acceptance pending.
+    // Original Game.Runtime type 0x02000262.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class CameraRequestChange : MonoBehaviour

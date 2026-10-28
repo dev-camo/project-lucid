@@ -3,8 +3,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime020009ea; all17 own APIs. Nine methods retain
-    // previously recovered bodies; eight missing methods are newly recovered.
+    // Original Game.Runtime020009ea; all17 own APIs.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public static class CharacterMovementUtilities

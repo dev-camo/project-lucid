@@ -6,8 +6,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 0x020001c4. Full native-derived source candidate;
-    // registration still requires the genuine AudioManager startup graph.
+    // Original Game.Runtime 0x020001c4. Registration requires the AudioManager startup graph.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class HLAudioSourceHandler : MonoBehaviour

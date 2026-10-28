@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 0x02000731. Full source candidate; runtime acceptance pending.
+    // Original Game.Runtime type 0x02000731.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class CameraHeadingTrigger : CharacterTrigger

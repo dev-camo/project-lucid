@@ -5,7 +5,7 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Game.Runtime.dll 0x0200078d, all twelve original abstract interface APIs.
-    // These declarations contain no native method bodies or recovery credit.
+    // These declarations contain no native method bodies.
     public interface IMetaGameUnlock
     {
         string GetId();

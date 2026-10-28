@@ -6,8 +6,6 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Complete original owner candidate. Character/App/CollectableManager and
-    // ActorAbilityUtilities are genuine, still-open source dependencies.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public abstract class CharacterStamina

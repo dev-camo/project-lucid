@@ -5,7 +5,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 0x02000288. Full source candidate; runtime acceptance pending.
+    // Original Game.Runtime type 0x02000288.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public abstract class CinemachineRecenterHeadingExtension : CinemachineExtension

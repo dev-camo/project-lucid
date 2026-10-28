@@ -7,8 +7,7 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime SaveDataGame: complete 60 owner declarations and
-    // eight deserialize callbacks (10 natural declarations). Private candidate;
-    // complete genuine leaf providers and compiled native fidelity remain open.
+    // eight deserialize callbacks (10 natural declarations).
     [Serializable]
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]

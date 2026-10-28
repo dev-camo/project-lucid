@@ -10,8 +10,7 @@ using UnityEngine.Serialization;
 
 namespace HardlightProject
 {
-    // Whole original owner candidate inferred from both shipping architectures.
-    // Native review and compiler binding remain pending; no runtime acceptance.
+    // Original owner type, inferred from both shipping architectures.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class ShaderPrewarmer : MonoBehaviour

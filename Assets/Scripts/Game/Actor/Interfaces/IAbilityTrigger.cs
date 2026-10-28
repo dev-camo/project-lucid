@@ -1,6 +1,6 @@
 namespace HardlightProject
 {
-    // Original Game.Runtime02000080; one genuinely abstract getter, zero native credit.
+    // Original Game.Runtime02000080; one abstract getter.
     public interface IAbilityTrigger
     {
         bool IsTriggered { get; }

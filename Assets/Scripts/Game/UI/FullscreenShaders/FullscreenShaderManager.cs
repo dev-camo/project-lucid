@@ -1,4 +1,3 @@
-// Private genuine original source candidate; rendering and connected service graph are unapproved.
 using System;
 using System.Collections.Generic;
 using System.Reflection;

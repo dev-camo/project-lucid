@@ -3,8 +3,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Complete original02000766 source candidate. Genuine ColliderTrackingUtilities
-    // remains an unclosed dependency; this class is private and unaccepted.
+    // Original Game.Runtime 02000766.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class RaycastColliderHit

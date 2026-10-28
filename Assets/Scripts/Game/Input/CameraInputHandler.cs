@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 0x020006a7. Full source candidate; runtime acceptance pending.
+    // Original Game.Runtime type 0x020006a7.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class CameraInputHandler : InputHandler

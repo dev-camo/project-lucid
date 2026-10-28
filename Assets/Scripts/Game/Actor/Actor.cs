@@ -745,7 +745,7 @@ namespace HardlightProject
         }
 
         // Three genuine nested delegates in original declaration order, contravariant
-        // parameter attributes=2. Runtime-created delegate methods add no own body credit.
+        // parameter attributes=2. Runtime-created delegate methods have no own bodies.
         public delegate void GetAbilityInterfaceCallback<in I>(I ability)
             where I : IAbility;
         public delegate void GetAbilityTypeCallback<in T>(T ability)

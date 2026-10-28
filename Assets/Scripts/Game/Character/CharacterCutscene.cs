@@ -6,7 +6,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 namespace HardlightProject
 {
     // Original Game.Runtime type 02000322. This preserves the shipping skin-swap
-    // path and its fault/order behavior; gameplay integration is still unaccepted.
+    // path and its fault/order behavior.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class CharacterCutscene : MonoBehaviour

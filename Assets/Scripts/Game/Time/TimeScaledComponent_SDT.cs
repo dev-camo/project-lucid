@@ -95,7 +95,7 @@ namespace HardlightProject
             m_levelManagerRef = null;
         }
         protected TimeScaledComponent_SDT() { } // 2e4a; only enum default initializer.
-        private enum SynchroniseType // genuine enum literals; native body credit0.
+        private enum SynchroniseType // original enum literals.
         {
             None = 0,
             OnAwake = 1,

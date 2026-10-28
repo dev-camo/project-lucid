@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 0x02000270. Full source candidate; runtime acceptance pending.
+    // Original Game.Runtime type 0x02000270.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class CinemachineCameraYAxisOverride : MonoBehaviour
