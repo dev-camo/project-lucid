@@ -592,6 +592,9 @@ def _popen_tree(command: list[str], owner: list, **options) -> subprocess.Popen:
         if os.name == "nt":
             process = _WindowsJob.popen(command, **options)
         else:
+            # The tree inherits each held work lock, so the lock outlives a killed owner until the tree stops.
+            held = tuple(stream.fileno() for stream in _HELD_WORK_LOCKS)
+            options["pass_fds"] = tuple(options.get("pass_fds", ())) + held
             process = subprocess.Popen(command, start_new_session=True, **options)
         owner.append(process)
     return process
@@ -1092,8 +1095,14 @@ def open_coordinator_lock(path: Path, label: str):
         raise ToolError(f"Could not open {label.lower()} {path}: {exc}") from exc
 
 
+# Work locks this process holds. On POSIX every owned command tree inherits them; a Windows job kills the tree
+# with its owner instead.
+_HELD_WORK_LOCKS = []
+
+
 def take_work_lock(path: Path, busy: str):
-    """Take a process-held work lock; the OS releases it when its owner dies, so a leftover file is not a live owner."""
+    """Take a process-held work lock; the OS releases it once its owner and the commands it runs have all exited,
+    so a leftover file is not a live owner."""
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_dir() and not path.is_symlink():
         # The earlier mkdir lock left only an empty directory, which cannot show whether its owner, an
@@ -1107,11 +1116,13 @@ def take_work_lock(path: Path, busy: str):
     if not try_lock(stream):
         stream.close()
         raise ValueError(busy)
+    _HELD_WORK_LOCKS.append(stream)
     return stream
 
 
 def release_work_lock(stream) -> None:
     """Release a work lock; the file stays so every owner locks the same inode."""
+    _HELD_WORK_LOCKS.remove(stream)
     try:
         unlock(stream)
     finally:
