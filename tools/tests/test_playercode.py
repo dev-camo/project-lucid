@@ -506,7 +506,10 @@ class PlayerCodeTests(unittest.TestCase):
             for marker in pids.glob("*.json"):
                 identity = json.loads(marker.read_text())
                 if os.name == "nt":
-                    if not stopped(identity["pid"]):
+                    # Windows reuses PIDs quickly: kill only a role seen still running at release
+                    # (or any running one when the run failed before release was reached).
+                    seen_stopped = at_release and at_release[0][marker.stem]
+                    if not seen_stopped and not stopped(identity["pid"]):
                         _windows_terminate(identity["pid"])
                     continue
                 try:
