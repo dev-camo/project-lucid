@@ -52,6 +52,46 @@ def managed_fixture(name, mvid=None):
     return bytes(blob), str(mvid)
 
 
+def _windows_process(access, pid):
+    """Open a handle to the process, or None once it is gone (ERROR_INVALID_PARAMETER)."""
+    import ctypes
+    from ctypes import wintypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, wintypes.LPDWORD]
+    kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel32.OpenProcess(access, False, pid)
+    if not handle and ctypes.get_last_error() != 87:
+        raise ctypes.WinError(ctypes.get_last_error())
+    return kernel32, handle or None
+
+
+def _windows_process_running(pid):
+    import ctypes
+    from ctypes import wintypes
+    kernel32, handle = _windows_process(0x1000, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if handle is None:
+        return False
+    try:
+        code = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return code.value == 259  # STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _windows_terminate(pid):
+    kernel32, handle = _windows_process(0x0001, pid)  # PROCESS_TERMINATE
+    if handle is not None:
+        try:
+            kernel32.TerminateProcess(handle, 1)
+        finally:
+            kernel32.CloseHandle(handle)
+
+
 class PlayerCodeTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="player code space ")
@@ -365,6 +405,8 @@ class PlayerCodeTests(unittest.TestCase):
     def _editor_tree_releases_lock_after_stop(self, completion):
         # Inert Python processes exercise the real launcher and command lock. The child and
         # grandchild ignore SIGTERM, so killing only the Editor cannot satisfy the assertion.
+        # On Windows the tree is a Job Object (#458); there the Editor is run through the
+        # interpreter, since a script is not executable, and PIDs are probed with the Win32 API.
         pids = self.root / "editor-tree"
         pids.mkdir()
         self.editor.write_text(
@@ -376,7 +418,7 @@ class PlayerCodeTests(unittest.TestCase):
             "if role != 'editor': signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
             "marker = root / (role + '.json')\n"
             "pending = marker.with_suffix('.tmp')\n"
-            "pending.write_text(json.dumps({'pid': os.getpid(), 'pgid': os.getpgrp()}))\n"
+            "pending.write_text(json.dumps({'pid': os.getpid(), 'pgid': os.getpgrp() if os.name == 'posix' else 0}))\n"
             "pending.replace(marker)\n"
             "if role != 'grandchild':\n"
             "    subprocess.Popen([sys.executable, __file__, 'child' if role == 'editor' else 'grandchild'])\n"
@@ -396,13 +438,18 @@ class PlayerCodeTests(unittest.TestCase):
         raised, at_release, leaders = [], [], []
 
         def stopped(pid):
+            if os.name == "nt":
+                return not _windows_process_running(pid)
             state = real_run(["ps", "-o", "stat=", "-p", str(pid)],
                              capture_output=True, text=True, timeout=10).stdout.strip()
             return not state or state.startswith("Z")
 
         def spawn(command, **options):
+            is_editor = command[0] == str(self.editor)
+            if is_editor and os.name == "nt":
+                command = [sys.executable, *command]
             process = real_popen(command, **options)
-            if command[0] == str(self.editor):
+            if is_editor:
                 leaders.append(process)
                 if completion == "interrupt":
                     def interrupt(*args, **kwargs):
@@ -458,6 +505,10 @@ class PlayerCodeTests(unittest.TestCase):
             # Also clean the deliberately failing pre-fix control; never signal the runner's group.
             for marker in pids.glob("*.json"):
                 identity = json.loads(marker.read_text())
+                if os.name == "nt":
+                    if not stopped(identity["pid"]):
+                        _windows_terminate(identity["pid"])
+                    continue
                 try:
                     if not stopped(identity["pid"]) and os.getpgid(identity["pid"]) == identity["pgid"]:
                         os.kill(identity["pid"], signal.SIGKILL)
@@ -468,15 +519,12 @@ class PlayerCodeTests(unittest.TestCase):
                     process.kill()
                 process.wait(timeout=10)
 
-    @unittest.skipUnless(os.name == "posix", "POSIX ownership; Windows descendants are tracked in #458")
     def test_editor_timeout_stops_child_and_grandchild_before_releasing_lock(self):
         self._editor_tree_releases_lock_after_stop("timeout")
 
-    @unittest.skipUnless(os.name == "posix", "POSIX ownership; Windows descendants are tracked in #458")
     def test_editor_interruption_stops_child_and_grandchild_before_releasing_lock(self):
         self._editor_tree_releases_lock_after_stop("interrupt")
 
-    @unittest.skipUnless(os.name == "posix", "POSIX ownership; Windows descendants are tracked in #458")
     def test_editor_success_stops_surviving_descendants_before_releasing_lock(self):
         self._editor_tree_releases_lock_after_stop("success")
 
