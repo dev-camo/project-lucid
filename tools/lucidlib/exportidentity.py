@@ -16,6 +16,7 @@ import re
 ANCHOR = re.compile(rb"--- !u!(\d+) &(-?\d+)(?: stripped)?\r?$")
 META_GUID = re.compile(rb"^guid: ([0-9a-f]{32})\s*$", re.MULTILINE)
 SCENE_TYPES = ("SceneExportCollection",)
+YAML_SUFFIXES = (".unity", ".prefab")  # always YAML documents: an unreadable one is a failure, not a binary export
 
 
 class IdentityError(ValueError):
@@ -104,6 +105,9 @@ def check_identity(project: Path, collections: list[dict], limit: int = 20) -> d
                 elif found is None or found[1].decode() != entry["guid"]:
                     fail("meta_guid_differs", relative)
             anchors = yaml_anchors(asset)
+            if anchors is None and (entry["type"] in SCENE_TYPES or relative.endswith(YAML_SUFFIXES)):
+                fail("yaml_unreadable", relative)
+                continue
             if anchors is None:
                 counts["non_yaml_files"] += 1
                 continue

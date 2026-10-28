@@ -16,6 +16,7 @@ import filecmp
 import json
 from pathlib import Path
 import re
+import struct
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -23,6 +24,7 @@ from tools.lucidlib import exportidentity  # noqa: E402
 
 TOKEN = re.compile(rb"[0-9a-f]{32}")
 META_LINES = re.compile(rb"^(guid|timeCreated): .*$", re.MULTILINE)
+TIME_LINE = re.compile(rb"^timeCreated: .*$", re.MULTILINE)
 META_GUID = re.compile(rb"^guid: ([0-9a-f]{32})", re.MULTILINE)
 IDENTITY = "AuxiliaryFiles/export_identity.json"
 
@@ -31,12 +33,65 @@ def files(root: Path) -> dict[str, Path]:
     return {path.relative_to(root).as_posix(): path for path in sorted(root.rglob("*")) if path.is_file()}
 
 
-def window(a: bytes, b: bytes) -> int | None:
-    """Span of the differing byte range of two equal-length blobs (a PE MVID is 16 bytes)."""
-    if len(a) != len(b):
+def mvid_range(data: bytes) -> tuple[int, int] | None:
+    """File offsets of the module MVID of a .NET assembly (PE, CLI header, metadata root, #GUID heap and
+    the Module table's Mvid index), or None if the file does not parse. Reads bytes only."""
+    try:
+        pe = struct.unpack_from("<I", data, 0x3C)[0]
+        if data[pe:pe + 4] != b"PE\0\0":
+            return None
+        sections, optional_size = struct.unpack_from("<H", data, pe + 6)[0], struct.unpack_from("<H", data, pe + 20)[0]
+        optional = pe + 24
+        magic = struct.unpack_from("<H", data, optional)[0]
+        directories = optional + (96 if magic == 0x10B else 112)
+        cli_rva = struct.unpack_from("<I", data, directories + 14 * 8)[0]
+        table = optional + optional_size
+        # (virtual size, virtual address, raw size, raw pointer) of each section
+        parts = [struct.unpack_from("<IIII", data, table + 40 * i + 8) for i in range(sections)]
+
+        def offset(rva: int) -> int:
+            for size, virtual, raw_size, raw in parts:
+                if virtual <= rva < virtual + max(size, raw_size):
+                    return raw + rva - virtual
+            raise ValueError(rva)
+
+        metadata_rva = struct.unpack_from("<I", data, offset(cli_rva) + 8)[0]
+        root = offset(metadata_rva)
+        if data[root:root + 4] != b"BSJB":
+            return None
+        version = struct.unpack_from("<I", data, root + 12)[0]
+        cursor = root + 16 + version + 2
+        streams = {}
+        count = struct.unpack_from("<H", data, cursor)[0]
+        cursor += 2
+        for _ in range(count):
+            start, size = struct.unpack_from("<II", data, cursor)
+            end = data.index(b"\0", cursor + 8)
+            streams[data[cursor + 8:end].decode("ascii")] = (root + start, size)
+            cursor = root + ((end - root + 4) & ~3)  # names are NUL padded to 4 bytes from the root
+        tables, _ = streams.get("#~") or streams["#-"]
+        heaps = data[tables + 6]
+        valid = struct.unpack_from("<Q", data, tables + 8)[0]
+        if not valid & 1:
+            return None
+        row = tables + 24 + 4 * bin(valid).count("1")
+        name_width, guid_width = (4 if heaps & 1 else 2), (4 if heaps & 2 else 2)
+        index = int.from_bytes(data[row + 2 + name_width:row + 2 + name_width + guid_width], "little")
+        guid_heap, guid_size = streams["#GUID"]
+        if index == 0 or index * 16 > guid_size:
+            return None
+        return guid_heap + (index - 1) * 16, guid_heap + index * 16
+    except (struct.error, ValueError, KeyError, IndexError):
         return None
-    changed = [i for i in range(len(a)) if a[i] != b[i]]
-    return changed[-1] - changed[0] + 1 if changed else 0
+
+
+def same_apart_from_mvid(a: bytes, b: bytes) -> bool:
+    """Equal-length assemblies that differ only inside their module MVID field (and have a non-trivial change)."""
+    where = mvid_range(a)
+    if len(a) != len(b) or where is None or where != mvid_range(b):
+        return False
+    start, end = where
+    return a[:start] + a[end:] == b[:start] + b[end:]
 
 
 def compare(patched: Path, baseline: Path) -> dict:
@@ -52,6 +107,8 @@ def compare(patched: Path, baseline: Path) -> dict:
             if a is None or b is None:
                 other.append(f"{name}: no guid line")
                 continue
+            if name.endswith(".cs.meta"):
+                continue  # script GUIDs are deterministic: never normalized, compared exactly below
             if mapping.setdefault(a[1], b[1]) != b[1] or reverse.setdefault(b[1], a[1]) != a[1]:
                 other.append(f"{name}: guid map is not one to one")
     substitute = lambda data: TOKEN.sub(lambda m: mapping.get(m[0], m[0]), data)
@@ -65,7 +122,8 @@ def compare(patched: Path, baseline: Path) -> dict:
             continue
         da, db = a.read_bytes(), b.read_bytes()
         if name.endswith(".meta"):
-            if META_LINES.sub(b"", da) == META_LINES.sub(b"", db):
+            ignored = TIME_LINE if name.endswith(".cs.meta") else META_LINES
+            if ignored.sub(b"", da) == ignored.sub(b"", db):
                 result["meta_differ_only_in_guid_or_timeCreated"] += 1
                 continue
         elif substitute(da) == db:
@@ -78,8 +136,7 @@ def compare(patched: Path, baseline: Path) -> dict:
                 result["mixer_files"] += 1
                 result["mixer_guid_pairs"] += len(pairs)
                 continue
-        elif name.startswith("AuxiliaryFiles/GameAssemblies/") and name.endswith(".dll") and window(da, db) is not None \
-                and 0 < window(da, db) <= 16:
+        elif name.startswith("AuxiliaryFiles/GameAssemblies/") and name.endswith(".dll") and same_apart_from_mvid(da, db):
             result["gameassembly_mvid_only"] += 1
             continue
         other.append(name)
