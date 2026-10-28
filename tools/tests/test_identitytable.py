@@ -24,7 +24,7 @@ class BuilderTests(fixtures.Fixture):
     def refused(self, kind, call=None):
         return super().refused(kind, call or self.build)
 
-    def test_builds_exactly_the_table_a_maintainer_would_write_by_hand(self):
+    def test_builds_exactly_the_table_written_out_by_hand(self):
         table, report = self.build()
         self.assertEqual(self.table, table)
         self.assertEqual(identitymap.format_table(self.table), identitymap.format_table(table))
