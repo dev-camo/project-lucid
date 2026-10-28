@@ -88,6 +88,17 @@ class IdentityCompareTests(unittest.TestCase):
         self.assertFalse(changed["ok"])
         self.assertEqual(["Assets/A.cs.meta"], changed["other_differences"])
 
+    def test_mixer_guids_must_map_one_to_one_including_unchanged_ones(self):
+        mixer = lambda *guids: "".join(f"guid: {g}\n" for g in guids).encode()
+        name = "Assets/Audio/Main.mixer"
+        renamed = self.run_compare({name: mixer(GUID_B, GUID_A, GUID_B)}, {name: mixer(GUID_A, GUID_B, GUID_A)})
+        self.assertTrue(renamed["ok"], renamed)
+        self.assertEqual(2, renamed["counts"]["mixer_guid_pairs"])
+        # Codex finding: a fresh GUID merged into a kept one passed once unchanged pairs were dropped.
+        merged = self.run_compare({name: mixer(GUID_B, GUID_B, GUID_B)}, {name: mixer(GUID_A, GUID_B, GUID_A)})
+        self.assertFalse(merged["ok"])
+        self.assertEqual([name], merged["other_differences"])
+
 
 if __name__ == "__main__":
     unittest.main()
