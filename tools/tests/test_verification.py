@@ -209,6 +209,71 @@ class VerificationTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "incomplete"):
                         verified_receipt(work, "playmode", identity)
 
+    SETTINGS = b"PlayerSettings:\n  defaultScreenWidth: 1024\n  runInBackground: 0\n  forceSingleInstance: 1\n"
+
+    def settings_run(self, mode, edit):
+        """run_tests with an Editor stand-in that applies edit to ProjectSettings.asset."""
+        from xml.sax.saxutils import quoteattr
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            work = root / "cache"
+            settings = root / "ProjectSettings/ProjectSettings.asset"
+            settings.parent.mkdir(parents=True)
+            settings.write_bytes(self.SETTINGS)
+            if mode == "editmode":
+                carrier = root / "Assets/Tests/Editor/ProjectLucidFontReferenceConversionCarrier.cs.meta"
+                carrier.parent.mkdir(parents=True)
+                carrier.write_text("guid: " + "a" * 32 + "\n")
+                converter = root / "tools/lucidlib/fontreferences.py"
+                converter.parent.mkdir(parents=True)
+                converter.write_text("")
+            names = verification.EDITMODE_TESTS if mode == "editmode" else verification.PLAYMODE_TESTS
+
+            def editor(command, **kwargs):
+                Path(command[command.index("-testResults") + 1]).write_text(
+                    '<test-run result="Passed" failed="0">' +
+                    ''.join('<test-case fullname=' + quoteattr(name) + ' result="Passed"/>' for name in names) + '</test-run>')
+                Path(command[command.index("-logFile") + 1]).write_text("Unity Editor version: " + verification.UNITY_VERSION)
+                settings.write_bytes(edit(settings.read_bytes()))
+                return SimpleNamespace(returncode=0)
+            with patch("lucidlib.bootstrap.CACHE_ROOT", work), patch.object(
+                    verification, "find_editor", return_value=root / "inert-editor"), patch.object(verification, "run_owned", side_effect=editor):
+                report = verification.run_tests(root, work, mode)
+            return report, settings.read_bytes()
+
+    def test_playmode_restores_only_the_test_frameworks_run_in_background(self):
+        # Unity Test Framework 1.1.33 leaves `runInBackground: 1` after a batch PlayMode run.
+        report, settings = self.settings_run("playmode", lambda data: data.replace(b"runInBackground: 0", b"runInBackground: 1"))
+        self.assertEqual(self.SETTINGS, settings)
+        self.assertNotIn("Project content changed during testing; rerun with the imported project", report["errors"])
+        self.assertEqual(["ProjectSettings/ProjectSettings.asset: runInBackground"], report["restored_test_framework_settings"])
+
+    def test_any_other_settings_change_is_kept_and_still_fails(self):
+        edits = {
+            "another line too": lambda data: data.replace(b"runInBackground: 0", b"runInBackground: 1").replace(
+                b"forceSingleInstance: 1", b"forceSingleInstance: 0"),
+            "a different line": lambda data: data.replace(b"forceSingleInstance: 1", b"forceSingleInstance: 0"),
+            "an added line": lambda data: data.replace(b"runInBackground: 0\n", b"runInBackground: 1\n  extra: 1\n"),
+        }
+        for label, edit in edits.items():
+            with self.subTest(label):
+                report, settings = self.settings_run("playmode", edit)
+                self.assertEqual(edit(self.SETTINGS), settings)
+                self.assertIn("Project content changed during testing; rerun with the imported project", report["errors"])
+                self.assertNotIn("restored_test_framework_settings", report)
+        with self.subTest("the reverse flip"):
+            original, self.SETTINGS = self.SETTINGS, self.SETTINGS.replace(b"runInBackground: 0", b"runInBackground: 1")
+            try:
+                report, settings = self.settings_run("playmode", lambda data: data.replace(b"runInBackground: 1", b"runInBackground: 0"))
+            finally:
+                self.SETTINGS = original
+            self.assertIn(b"runInBackground: 0", settings)
+            self.assertIn("Project content changed during testing; rerun with the imported project", report["errors"])
+        with self.subTest("an EditMode run"):
+            report, settings = self.settings_run("editmode", lambda data: data.replace(b"runInBackground: 0", b"runInBackground: 1"))
+            self.assertIn(b"runInBackground: 1", settings)
+            self.assertIn("Project content changed during testing; rerun with the imported project", report["errors"])
+
     def test_run_tests_retains_outcome_diagnostics_without_launching_unity(self):
         from xml.sax.saxutils import quoteattr
         with tempfile.TemporaryDirectory() as temporary:
