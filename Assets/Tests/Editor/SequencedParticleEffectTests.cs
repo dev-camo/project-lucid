@@ -258,7 +258,7 @@ namespace ProjectLucid.Tests
             try
             {
                 GameObject root = owned.Host("Lucid particle wrapper root", false);
-                wrapper = owned.Host("Lucid particle wrapper", true, root.transform).AddComponent<ParticleEffectWrapper>();
+                wrapper = TimeScaledReferenceLease.Add<ParticleEffectWrapper>(owned.Host("Lucid particle wrapper", true, root.transform));
             }
             finally
             {

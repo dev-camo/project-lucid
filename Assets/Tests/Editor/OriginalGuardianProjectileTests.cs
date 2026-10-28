@@ -247,7 +247,7 @@ namespace ProjectLucid.Tests
                 var list = (List<ISurface>)Get(projectile, "m_trackableSurfacesList");
                 Assert.That(surfaces, Is.Empty);
                 Assert.That(list, Is.Empty);
-                GuardianProjectile other = rig.Rig.Owned.Host("Lucid second guardian projectile", false).AddComponent<GuardianProjectile>();
+                GuardianProjectile other = TimeScaledReferenceLease.Add<GuardianProjectile>(rig.Rig.Owned.Host("Lucid second guardian projectile", false));
                 Assert.That(Get(other, "m_trackableSurfaces"), Is.Not.SameAs(surfaces), "each projectile builds its own");
                 Assert.That(Get(other, "m_trackableSurfacesList"), Is.Not.SameAs(list));
                 Assert.That(Vec(Get(projectile, "m_centerOfCircle")), Is.EqualTo(Vector3.zero));

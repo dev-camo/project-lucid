@@ -29,7 +29,7 @@ namespace ProjectLucid.Tests
                 GameObject host = m_owned.Host("Lucid homing target " + position);
                 host.transform.position = position;
                 var collider = host.AddComponent<BoxCollider>();
-                var target = host.AddComponent<HomingTarget>();
+                var target = TimeScaledReferenceLease.Add<HomingTarget>(host);
                 Set(target, "m_collider", collider);
                 Assert.That(Vector3.Distance(target.WorldPosition, position), Is.LessThan(1e-5f), "the bounds centre is the target position");
                 return target;

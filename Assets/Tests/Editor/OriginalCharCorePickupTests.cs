@@ -445,7 +445,9 @@ namespace ProjectLucid.Tests
             }
 
             private void Row<T>() where T : class, ISystem =>
-                m_leases.Add(new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<T>()));
+                m_leases.Add(typeof(T) == typeof(TimeManager)
+                    ? (IDisposable)new TimeScaledReferenceLease()
+                    : new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<T>()));
 
             // The manager subscribes itself and its exchanges to Shutdown; they are shut down and
             // unsubscribed before the row is released.

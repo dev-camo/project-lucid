@@ -35,7 +35,7 @@ namespace ProjectLucid.Tests
             }
         });
 
-        private static T Add<T>(Owned owned, string name) where T : Component => owned.Host(name, false).AddComponent<T>();
+        private static T Add<T>(Owned owned, string name) where T : Component => TimeScaledReferenceLease.Add<T>(owned.Host(name, false));
 
         // An identifier whose container is loaded when the progress container is registered, and not otherwise.
         private static ValueSetterRecordingProgressContainer Open(Owned owned, Component setter, bool loaded)

@@ -95,7 +95,7 @@ namespace ProjectLucid.Tests
             GameObject host = owned.Host(name);
             host.transform.position = position;
             var collider = host.AddComponent<BoxCollider>();
-            var target = host.AddComponent<HomingTarget>();
+            var target = TimeScaledReferenceLease.Add<HomingTarget>(host);
             Set(target, "m_collider", collider);
             Set(target, "m_targetType", type);
             Physics.SyncTransforms();

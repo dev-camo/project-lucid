@@ -399,7 +399,7 @@ namespace ProjectLucid.Tests
         {
             private static readonly FieldInfo LookupField = typeof(TimeExtensions).GetField("s_config_Internal", All);
             private readonly object m_priorLookup;
-            private readonly VerificationFixtureOwnership.LifecycleRow m_row;
+            private readonly TimeScaledReferenceLease m_row;
             private bool m_registered;
             public readonly TimeManager Manager;
 
@@ -422,7 +422,7 @@ namespace ProjectLucid.Tests
                 Manager = host.AddComponent<TimeManager>();
                 ((StackableData)Get(Manager, "m_timeSettings"))
                     .SetBaseValue((int)typeof(TimeManager).GetField("SettingId", All).GetRawConstantValue(), setting);
-                try { m_row = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>()); }
+                try { m_row = new TimeScaledReferenceLease(); }
                 catch
                 {
                     LookupField.SetValue(null, m_priorLookup);

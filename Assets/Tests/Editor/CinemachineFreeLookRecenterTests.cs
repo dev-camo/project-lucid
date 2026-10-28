@@ -79,7 +79,7 @@ namespace ProjectLucid.Tests
         {
             GameObject host = time.Objects.Create(name);
             host.SetActive(false);
-            return host.AddComponent<T>();
+            return TimeScaledReferenceLease.Add<T>(host);
         }
 
         private static UnityEvent Counting(Action onInvoke)

@@ -27,7 +27,7 @@ namespace ProjectLucid.Tests
                 try
                 {
                     SetStatic(typeof(TimeScaledComponent_SDT), "s_config_Internal", Objects.Own(ScriptableObject.CreateInstance<TimeCategoryLookup>()));
-                    Checker = Objects.Create("checker").AddComponent<ObjectLeaveChecker>();
+                    Checker = TimeScaledReferenceLease.Add<ObjectLeaveChecker>(Objects.Create("checker"));
                     Tracked = Objects.Create("tracked").transform;
                 }
                 catch

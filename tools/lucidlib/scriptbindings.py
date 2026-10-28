@@ -428,6 +428,29 @@ BOOT_DATA_RULES = tuple({
 ))
 RULES += BOOT_DATA_RULES
 
+# TransformRotator (#554): its authored serialization was qualified across all
+# 9,656 original documents before this rule. Pin the owner, its inherited
+# time-scaled layout and the conditional inspector attributes on its fields,
+# with the boot-data sources that pin TimeCategory and TimeCategoryObject.
+TRANSFORM_ROTATOR_SOURCES = dict(BOOT_DATA_SOURCES, **{
+    "Assets/Scripts/Game/World/TransformAnimation/TransformRotator.cs": "fb2e574c41fcf9c4368d12ca85c6ac408cf04c04fcabbdf4a1e847795ac7428a",
+    "Assets/Scripts/Game/Time/TimeScaledComponent_SDT.cs": "1a8acbe57074b1430359fbdaa41b36fd65c8269fb3eb67e55d4132a308e0f578",
+    "Packages/com.hardlight.hlunitycore/Runtime/Scheduling/TimeScaledComponent.cs": "379a58c7363904e0ef65c066df1d6d65baeed21c54cb9cbff14484cc5d80bd02",
+    "Packages/com.hardlight.hlunitycore/Runtime/Scheduling/UpdateOn.cs": "c743997e14632424a71c9047736901e3197ba76a0210824120cb99c264861dff",
+    "Packages/com.hardlight.hlunitycore/Runtime/HideIfAttribute.cs": "8e4652033171cd02534d64a9d07216cf27f5e946119535ce677965d47aaa047b",
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/InspectorConditionalAttribute.cs": "056f3d41b0cd0eacfbefaddf93e3f36c770d6aa7199b31a8aeeaad8c538ad61d",
+})
+TRANSFORM_ROTATOR_RULES = ({
+    "assembly": "Game.Runtime",
+    "full_name": "HardlightProject.TransformRotator",
+    "export_path": "Assets/Scripts/Game.Runtime/HardlightProject/TransformRotator.cs",
+    "maintained_path": "Assets/Scripts/Game/World/TransformAnimation/TransformRotator.cs",
+    "binary_sha256": BINDING_INPUT["binary_sha256"],
+    "metadata_sha256": BINDING_INPUT["metadata_sha256"],
+    "runtime_sources": TRANSFORM_ROTATOR_SOURCES,
+},)
+RULES += TRANSFORM_ROTATOR_RULES
+
 # TextMeshPro Resources assets. The manifest pins the registry package
 # 3.2.0-pre.4; the resolver's fresh layout comparison must show each bound
 # type's serialized layout equal to the shipped schema. Pin the registry

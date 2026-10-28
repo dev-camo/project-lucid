@@ -210,7 +210,7 @@ namespace ProjectLucid.Tests
         {
             GameObject host = owned.Host(name);
             var collider = host.AddComponent<BoxCollider>();
-            var target = host.AddComponent<HomingTarget>();
+            var target = TimeScaledReferenceLease.Add<HomingTarget>(host);
             Set(target, "m_collider", collider);
             return (target, collider);
         }

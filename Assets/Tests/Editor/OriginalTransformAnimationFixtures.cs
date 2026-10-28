@@ -39,7 +39,7 @@ namespace ProjectLucid.Tests
         }
 
         public T Add<T>(string name, Vector3 position, Quaternion rotation, Transform parent = null) where T : Component =>
-            Objects.Create(name, position, rotation, parent).AddComponent<T>();
+            TimeScaledReferenceLease.Add<T>(Objects.Create(name, position, rotation, parent));
 
         public T Add<T>(string name) where T : Component => Add<T>(name, Vector3.zero, Quaternion.identity);
 

@@ -124,7 +124,9 @@ namespace ProjectLucid.Tests
             internal void LeaseRow<T>() where T : class, ISystem
             {
                 string name = ProcessManager.GetDefaultName<T>();
-                m_leases.Add(new VerificationFixtureOwnership.LifecycleRow(name));
+                m_leases.Add(typeof(T) == typeof(TimeManager)
+                    ? (IDisposable)new TimeScaledReferenceLease()
+                    : new VerificationFixtureOwnership.LifecycleRow(name));
                 m_leasedRows.Add(name);
             }
 
@@ -135,6 +137,13 @@ namespace ProjectLucid.Tests
             internal T Register<T>(T system) where T : class, ISystem
             {
                 string name = ProcessManager.GetDefaultName<T>();
+                if (typeof(T) == typeof(TimeManager))
+                {
+                    var manager = Lease(new TimeScaledManagerLease());
+                    manager.AttachManager((TimeManager)(object)system);
+                    manager.RegisterManager();
+                    return system;
+                }
                 var borrowed = new VerificationFixtureOwnership.LifecycleRow(name);
                 if (borrowed.Existed)
                 {
@@ -178,6 +187,17 @@ namespace ProjectLucid.Tests
                 var owned = new Owned();
                 VerificationFixtureOwnership.RunThenCleanUp(() => body(owned),
                     () => { foreach (Object value in owned.m_objects) if (value != null) Object.DestroyImmediate(value); },
+                    owned.ReleaseLeases);
+            }
+
+            // Ordered nested custody uses this variant so a failed object
+            // release cannot prevent later objects or manager leases releasing.
+            internal static void RunAttemptAll(Action<Owned> body)
+            {
+                var owned = new Owned();
+                VerificationFixtureOwnership.RunThenCleanUp(() => body(owned),
+                    () => VerificationFixtureOwnership.RunThenCleanUp(() => { }, owned.m_objects
+                        .Select<Object, Action>(value => () => { if (value != null) Object.DestroyImmediate(value); }).ToArray()),
                     owned.ReleaseLeases);
             }
 

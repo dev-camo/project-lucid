@@ -474,14 +474,15 @@ namespace ProjectLucid.Tests.Editor
 
         private static void AssertOwners(Bindings proof)
         {
-            // The separate Image rule extends, rather than replaces, the exact original 42-owner roster.
-            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(43));
+            // The separate Image and TransformRotator (#554) rules extend, rather than replace, the exact original 42-owner roster.
+            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(44));
             Assert.AreEqual(1, proof.bindings.Count(b => b != null && b.assembly == "UnityEngine.UI" && b.full_name == "UnityEngine.UI.Image"));
+            Assert.AreEqual(1, proof.bindings.Count(b => b != null && b.assembly == "Game.Runtime" && b.full_name == "HardlightProject.TransformRotator"));
             var actual = new HashSet<string>(StringComparer.Ordinal);
             foreach (Binding binding in proof.bindings)
             {
                 Assert.That(binding, Is.Not.Null); string owner = binding.assembly + "::" + binding.full_name;
-                if (owner == OriginalBindingRosterAssertions.ImageOwner) continue;
+                if (OriginalBindingRosterAssertions.IsAdmittedExtension(owner)) continue;
                 Assert.That(actual.Add(owner), Is.True, "No duplicate binding owner: " + owner);
             }
             CollectionAssert.AreEquivalent(ExpectedOwners, actual, "Exact owner roster; groups remain outside this admission.");

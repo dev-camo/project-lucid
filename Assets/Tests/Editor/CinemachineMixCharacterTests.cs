@@ -69,7 +69,7 @@ namespace ProjectLucid.Tests
                 Rig rig = NewRig(time);
                 GameObject host = time.Objects.Create("mixer");
                 host.SetActive(false);
-                var mixer = host.AddComponent<T>();
+                var mixer = TimeScaledReferenceLease.Add<T>(host);
                 Weigh(mixer, rig);
                 body(owned, manager, character, rig, mixer);
             });

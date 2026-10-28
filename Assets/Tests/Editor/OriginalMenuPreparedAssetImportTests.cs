@@ -266,16 +266,17 @@ namespace ProjectLucid.Tests.Editor
 
         private static void AssertBindingOwners(Bindings proof)
         {
-            // The separate Image rule extends, rather than replaces, the exact original 42-owner roster.
-            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(43));
+            // The separate Image and TransformRotator (#554) rules extend, rather than replace, the exact original 42-owner roster.
+            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(44));
             Assert.AreEqual(1, proof.bindings.Count(b => b != null && b.assembly == "UnityEngine.UI" && b.full_name == "UnityEngine.UI.Image"));
+            Assert.AreEqual(1, proof.bindings.Count(b => b != null && b.assembly == "Game.Runtime" && b.full_name == "HardlightProject.TransformRotator"));
             var expected = new HashSet<string>(ExpectedOwners, StringComparer.Ordinal);
             var actual = new HashSet<string>(StringComparer.Ordinal);
             foreach (Binding item in proof.bindings)
             {
                 Assert.That(item, Is.Not.Null); Assert.That(item.assembly, Is.Not.Empty); Assert.That(item.full_name, Is.Not.Empty);
                 string owner = item.assembly + "::" + item.full_name;
-                if (owner == OriginalBindingRosterAssertions.ImageOwner) continue;
+                if (OriginalBindingRosterAssertions.IsAdmittedExtension(owner)) continue;
                 Assert.That(expected.Contains(owner), Is.True, "Unexpected binding owner: " + owner);
                 Assert.That(actual.Add(owner), Is.True, "Duplicate binding owner: " + owner);
             }

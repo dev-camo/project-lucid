@@ -28,7 +28,7 @@ namespace ProjectLucid.Tests
             try
             {
                 TimeConfig.SetValue(null, owned.Track(ScriptableObject.CreateInstance<TimeCategoryLookup>()));
-                var activator = owned.Host("Lucid timed event activator", false).AddComponent<TimedEventActivator>();
+                var activator = TimeScaledReferenceLease.Add<TimedEventActivator>(owned.Host("Lucid timed event activator", false));
                 body(activator, new List<string>());
             }
             finally
