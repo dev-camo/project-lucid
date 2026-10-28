@@ -1,3 +1,4 @@
+from collections import Counter
 import copy
 import hashlib
 import json
@@ -14,6 +15,32 @@ ORIGIN = {"input_fingerprint_sha256": "1" * 64, "asset_map_catalog_sha256": "2" 
 SOURCE = "a" * 64
 # Counts read from the immutable export's quarantined shader assets (210 in all).
 FOLDER_COUNTS = {"Character": 9, "Environment": 20, "Gameplay": 11, "Hub": 2, "Particle": 11, "RenderFeatures": 1, "Sky": 3, "UI": 2}
+
+# Shipped GUIDs of the 22 shaders recovered so far (every one is a quarantined shader of the immutable export).
+RECOVERED_SHADERS = (
+    "109d879a0e474224f9576baad15f0273",
+    "25aa679e9f8555d459542325f9fd9c14",
+    "3518f69d26ca6d140b0b1b2d67fc8dea",
+    "3d28166e35482e444b56af851ff24084",
+    "439e8a81d893fa244a6c338d94b5b25b",
+    "78c329c1d2e2b1f498a41271fa63ce7e",
+    "79454e735e6b2824d92c0ebe4fc51d38",
+    "834e4dabaab6ec8428bd6a64115a2c5c",
+    "89aa1b470a96afe49a9b172ec8300d40",
+    "959ce1e53b9a11e449afa3188de59610",
+    "a39de842318b98643a7250ed212218ce",
+    "ae05e3fda4799aa49a92776741aa42c4",
+    "aea03fbf55edc744f86f594b52b8de6d",
+    "af6da4f6308a6cd45b8544e8d821d998",
+    "beb9536db5dec634f9859840dcb2976b",
+    "bf4c82e70ee177f45be870c94d234981",
+    "c18e3bc73f2c52c458bbc4569a3d42a1",
+    "c24466ea4a824924e820666d8ffb14a4",
+    "ccfc70e40a7e6a74385421abe4e85ad8",
+    "eb77dff1bca503f43903d55ab1540df0",
+    "fb495c01c5fd7534590903b8e77f3281",
+    "fc62d258c9bcd2648b4158e86c2d4178",
+)
 
 
 def shader(guid, path):
@@ -53,6 +80,12 @@ class InventoryTests(unittest.TestCase):
             for number in range(count - sum(1 for row in full["assets"] if row["path"].startswith(folder + category + "/"))):
                 index += 1
                 full["assets"].append(shader("%032x" % index, folder + category + "/Filler_" + str(number) + ".asset"))
+        fillers = {"game_outside_folder": "Assets/Shader/HardLight_Filler_", "third_party": "Assets/Resources/", "engine": "Assets/Shader/Hidden_Core_Filler_"}
+        have = Counter(shaderprogress.classify(row["path"])[0] for row in full["assets"] if row["shader_quarantined"])
+        for kind, prefix in fillers.items():
+            for number in range(shaderprogress.CLASS_COUNTS[kind] - have[kind]):
+                index += 1
+                full["assets"].append(shader("%032x" % index, (prefix + "base.asset") if kind == "third_party" else (prefix + str(number) + ".asset")))
         return shaderprogress.build_inventory(full, ORIGIN)
 
     def test_unclassified_paths_and_unknown_categories_are_rejected(self):
@@ -65,12 +98,14 @@ class InventoryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Duplicate"):
             self.build([shader("00000000000000000000000000000001", "Assets/Shader/Hidden_Core_FallbackError.asset")])
         inventory = self.build()
-        for mutation in ("omit_folder", "omit_other", "wrong_category", "category_on_engine", "unknown_class", "bad_guid", "unsorted", "extra_key", "missing_category"):
+        for mutation in ("omit_folder", "omit_other", "omit_outside", "omit_third_party", "wrong_category", "category_on_engine", "unknown_class", "bad_guid", "unsorted", "extra_key", "missing_category"):
             with self.subTest(mutation=mutation):
                 broken = copy.deepcopy(inventory); rows = broken["shaders"]
                 folder = [r for r in rows if r["class"] == "game_folder"]
                 if mutation == "omit_folder": rows.remove(folder[0])
                 if mutation == "omit_other": rows.remove(next(r for r in rows if r["class"] == "engine"))
+                if mutation == "omit_outside": rows.remove(next(r for r in rows if r["class"] == "game_outside_folder"))
+                if mutation == "omit_third_party": rows.remove(next(r for r in rows if r["class"] == "third_party"))
                 if mutation == "wrong_category": folder[0]["category"] = "Sky"
                 if mutation == "category_on_engine": next(r for r in rows if r["class"] == "engine")["category"] = "Sky"
                 if mutation == "unknown_class": folder[0]["class"] = "game"
@@ -78,11 +113,6 @@ class InventoryTests(unittest.TestCase):
                 if mutation == "unsorted": rows.reverse()
                 if mutation == "extra_key": rows[0]["path"] = "x"
                 if mutation == "missing_category": folder[0]["category"] = None
-                if mutation == "omit_other":
-                    # Dropping a non-folder entry keeps the shape valid; comparing with a freshly built inventory catches it.
-                    shaderprogress.validate_inventory(broken)
-                    self.assertNotEqual(inventory, broken)
-                    continue
                 with self.assertRaises(ValueError): shaderprogress.validate_inventory(broken)
 
     def test_committed_inventory_matches_the_original_export_counts(self):
@@ -104,8 +134,10 @@ class PresenceTests(unittest.TestCase):
         self.folder = [r["guid"] for r in self.inventory["shaders"] if r["class"] == "game_folder"]
         self.outside = [r["guid"] for r in self.inventory["shaders"] if r["class"] == "game_outside_folder"]
 
-    def test_maintained_shaders_split_twenty_in_the_folder_and_two_outside(self):
-        result = shaderprogress.measure(self.inventory, shaderprogress.maintained_shader_guids(REPOSITORY))
+    def test_recovered_shaders_split_twenty_in_the_folder_and_two_outside(self):
+        # The GUIDs of the 22 shaders recovered so far, matched to the original asset map (Recovered/*.shader.meta).
+        recovered = RECOVERED_SHADERS
+        result = shaderprogress.measure(self.inventory, list(recovered))
         game = result["game_authored"]
         self.assertEqual((72, 22), (game["original"], game["source_present"]))
         self.assertEqual((59, 20), (game["folder"]["original"], game["folder"]["source_present"]))
@@ -114,6 +146,13 @@ class PresenceTests(unittest.TestCase):
         self.assertEqual({"status": "not_measured"}, result["compilation"])
         self.assertEqual({"status": "not_measured"}, result["fidelity"])
         shaderprogress.validate_public(result)
+
+    def test_live_shader_tree_keeps_every_recovered_shader(self):
+        # Further ports may add shaders; removing a recovered one must fail.
+        scan = shaderprogress.maintained_shader_guids(REPOSITORY)
+        self.assertLessEqual(set(RECOVERED_SHADERS), set(scan))
+        result = shaderprogress.measure(self.inventory, scan)
+        self.assertEqual(len(scan), result["game_authored"]["source_present"])
 
     def test_unknown_duplicate_and_non_game_guids_are_rejected(self):
         third_party = next(r["guid"] for r in self.inventory["shaders"] if r["class"] == "third_party")

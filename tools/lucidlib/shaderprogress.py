@@ -27,6 +27,8 @@ FOLDER_PREFIX = "Assets/Data/Art/Shaders/Shaders/"
 # The folder's categories and their original shader counts (59 in total).
 FOLDER_CATEGORIES = {"Character": 9, "Environment": 20, "Gameplay": 11, "Hub": 2, "Particle": 11,
                      "RenderFeatures": 1, "Sky": 3, "UI": 2}
+# Original shader totals by class (210 in all); an inventory missing any original entry is rejected.
+CLASS_COUNTS = {"game_folder": 59, "game_outside_folder": 13, "third_party": 13, "engine": 125}
 # Game-authored shaders the export places beside engine shaders carry the studio's shader-name prefix.
 OUTSIDE_PREFIXES = ("HardLight_", "Hidden_HardLight_")
 THIRD_PARTY_RESOURCES = {
@@ -93,6 +95,7 @@ def validate_inventory(inventory):
     if guids != sorted(guids): raise ValueError("Original shader inventory is not in canonical order")
     folder = Counter(row["category"] for row in inventory["shaders"] if row["class"] == "game_folder")
     if dict(folder) != FOLDER_CATEGORIES: raise ValueError("Original game shader folder counts differ")
+    if dict(Counter(row["class"] for row in inventory["shaders"])) != CLASS_COUNTS: raise ValueError("Original shader class counts differ")
     return inventory
 
 

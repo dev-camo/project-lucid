@@ -622,6 +622,16 @@ class WithheldReasonTests(unittest.TestCase):
         return codeprogress.public_counts(measurement, source="a" * 64, input_binary=PROGRESS_BINARY, input_metadata=PROGRESS_METADATA, scope_sha256="d" * 64,
                                          compiler_receipt_sha256="e" * 64, shaders=shaderprogress.measure(inventory, []))
 
+    def test_display_order_lists_every_reason_once(self):
+        self.assertEqual(sorted(codeprogress.WITHHELD_REASONS), sorted(codeprogress.WITHHELD_ORDER))
+
+    def test_the_mixed_assembly_row_names_the_vendored_code(self):
+        report = self.public(self.measurement([("implementation_candidate", "verified")]))
+        report["assemblies"][0]["assembly"] = "Assembly-CSharp"
+        text = codeprogress.render_readme_section(report)
+        self.assertIn("| Assembly-CSharp (game code and vendored AmplifyColor) |", text)
+        self.assertNotIn("(game code) |", text)
+
     def test_reasons_are_exhaustive_and_cover_every_withheld_state(self):
         self.assertEqual(9, len(codeprogress.WITHHELD_REASONS))
         self.assertEqual(set(codeprogress.WITHHELD_REASONS), set(codeprogress.WITHHELD_LABELS))
@@ -671,6 +681,10 @@ class WithheldReasonTests(unittest.TestCase):
         self.assertIn("| Empty or base-forwarding body | 1 |", text)
         self.assertIn("| Throw-only body | 0 |", text)
         self.assertIn("| **Original methods** | **2** |", text)
+        # The reasons sit under a withheld subtotal, placeholders first.
+        self.assertLess(text.index("| **Withheld, not credited (of which:)** | **1** |"), text.index("| Not-implemented placeholder | 0 |"))
+        self.assertLess(text.index("| Not-implemented placeholder |"), text.index("| Compiler-generated member |"))
+        self.assertIn("| **Total** | **0** | **72** |", text)
         self.assertIn("declaration shell", text)
         self.assertIn("none of them proves the original's behavior", text)
         self.assertIn("some withheld methods are genuine", text)

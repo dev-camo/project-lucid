@@ -64,6 +64,8 @@ WITHHELD_LABELS = {
     "no_sequence_points": "No source line information",
     "outside_maintained_runtime_source": "Source outside the maintained runtime code",
     "source_checksum_mismatch": "Source differs from the compiled build"}
+WITHHELD_ORDER = ("exception_placeholder_withheld", "throw_only_withheld", "empty_body_withheld", "constant_or_default_body_withheld",
+                  "compiler_generated_unresolved", "no_body", "no_sequence_points", "outside_maintained_runtime_source", "source_checksum_mismatch")
 
 
 def _json(path, limit=64 * 1024 * 1024):
@@ -483,9 +485,12 @@ def _withheld_table(report):
     rows = [("Credited: maintained source with a verified body", total["implemented_source_bodies"]),
             ("No maintained method with this signature", total["not_implemented"]),
             ("Signature unresolved or ambiguous", total["unresolved_identities"])]
-    rows += [(WITHHELD_LABELS[reason], total["withheld_reasons"][reason]) for reason in WITHHELD_REASONS]
+    # Withheld reasons grouped by meaning: genuine placeholders first, then generated or trivial bodies, then source-status reasons.
+    withheld = [(WITHHELD_LABELS[reason], total["withheld_reasons"][reason]) for reason in WITHHELD_ORDER]
     out = ["", "Every original method with a native body falls in exactly one row:", "", "| Outcome | Methods |", "|---|---:|"]
     out += ["| " + label + " | " + format(count, ",") + " |" for label, count in rows]
+    out.append("| **Withheld, not credited (of which:)** | **" + format(total["withheld_bodies"], ",") + "** |")
+    out += ["| " + label + " | " + format(count, ",") + " |" for label, count in withheld]
     out.append("| **Original methods** | **" + format(total["original_native_bodies"], ",") + "** |")
     return out
 
@@ -493,11 +498,12 @@ def _withheld_table(report):
 def _shader_table(shaders):
     game = shaders["game_authored"]
     def line(label, row): return "| " + label + " | " + format(row["source_present"], ",") + " | " + format(row["original"], ",") + " |"
+    def total_line(row): return "| **Total** | **" + format(row["source_present"], ",") + "** | **" + format(row["original"], ",") + "** |"
     out = ["", "### Shaders", "",
            "**" + format(game["source_present"], ",") + " of " + format(game["original"], ",") + " original game shaders have maintained source, matched by shipped GUID.**", "",
            "| Category | Shaders with source | Original shaders |", "|---|---:|---:|"]
     out += [line(name, row) for name, row in game["folder"]["categories"].items()]
-    out += [line("Outside the game shader folder", game["outside_folder"]), line("**Total**", game)]
+    out += [line("Outside the game shader folder", game["outside_folder"]), total_line(game)]
     compiled = shaders["compilation"]
     out += ["", "Source presence only: it does not show that a shader compiles for any target or looks like the original. " +
             ("Compilation is not measured. " if compiled["status"] == "not_measured" else
@@ -519,7 +525,7 @@ def render_readme_section(report):
            " original methods have maintained source implementations (" + percentage(total) + ").**", "",
            "| Assembly | Methods with source | Original methods | Progress |", "|---|---:|---:|---:|"]
     for group in report["assemblies"]:
-        label = group["assembly"] + ({"Assembly-CSharp": " (game code)", "Assembly-CSharp-firstpass": " (studio code)"}.get(group["assembly"], ""))
+        label = group["assembly"] + ({"Assembly-CSharp": " (game code and vendored AmplifyColor)" if report["schema_version"] == 4 else " (game code)", "Assembly-CSharp-firstpass": " (studio code)"}.get(group["assembly"], ""))
         if group.get("measurement_status") == "unavailable":
             out.append("| " + label + " | — | — | Unavailable / not counted: " + AVAILABILITY_REASONS[group["unavailable_reason"]] + " |")
             continue
