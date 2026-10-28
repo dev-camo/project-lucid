@@ -93,6 +93,18 @@ class ExportIdentityTests(unittest.TestCase):
         self.assertIn("path_claimed_twice", result["failures"])
         self.assertIn("meta_not_claimed_exactly_once", result["failures"])
 
+    def test_unreadable_yaml_for_a_scene_or_prefab_is_a_failure_but_binary_exports_stay_exempt(self):
+        # Codex finding: an empty or damaged scene/prefab skipped the anchor comparison and passed.
+        (self.root / "Assets/Scenes/s.unity").write_text("")
+        self.assertIn("yaml_unreadable", self.check()["failures"])
+        self.fresh()
+        self.write("Assets/P/p.prefab", "garbage", OTHER)
+        self.collections[0].update(paths=["Assets/P/p.prefab"], type="PrefabExportCollection", guid=OTHER)
+        self.collections[1]["paths"] = []
+        self.assertIn("yaml_unreadable", self.check()["failures"])
+        self.fresh()
+        self.assertEqual(1, self.check()["counts"]["non_yaml_files"])
+
     def test_yaml_anchors_reads_stripped_documents_and_ignores_binary_files(self):
         path = self.root / "p.prefab"
         path.write_text("%YAML 1.1\n--- !u!1 &-5\nA:\n--- !u!4 &9 stripped\nB:\n")
