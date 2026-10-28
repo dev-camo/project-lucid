@@ -37,13 +37,29 @@ class HostLockTests(unittest.TestCase):
             pinned = host_lock(self.lock)
         self.assertEqual("win-x64", pinned["rid"])
         overrides = self.lock["hosts"]["windows-amd64"]["artifacts"]
-        self.assertEqual({"assetripper", "dotnet", "runtime6"}, set(overrides))
+        self.assertEqual({"assetripper", "dotnet"}, set(overrides))
         for name, artifact in pinned["artifacts"].items():
             expected = overrides.get(name, self.lock["artifacts"][name])
             self.assertEqual(expected, artifact)
         for name in overrides:
             self.assertTrue(pinned["artifacts"][name]["entrypoint"].endswith(".exe"))
             self.assertEqual(self.lock["artifacts"][name]["version"], pinned["artifacts"][name]["version"])
+
+    def test_runtime6_is_retired_from_every_host_and_cannot_be_selected(self):
+        # Owner decision 2026-10-28: the net6 dumper runs on the pinned .NET 10 runtime.
+        for host in [self.lock, *self.lock["hosts"].values()]:
+            self.assertNotIn("runtime6", host["artifacts"])
+        with self.assertRaises(ValueError):
+            bootstrap.bootstrap(Path("unused"), ["runtime6"])
+
+    def test_dumper_bootstrap_installs_dotnet_and_never_runtime6(self):
+        CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+        work = Path(tempfile.mkdtemp(prefix="test-hosts-", dir=CACHE_ROOT))
+        self.addCleanup(shutil.rmtree, work)
+        with mock.patch.object(bootstrap, "_install", side_effect=lambda name, lock, w: work / "tools" / name) as install:
+            result = bootstrap.bootstrap(work, ["dumper"])
+        self.assertEqual("ready", result["status"])
+        self.assertEqual(["dotnet", "dumper"], [call.args[0] for call in install.call_args_list])
 
     def test_every_pinned_artifact_has_a_checksum(self):
         for host in [self.lock, *self.lock["hosts"].values()]:
@@ -125,7 +141,7 @@ class HostLockTests(unittest.TestCase):
         with self._on("Linux", "x86_64"):
             pinned = host_lock(self.lock)
         self.assertEqual("linux-x64", pinned["rid"])
-        for name in ("assetripper", "dotnet", "runtime6"):
+        for name in ("assetripper", "dotnet"):
             self.assertIn("linux", pinned["artifacts"][name]["url"])
             self.assertEqual(self.lock["artifacts"][name]["version"], pinned["artifacts"][name]["version"])
         for name in ("cpp2il-source", "dumper", "assetripper-license", "dumper-license"):

@@ -22,6 +22,7 @@ import zipfile
 from tools.lucidlib.bootstrap import (CACHE_ROOT, REPO_ROOT, ToolError, _communicate, _release_tree, bootstrap,
                                    download_artifact, managed_path, run_logged, run_owned,
                                    unpack_archive, validate_work_dir)
+from tools.lucidlib import recovery
 from tools.lucidlib.recovery import _managed_files, classify_il, recover_code
 
 
@@ -46,6 +47,28 @@ class RecoverySafetyTests(unittest.TestCase):
                     member.size = len(content)
                     archive.addfile(member, io.BytesIO(content))
         return output
+
+    def test_dumper_runs_on_the_dotnet_artifact_with_major_roll_forward(self):
+        tool = self.work / "tools" / "dumper" / "Il2CppDumper.dll"
+        ready = {"tools": {"dumper": {"status": "ready", "path": str(tool), "version": "6.7.46"}}}
+        seen = {}
+
+        def fake_run(command, work_dir, log, timeout, env):
+            seen.update(command=command, env=env)
+            return {"returncode": 1, "timed_out": False, "log": log}
+
+        with mock.patch.object(recovery, "bootstrap", return_value=ready) as boot, \
+                mock.patch.object(recovery, "run_logged", side_effect=fake_run):
+            result = recovery._dumper(self.work / "thin", self.work / "meta", self.work, "run")
+        boot.assert_called_once_with(self.work, ["dumper"])
+        root = self.work / "tools" / "dotnet"
+        self.assertEqual("failed", result["status"])
+        self.assertEqual(str(root), seen["env"]["DOTNET_ROOT"])
+        self.assertEqual("Major", seen["env"]["DOTNET_ROLL_FORWARD"])
+        self.assertEqual("dotnet", Path(seen["command"][0]).stem)
+        self.assertEqual(root, Path(seen["command"][0]).parent)
+        self.assertEqual(str(tool), seen["command"][1])
+        self.assertNotIn("runtime6", " ".join(seen["command"]) + str(seen["env"]))
 
     def test_repo_and_input_cannot_be_work_directories(self):
         for path in (REPO_ROOT, REPO_ROOT / "input", REPO_ROOT / "Assets", self.work / ".." / ".." / "escape"):
