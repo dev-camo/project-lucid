@@ -15,7 +15,7 @@ internal static class Program
     {
         try
         {
-            // BCL facades: the original names [mscorlib]/[System]/[System.Core], the
+            // BCL facades: the original names [mscorlib]/[System]/[System.Core]/[System.Xml], the
             // Unity compile names [netstandard]; the same type must render equally.
             string original = TypeIdentity.Qualified("mscorlib", "System.Collections.Generic.List`1");
             foreach (string facade in new[] { "mscorlib", "netstandard", "System", "System.Core", "System.Xml" })

@@ -28,7 +28,6 @@ namespace ProjectLucid.Tests
             return owned.Register(owned.Host("Lucid prompt manager", false).AddComponent<PromptManager>());
         }
 
-        // The validity test (0x696910) comes first; without a PromptManager nothing else is touched.
         // Original ShouldShowPrompt closures: the capturing slot predicate is <>c__DisplayClass29_0.<ShouldShowPrompt>b__0
         // (0x06003722) and the static IsExclusive predicate is <>c.<ShouldShowPrompt>b__29_1 (0x0600371d).
         [Test]
@@ -46,6 +45,7 @@ namespace ProjectLucid.Tests
             Assert.IsNotNull(cache.GetField("<>9__29_1", all));
         }
 
+        // The validity test (0x696910) comes first; without a PromptManager nothing else is touched.
         [Test]
         public void HidingAllPromptsWithoutAPromptManagerDoesNothing()
         {
