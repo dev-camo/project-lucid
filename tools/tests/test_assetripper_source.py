@@ -15,9 +15,13 @@ from tools.lucidlib import bootstrap
 from tools.tests import test_tool_cache_trust
 
 PROJECT = "Source/AssetRipper.GUI.Free/AssetRipper.GUI.Free.csproj"
-SOURCE = {PROJECT: b"verified project", "Source/Other/Other.csproj": b"verified dependency",
+SOURCE = {PROJECT: b"verified project", "Source/Other/Other.csproj": b"verified dependency\n",
           "nuget.config": b"upstream feed", "LICENSE.md": b"inert license"}
 LOCK = b'{"version": 2}'
+# An add-only patch: one line appended to a pinned file and one new file.
+PATCH = (b"--- a/Source/Other/Other.csproj\n+++ b/Source/Other/Other.csproj\n@@ -1 +1,2 @@\n verified dependency\n+patched line\n"
+         b"--- /dev/null\n+++ b/Source/Other/Added.cs\n@@ -0,0 +1 @@\n+added file\n")
+PATCHED = {"Source/Other/Other.csproj": b"verified dependency\npatched line\n", "Source/Other/Added.cs": b"added file\n"}
 
 
 class AssetRipperSourceTests(unittest.TestCase):
@@ -39,6 +43,7 @@ class AssetRipperSourceTests(unittest.TestCase):
         self.lock = {"platform": "fixture-host", "rid": "fixture-rid", "artifacts": {}}
         self.archive("dotnet", {"dotnet": b"verified SDK"}, "dotnet")
         self.archive("assetripper-source", SOURCE, PROJECT)
+        self.lock["artifacts"]["assetripper-source"]["patch_sha256"] = hashlib.sha256(PATCH).hexdigest()
         # Committed inputs: manifest, feed configuration and one lock per project.
         self.committed = self.directory / "committed"
         self.stack.enter_context(mock.patch.object(bootstrap, "ASSETRIPPER_SOURCE_DIR", self.committed))
@@ -50,6 +55,7 @@ class AssetRipperSourceTests(unittest.TestCase):
         locks.mkdir(parents=True)
         (locks / "packages.lock.json").write_bytes(LOCK)
         (self.committed / "nuget.config").write_bytes(b"pinned feed")
+        (self.committed / "lucid-identity.patch").write_bytes(PATCH)
         self.manifest.write_text("".join(f"{hashlib.sha256(data).hexdigest()}  {name}\n"
                                          for name, data in sorted(files.items())), encoding="utf-8")
 
@@ -67,6 +73,7 @@ class AssetRipperSourceTests(unittest.TestCase):
         def fixture_build(command, *args, **kwargs):
             tree = kwargs["cwd"]
             seen.update(command=command, nuget=(tree / "nuget.config").read_bytes(),
+                        patched={name: (tree / name).read_bytes() for name in PATCHED},
                         lock=(tree / "Source/AssetRipper.GUI.Free/packages.lock.json").read_bytes())
             stage = Path(command[command.index("-o") + 1])
             stage.mkdir(parents=True)
@@ -87,10 +94,12 @@ class AssetRipperSourceTests(unittest.TestCase):
         self.assertFalse([argument for argument in command if "PublishAot=true" in argument])
         self.assertTrue(any(argument.startswith("-p:RestoreConfigFile=") and argument.endswith("nuget.config") for argument in command))
         self.assertEqual((b"pinned feed", LOCK), (seen["nuget"], seen["lock"]))
+        self.assertEqual(PATCHED, seen["patched"])
         self.assertIn(self.work / "tools/assetripper-source-builds", Path(result["path"]).parents)
         identity = json.loads(Path(result["path"]).with_name("lucid-build.json").read_text())
         self.assertEqual({"commit", "archive_sha256", "source_manifest_sha256", "lock_files_sha256", "nuget_config_sha256",
-                          "sdk", "runtime", "publish_aot", "build_schema"}, set(identity))
+                          "sdk", "runtime", "publish_aot", "build_schema", "patch_sha256"}, set(identity))
+        self.assertEqual((hashlib.sha256(PATCH).hexdigest(), 2), (identity["patch_sha256"], identity["build_schema"]))
         self.assertEqual((hashlib.sha256(self.manifest.read_bytes()).hexdigest(), "fixture-pin", "fixture-rid", False),
                          (identity["source_manifest_sha256"], identity["sdk"], identity["runtime"], identity["publish_aot"]))
         self.assertEqual(b"inert license", Path(result["path"]).with_name("LICENSE.txt").read_bytes())
@@ -116,6 +125,7 @@ class AssetRipperSourceTests(unittest.TestCase):
                 work.mkdir()
                 shutil.copytree(self.work / "downloads", work / "downloads")
                 self.archive("assetripper-source", files, PROJECT)
+                self.lock["artifacts"]["assetripper-source"]["patch_sha256"] = hashlib.sha256(PATCH).hexdigest()
                 shutil.copyfile(self.work / "downloads/assetripper-source.tar", work / "downloads/assetripper-source.tar")
                 with self.assertRaisesRegex(bootstrap.ToolError, message):
                     bootstrap._ensure_assetripper_source(self.lock, work)
@@ -133,6 +143,34 @@ class AssetRipperSourceTests(unittest.TestCase):
                 self.assertRaisesRegex(bootstrap.ToolError, "differs from the pinned manifest"):
             bootstrap._ensure_assetripper_source(self.lock, self.work)
         self.assertEqual([], list((self.work / "tools/assetripper-source-builds").glob("[0-9a-f]*")))
+
+    def test_patch_drift_is_rejected_before_any_build_and_the_patch_is_applied_after_the_manifest_check(self):
+        (self.committed / "lucid-identity.patch").write_bytes(PATCH + b"--- /dev/null\n+++ b/Source/Other/More.cs\n@@ -0,0 +1 @@\n+more\n")
+        with mock.patch.object(bootstrap, "run_logged") as runner, \
+                self.assertRaisesRegex(bootstrap.ToolError, "differs from the pinned patch_sha256"):
+            bootstrap._ensure_assetripper_source(self.lock, self.work)
+        runner.assert_not_called()
+
+    def test_patch_that_touches_an_unpinned_or_missing_file_is_rejected(self):
+        patch = b"--- a/Source/Other/Gone.cs\n+++ b/Source/Other/Gone.cs\n@@ -1 +1,2 @@\n x\n+y\n"
+        (self.committed / "lucid-identity.patch").write_bytes(patch)
+        self.lock["artifacts"]["assetripper-source"]["patch_sha256"] = hashlib.sha256(patch).hexdigest()
+        with mock.patch.object(bootstrap, "run_logged") as runner, \
+                self.assertRaisesRegex(bootstrap.ToolError, "is missing or a link"):
+            bootstrap._ensure_assetripper_source(self.lock, self.work)
+        runner.assert_not_called()
+
+    def test_build_that_alters_a_patched_file_is_rejected(self):
+        def tampering_build(command, *args, **kwargs):
+            (kwargs["cwd"] / "Source/Other/Added.cs").write_bytes(b"build rewrote the patch")
+            stage = Path(command[command.index("-o") + 1])
+            stage.mkdir(parents=True)
+            bootstrap.executable(stage / "AssetRipper.GUI.Free").write_bytes(b"inert")
+            return {"returncode": 0, "timed_out": False, "log": "fixture"}
+
+        with mock.patch.object(bootstrap, "run_logged", side_effect=tampering_build), \
+                self.assertRaisesRegex(bootstrap.ToolError, "patched source changed during the build: Source/Other/Added.cs"):
+            bootstrap._ensure_assetripper_source(self.lock, self.work)
 
     def test_lock_file_drift_changes_the_build_identity(self):
         first, _, runner = self.build()
@@ -197,6 +235,47 @@ class AssetRipperSourceTests(unittest.TestCase):
         source.assert_not_called()
 
 
+class AddOnlyPatchTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = Path(tempfile.mkdtemp(prefix="test-addonly-patch-"))
+        self.addCleanup(shutil.rmtree, self.directory)
+        self.tree = self.directory / "tree"
+        (self.tree / "dir").mkdir(parents=True)
+        (self.tree / "dir/a.txt").write_bytes(b"one\ntwo\nthree\nfour\n")
+
+    def apply(self, patch: bytes):
+        path = self.directory / "x.patch"
+        path.write_bytes(patch)
+        return bootstrap.apply_add_only_patch(self.tree, path)
+
+    def test_hunks_insert_lines_and_new_files_are_created(self):
+        result = self.apply(b"--- a/dir/a.txt\n+++ b/dir/a.txt\n@@ -1,2 +1,3 @@\n one\n+1.5\n two\n@@ -4 +5,2 @@\n four\n+five\n"
+                            b"--- /dev/null\n+++ b/dir/new/b.txt\n@@ -0,0 +1,2 @@\n+x\n+y\n")
+        self.assertEqual(b"one\n1.5\ntwo\nthree\nfour\nfive\n", (self.tree / "dir/a.txt").read_bytes())
+        self.assertEqual(b"x\ny\n", (self.tree / "dir/new/b.txt").read_bytes())
+        self.assertEqual({"dir/a.txt": hashlib.sha256(b"one\n1.5\ntwo\nthree\nfour\nfive\n").hexdigest(),
+                          "dir/new/b.txt": hashlib.sha256(b"x\ny\n").hexdigest()}, result)
+
+    def test_everything_that_is_not_an_exact_addition_is_rejected(self):
+        before = (self.tree / "dir/a.txt").read_bytes()
+        cases = {"removal": b"--- a/dir/a.txt\n+++ b/dir/a.txt\n@@ -1,2 +1 @@\n-one\n two\n",
+                 "context mismatch": b"--- a/dir/a.txt\n+++ b/dir/a.txt\n@@ -1,2 +1,3 @@\n one\n+x\n zzz\n",
+                 "shifted context": b"--- a/dir/a.txt\n+++ b/dir/a.txt\n@@ -2,1 +2,2 @@\n one\n+x\n",
+                 "wrong new position": b"--- a/dir/a.txt\n+++ b/dir/a.txt\n@@ -1 +3,2 @@\n one\n+x\n",
+                 "short hunk": b"--- a/dir/a.txt\n+++ b/dir/a.txt\n@@ -1 +1,3 @@\n one\n+x\n",
+                 "existing file as new": b"--- /dev/null\n+++ b/dir/a.txt\n@@ -0,0 +1 @@\n+x\n",
+                 "missing file": b"--- a/dir/none.txt\n+++ b/dir/none.txt\n@@ -1 +1,2 @@\n one\n+x\n",
+                 "traversal": b"--- /dev/null\n+++ b/dir/../../evil\n@@ -0,0 +1 @@\n+x\n",
+                 "rename": b"--- a/dir/a.txt\n+++ b/dir/c.txt\n@@ -1 +1,2 @@\n one\n+x\n",
+                 "no final newline": b"--- /dev/null\n+++ b/dir/n.txt\n@@ -0,0 +1 @@\n+x",
+                 "empty": b""}
+        for label, patch in cases.items():
+            with self.subTest(label), self.assertRaises(bootstrap.ToolError):
+                self.apply(patch)
+        self.assertEqual(before, (self.tree / "dir/a.txt").read_bytes())
+        self.assertFalse((self.tree.parent / "evil").exists())
+
+
 class CommittedAssetRipperSourceTests(unittest.TestCase):
     """The committed pin, manifest, locks and notice agree with one another."""
 
@@ -228,6 +307,18 @@ class CommittedAssetRipperSourceTests(unittest.TestCase):
             project = Path(relative).parent
             self.assertTrue([name for name in manifest if Path(name).parent == project and name.endswith(".csproj")], relative)
         self.assertFalse([name for name in manifest if name.endswith("packages.lock.json")])
+
+    def test_committed_patch_is_pinned_add_only_and_applies_to_the_pinned_manifest_files(self):
+        root = bootstrap.ASSETRIPPER_SOURCE_DIR
+        source = bootstrap.load_lock()["artifacts"]["assetripper-source"]
+        self.assertEqual(source["patch_sha256"], hashlib.sha256((root / "lucid-identity.patch").read_bytes()).hexdigest())
+        manifest = bootstrap._source_manifest(root / "source-manifest.txt")
+        patch = (root / "lucid-identity.patch").read_text(encoding="utf-8")
+        self.assertFalse([line for line in patch.splitlines() if line.startswith("-") and not line.startswith("--- ")])
+        edited = [line[6:] for line in patch.splitlines() if line.startswith("+++ b/")]
+        created = [line for line in edited if line not in manifest]
+        self.assertEqual(["Source/AssetRipper.Export.UnityProjects/IdentityManifest.cs"], created)
+        self.assertEqual(2, len(edited) - len(created))
 
     def test_feed_configuration_trusts_only_nuget_org_with_source_mapping(self):
         config = ET.parse(bootstrap.ASSETRIPPER_SOURCE_DIR / "nuget.config").getroot()
