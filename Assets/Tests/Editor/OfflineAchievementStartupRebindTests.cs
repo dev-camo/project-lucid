@@ -114,25 +114,28 @@ namespace ProjectLucid.Tests
                 {
                     Call(achievements, "StopOfflineAchievementSubscriptions");
                     var completed = (Action<MissionState>)Delegate.CreateDelegate(typeof(Action<MissionState>), achievements, "MissionCompleted");
-                    while (MissionCompletedSubscriptions(world.Missions) > 0) world.Missions.OnMissionCompleted -= completed;
+                    while (MissionCompletedSubscriptions(world.Missions, achievements) > 0) world.Missions.OnMissionCompleted -= completed;
                 }));
 
                 for (int session = 1; session <= 2; session++)
                 {
-                    // Mission manager exists, so AddLevelAchievements reaches AddMissionAchievements and subscribes
+                    // Called directly rather than through the save binding and AddSaveDataAchievements, which need the enemy,
+                    // collectable and character managers too. The mission manager exists, so AddLevelAchievements reaches AddMissionAchievements and subscribes
                     // MissionCompleted. Only the achievement behaviours that follow need a ready local AchievementsManager
                     // lease, which this fixture does not build, so the first one throws; the subscription is already made.
                     Assert.Throws<NullReferenceException>(() => Call(achievements, "AddLevelAchievements", levelManager), "session " + session);
-                    Assert.That(MissionCompletedSubscriptions(world.Missions), Is.EqualTo(session),
+                    Assert.That(MissionCompletedSubscriptions(world.Missions, achievements), Is.EqualTo(session),
                         "one more MissionCompleted subscription per session, as in the original");
                 }
 
                 Call(achievements, "StopOfflineAchievementSubscriptions");
-                Assert.That(MissionCompletedSubscriptions(world.Missions), Is.EqualTo(0), "no MissionCompleted subscription survives the stop");
+                Assert.That(MissionCompletedSubscriptions(world.Missions, achievements), Is.EqualTo(0), "no MissionCompleted subscription survives the stop");
             });
         }
 
-        private static int MissionCompletedSubscriptions(MissionManager missions) =>
-            missions.OnMissionCompleted == null ? 0 : missions.OnMissionCompleted.GetInvocationList().Count(entry => entry.Method.Name == "MissionCompleted");
+        // MissionManager adds handlers of its own to the same field, so count only this instance's MissionCompleted.
+        private static int MissionCompletedSubscriptions(MissionManager missions, Achievements achievements) =>
+            missions.OnMissionCompleted == null ? 0 : missions.OnMissionCompleted.GetInvocationList()
+                .Count(entry => entry.Method.Name == "MissionCompleted" && ReferenceEquals(entry.Target, achievements));
     }
 }
