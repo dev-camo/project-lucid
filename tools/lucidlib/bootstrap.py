@@ -1279,7 +1279,7 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
 
 
 ASSETRIPPER_SOURCE_DIR = REPO_ROOT / "tools" / "assetripper"
-_ASSETRIPPER_BUILD_SCHEMA = 1
+_ASSETRIPPER_BUILD_SCHEMA = 2
 _MANIFEST_LINE = re.compile(r"([0-9a-f]{64})  ((?!/)(?:[^/\\\0\n]+/)*[^/\\\0\n]+)")
 
 
@@ -1336,6 +1336,79 @@ def _assetripper_locks(rid: str) -> tuple[dict[str, Path], str]:
     return locks, digest
 
 
+_HUNK_HEADER = re.compile(rb"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+
+
+def apply_add_only_patch(tree: Path, patch: Path) -> dict[str, str]:
+    """Apply a unified diff that only adds lines; returns the sha256 of every file it wrote.
+
+    Strict by design: no fuzz, offsets, removals or renames. Each hunk's context must match
+    at its stated line, existing files must be named by the patch and new files must not
+    exist yet. Anything else raises, so a patch cannot change what the source already does."""
+    lines = patch.read_bytes().split(b"\n")
+    if lines.pop() != b"":
+        raise ToolError(f"AssetRipper patch does not end with a newline: {patch.name}")
+    written, index = {}, 0
+
+    def fail(why: str):
+        raise ToolError(f"AssetRipper patch {patch.name} is not a valid add-only patch at line {index + 1}: {why}")
+
+    while index < len(lines):
+        if index + 1 >= len(lines) or not lines[index].startswith(b"--- ") or not lines[index + 1].startswith(b"+++ b/"):
+            fail("expected a file header")
+        name = lines[index + 1][6:].decode("utf-8")
+        created = lines[index][4:] == b"/dev/null"
+        if not created and lines[index][4:] != b"a/" + name.encode("utf-8"):
+            fail("the old and new file names differ")
+        if not name or name.startswith("/") or "\\" in name or ".." in name.split("/"):
+            fail("unsafe file name")
+        target = tree / PurePosixPath(name)
+        if _is_link(target) or created == target.exists():
+            fail(f"{name} {'already exists' if created else 'is missing or a link'}")
+        original = [] if created else target.read_bytes().split(b"\n")
+        if original and original.pop() != b"":
+            fail(f"{name} has no final newline")
+        result, cursor = [], 0
+        index += 2
+        while index < len(lines) and lines[index].startswith(b"@@"):
+            header = _HUNK_HEADER.fullmatch(lines[index])
+            if header is None:
+                fail("malformed hunk header")
+            old_start, old_count, new_start, new_count = (int(value) if value is not None else 1 for value in header.groups())
+            begin = old_start - 1 if old_count else old_start
+            if begin < cursor or begin > len(original):
+                fail("hunk is out of order or outside the file")
+            result += original[cursor:begin]
+            cursor = begin
+            if new_start != len(result) + 1:
+                fail("hunk position does not match the lines already written")
+            index += 1
+            seen_old = seen_new = 0
+            while index < len(lines) and (seen_old < old_count or seen_new < new_count):
+                kind, text = lines[index][:1], lines[index][1:]
+                if kind == b" " and cursor < len(original) and original[cursor] == text:
+                    result.append(text)
+                    cursor += 1
+                    seen_old += 1
+                    seen_new += 1
+                elif kind == b"+":
+                    result.append(text)
+                    seen_new += 1
+                else:
+                    fail("context mismatch, removal or unknown line")
+                index += 1
+            if (seen_old, seen_new) != (old_count, new_count):
+                fail("hunk length differs from its header")
+        result += original[cursor:]
+        data = b"\n".join(result) + b"\n"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        written[name] = hashlib.sha256(data).hexdigest()
+    if not written:
+        raise ToolError(f"Empty AssetRipper patch: {patch.name}")
+    return written
+
+
 def _ensure_assetripper_source(lock: dict, work_dir: Path) -> dict:
     """Build AssetRipper from the pinned source; the prebuilt "assetripper" artifact is unaffected."""
     work_dir = tool_work_dir(work_dir)
@@ -1346,9 +1419,13 @@ def _ensure_assetripper_source(lock: dict, work_dir: Path) -> dict:
     artifact = pinned["artifacts"]["assetripper-source"]
     manifest = ASSETRIPPER_SOURCE_DIR / "source-manifest.txt"
     nuget_config = ASSETRIPPER_SOURCE_DIR / "nuget.config"
+    patch = ASSETRIPPER_SOURCE_DIR / "lucid-identity.patch"
     locks, locks_digest = _assetripper_locks(rid)
+    if _digest(patch, "sha256") != artifact["patch_sha256"]:
+        raise ToolError("AssetRipper identity patch differs from the pinned patch_sha256")
     identity = {"commit": artifact["version"], "archive_sha256": artifact["sha256"],
                 "source_manifest_sha256": verify_source_manifest(source, manifest),
+                "patch_sha256": artifact["patch_sha256"],
                 "lock_files_sha256": locks_digest, "nuget_config_sha256": _digest(nuget_config, "sha256"),
                 "sdk": pinned["artifacts"]["dotnet"]["version"], "runtime": rid,
                 "publish_aot": False, "build_schema": _ASSETRIPPER_BUILD_SCHEMA}
@@ -1365,6 +1442,8 @@ def _ensure_assetripper_source(lock: dict, work_dir: Path) -> dict:
                 if not (build_source / PurePosixPath(relative).parent).is_dir():
                     raise ToolError(f"AssetRipper package lock has no project: {relative}")
                 shutil.copyfile(path, build_source / relative)
+            # The tree matched the manifest above; only now is the add-only patch applied.
+            patched = apply_add_only_patch(build_source, patch)
             process = run_logged([
                 str(executable(dotnet_root / "dotnet")), "publish", str(build_source / artifact["entrypoint"]),
                 "-c", "Release", "-r", rid, "--self-contained", "true", "-p:PublishAot=false",
@@ -1376,8 +1455,12 @@ def _ensure_assetripper_source(lock: dict, work_dir: Path) -> dict:
                 env=dotnet_environment(work_dir, dotnet_root), cwd=build_source)
             if process["returncode"] or process["timed_out"] or not executable(stage / "AssetRipper.GUI.Free").is_file():
                 raise ToolError(f"Pinned AssetRipper build failed; inspect {process['log']}")
-            # The build may add its own outputs, but no pinned source file may have changed.
-            verify_source_manifest(build_source, manifest, allow_extra=True, skip=frozenset({"nuget.config"}))
+            # The build may add its own outputs, but no pinned source file may have changed,
+            # and the patched files must still be exactly what the patch produced.
+            verify_source_manifest(build_source, manifest, allow_extra=True, skip=frozenset({"nuget.config", *patched}))
+            for relative, digest in patched.items():
+                if _digest(build_source / PurePosixPath(relative), "sha256") != digest:
+                    raise ToolError(f"AssetRipper patched source changed during the build: {relative}")
             shutil.copyfile(source / "LICENSE.md", stage / "LICENSE.txt")
             write_json(stage / "lucid-build.json", identity)
             return process

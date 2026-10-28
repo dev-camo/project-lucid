@@ -26,6 +26,10 @@ does not replace. The source is checked file by file against
 `packages.lock.json` files under `tools/assetripper/locks/`, and fetched only from
 nuget.org (`tools/assetripper/nuget.config`). AssetRipper is GPL-3.0; its license text is
 `tools/assetripper/LICENSE.md`, and the build output carries it as `LICENSE.txt`.
+The verified source is then patched with the add-only `tools/assetripper/lucid-identity.patch`
+(pinned as `patch_sha256` in `tools/tool-lock.json`), which only records which original
+objects each exported file holds, in `AuxiliaryFiles/export_identity.json`; see
+`tools/assetripper/IDENTITY.md`.
 
 The embedded Hardlight packages retain the original game’s assembly identities.
 Their implementations are recovered from the supplied bundle and maintained
