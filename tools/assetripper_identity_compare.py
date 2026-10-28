@@ -131,11 +131,11 @@ def compare(patched: Path, baseline: Path) -> dict:
             result["identical_after_guid_substitution"] += 1
             continue
         elif name.endswith("/Main.mixer") and TOKEN.sub(b"G", da) == TOKEN.sub(b"G", db):
+            # One-to-one over every pair, unchanged ones included, so a fresh GUID cannot merge into a kept one.
             pairs = set(zip(TOKEN.findall(da), TOKEN.findall(db)))
-            pairs = {pair for pair in pairs if pair[0] != pair[1]}
             if len({x for x, _ in pairs}) == len({y for _, y in pairs}) == len(pairs):
                 result["mixer_files"] += 1
-                result["mixer_guid_pairs"] += len(pairs)
+                result["mixer_guid_pairs"] += sum(1 for x, y in pairs if x != y)
                 continue
         elif name.startswith("AuxiliaryFiles/GameAssemblies/") and name.endswith(".dll") and same_apart_from_mvid(da, db):
             result["gameassembly_mvid_only"] += 1
