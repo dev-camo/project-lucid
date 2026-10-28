@@ -52,6 +52,7 @@
       "url": "https://codeload.github.com/AssetRipper/AssetRipper/tar.gz/1ac666f47d8e9dedf96afb0b914c70d7656151ea",
       "filename": "AssetRipper-1ac666f47d8e9dedf96afb0b914c70d7656151ea.tar.gz",
       "sha256": "2f1a9fb64ee7ac561c38227f55860a3333b32ba78294e9923ab947488acf8341",
+      "patch_sha256": "18f417cf86131bafb64982441f6709ccb2cbbeddd7c53a5cd2241b4e8c6a50f8",
       "format": "tar",
       "strip_components": 1,
       "max_unpacked_bytes": 200000000,

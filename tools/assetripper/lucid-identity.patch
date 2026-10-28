@@ -1,0 +1,159 @@
+--- a/Source/AssetRipper.Export.UnityProjects/ExportCollection.cs
++++ b/Source/AssetRipper.Export.UnityProjects/ExportCollection.cs
+@@ -34,6 +34,7 @@
+ 
+ 	protected static void ExportMeta(IExportContainer container, Meta meta, string filePath, FileSystem fileSystem)
+ 	{
++		IdentityManifest.NotePath(filePath);
+ 		string metaPath = $"{filePath}{MetaExtension}";
+ 		using Stream fileStream = fileSystem.File.Create(metaPath);
+ 		using InvariantStreamWriter streamWriter = new InvariantStreamWriter(fileStream, new UTF8Encoding(false));
+--- /dev/null
++++ b/Source/AssetRipper.Export.UnityProjects/IdentityManifest.cs
+@@ -0,0 +1,118 @@
++using AssetRipper.Assets;
++using AssetRipper.Assets.Collections;
++using System.Text.Json;
++
++namespace AssetRipper.Export.UnityProjects;
++
++/// <summary>
++/// Lucid: observes the export and records which original objects each exported file holds.
++/// It only reads; nothing the export decides or writes depends on it.
++/// </summary>
++internal static class IdentityManifest
++{
++	private sealed record Member(string File, bool Serialized, long PathID, int ClassID, long? FileID, bool Written);
++	private sealed record Entry(int Order, string Type, string? Guid, string[] Paths, Member[] Members);
++
++	private static readonly List<Entry> entries = new();
++	private static readonly List<string> paths = new();
++	private static string root = string.Empty;
++	private static int rejected;
++
++	public static void Reset(string projectRoot)
++	{
++		entries.Clear();
++		paths.Clear();
++		root = projectRoot;
++		rejected = 0;
++	}
++
++	public static void Begin() => paths.Clear();
++
++	/// <summary>The path of an asset file whose .meta is written.</summary>
++	public static void NotePath(string filePath) => paths.Add(Path.GetRelativePath(root, filePath).Replace('\\', '/'));
++
++	public static void End(IExportCollection collection, IExportContainer container, bool exported)
++	{
++		if (!exported)
++		{
++			rejected++;
++			return;
++		}
++		string? guid = null;
++		try
++		{
++			guid = (collection as ExportCollection)?.GUID.ToString();
++		}
++		catch (NotSupportedException)
++		{
++		}
++		// Assets, then ExportableAssets, so any enumeration state ends as the export left it.
++		List<IUnityObjectBase> assets = collection.Assets.ToList();
++		HashSet<IUnityObjectBase> written = new(collection.ExportableAssets);
++		List<Member> members = new();
++		foreach (IUnityObjectBase asset in assets)
++		{
++			long? fileId = null;
++			try
++			{
++				fileId = collection.GetExportID(container, asset);
++			}
++			catch (Exception)
++			{
++			}
++			members.Add(new(asset.Collection.Name, asset.Collection is SerializedAssetCollection, asset.PathID, asset.ClassID, fileId, written.Contains(asset)));
++		}
++		members.Sort((a, b) => Compare(a, b));
++		paths.Sort(StringComparer.Ordinal);
++		entries.Add(new(entries.Count, collection.GetType().Name, guid, paths.ToArray(), members.ToArray()));
++	}
++
++	private static int Compare(Member a, Member b)
++	{
++		int result = string.CompareOrdinal(a.File, b.File);
++		result = result != 0 ? result : a.PathID.CompareTo(b.PathID);
++		result = result != 0 ? result : a.ClassID.CompareTo(b.ClassID);
++		return result != 0 ? result : Nullable.Compare(a.FileID, b.FileID);
++	}
++
++	public static void Write(string directory, FileSystem fileSystem)
++	{
++		fileSystem.Directory.Create(directory);
++		using Stream stream = fileSystem.File.Create(fileSystem.Path.Join(directory, "export_identity.json"));
++		using Utf8JsonWriter writer = new(stream);
++		writer.WriteStartObject();
++		writer.WriteNumber("format", 1);
++		writer.WriteNumber("not_exported", rejected);
++		writer.WriteStartArray("collections");
++		foreach (Entry entry in entries.OrderBy(e => string.Join('\n', e.Paths), StringComparer.Ordinal).ThenBy(e => e.Order))
++		{
++			writer.WriteStartObject();
++			writer.WriteNumber("order", entry.Order);
++			writer.WriteString("type", entry.Type);
++			writer.WriteString("guid", entry.Guid);
++			writer.WriteStartArray("paths");
++			foreach (string path in entry.Paths)
++			{
++				writer.WriteStringValue(path);
++			}
++			writer.WriteEndArray();
++			writer.WriteStartArray("members");
++			foreach (Member member in entry.Members)
++			{
++				// [original serialized file, PathID, ClassID, local fileID, from a serialized file, written to the file]
++				writer.WriteStartArray();
++				writer.WriteStringValue(member.File);
++				writer.WriteNumberValue(member.PathID);
++				writer.WriteNumberValue(member.ClassID);
++				if (member.FileID is long fileId) writer.WriteNumberValue(fileId); else writer.WriteNullValue();
++				writer.WriteBooleanValue(member.Serialized);
++				writer.WriteBooleanValue(member.Written);
++				writer.WriteEndArray();
++			}
++			writer.WriteEndArray();
++			writer.WriteEndObject();
++		}
++		writer.WriteEndArray();
++		writer.WriteEndObject();
++	}
++}
+--- a/Source/AssetRipper.Export.UnityProjects/ProjectExporter.cs
++++ b/Source/AssetRipper.Export.UnityProjects/ProjectExporter.cs
+@@ -82,6 +82,7 @@
+ 		ProjectAssetContainer container = new ProjectAssetContainer(this, options, fileCollection.FetchAssets(), collections);
+ 		int exportableCount = collections.Count(c => c.Exportable);
+ 		int currentExportable = 0;
++		IdentityManifest.Reset(options.ProjectRootPath);
+ 
+ 		for (int i = 0; i < collections.Count; i++)
+ 		{
+@@ -91,7 +92,9 @@
+ 			{
+ 				currentExportable++;
+ 				Logger.Info(LogCategory.ExportProgress, $"({currentExportable}/{exportableCount}) Exporting '{collection.Name}'");
++				IdentityManifest.Begin();
+ 				bool exportedSuccessfully = collection.Export(container, options.ProjectRootPath, fileSystem);
++				IdentityManifest.End(collection, container, exportedSuccessfully);
+ 				if (!exportedSuccessfully)
+ 				{
+ 					Logger.Warning(LogCategory.ExportProgress, $"Failed to export '{collection.Name}' ({collection.GetType().Name})");
+@@ -99,6 +102,7 @@
+ 			}
+ 			EventExportProgressUpdated?.Invoke(i, collections.Count);
+ 		}
++		IdentityManifest.Write(options.AuxiliaryFilesPath, fileSystem);
+ 		EventExportFinished?.Invoke();
+ 	}
+ 
