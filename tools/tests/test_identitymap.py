@@ -22,6 +22,9 @@ BASE = {"mat": g("1"), "tex": g("2"), "pre": g("3"), "sce": g("4"), "mix": g("5"
 FRESH = {"mat": g("a"), "tex": g("b"), "pre": g("c"), "sce": g("d"), "mix": g("e"), "scr": g("6")}
 MIXER_BASE, MIXER_FRESH = [g("7"), g("8")], [g("f"), g("9")]
 ASSET_GUID = g("0")
+ZERO, STABLE = g("0"), "0123456789abcdef" * 2  # mixer tokens that AssetRipper does not regenerate
+AMY = "Assets/Data/Art/Characters/Amy/amy_hammer/mesh/amy_hammer|amy_hammerAction.anim"  # a real baseline path
+BUILD_SETTINGS = "ProjectSettings/EditorBuildSettings.asset"
 CATALOG = g("3").replace("3", "4", 1)
 UNRESOLVED = g("1").replace("1", "e", 3)
 
@@ -70,23 +73,38 @@ def collections(ids):
     def entry(order, kind, guid, paths, members):
         return {"order": order, "type": kind, "guid": guid, "paths": paths, "members": members}
     return [
-        entry(0, "MaterialExportCollection", ids["mat"], ["Assets/Material/a.mat"], [["cab-m", 7, 21, 2100000, True, True]]),
-        entry(1, "TextureExportCollection", ids["tex"], ["Assets/Texture/t.png"], [["cab-t", 3, 28, 2800000, True, True]]),
+        entry(0, "MaterialExportCollection", ids["mat"], ["Assets/Material/a.mat"],
+              [["cab-m", 7, 21, 2100000, True, True]]),
+        entry(1, "TextureExportCollection", ids["tex"], ["Assets/Texture/t.png"],
+              [["cab-t", 3, 28, 2800000, True, True]]),
         entry(2, "PrefabExportCollection", ids["pre"], ["Assets/Prefab/p.prefab"],
               [["Generated Prefabs", 9, 1001, 100100000, False, False], ["cab-p", 10, 1, 100, True, True],
-               ["cab-p", 11, 4, 200, True, True], ["cab-p", 12, 1, 101, True, True], ["cab-p", 13, 4, 201, True, True]]),
+               ["cab-p", 11, 4, 200, True, True], ["cab-p", 12, 1, 101, True, True],
+               ["cab-p", 13, 4, 201, True, True]]),
         entry(3, "SceneExportCollection", ids["sce"], ["Assets/Scenes/s.unity"], [["cab-s", 11, 1, 11, True, True]]),
-        entry(4, "AudioMixerExportCollection", ids["mix"], ["Assets/Audio/Main.mixer"], [["cab-x", 5, 241, 2410000, True, True]]),
+        entry(4, "AudioMixerExportCollection", ids["mix"], ["Assets/Audio/Main.mixer"],
+              [["cab-x", 5, 241, 2410000, True, True]]),
         entry(5, "ScriptExportCollection", None, ["Assets/Scripts/x.cs"], [["cab-c", 2, 115, 11500000, True, True]]),
         entry(6, "SceneAssetExportCollection", None, [], [["cab-s", 1, 1032, None, True, False]]),
     ]
 
 
-def build_table(root, records):
+def build_settings(scene):
+    return yaml((1045, 1, "EditorBuildSettings:\n  serializedVersion: 2\n  m_Scenes:\n  - enabled: 1\n"
+                          f"    path: Assets/Scenes/s.unity\n    guid: {scene}\n  m_configObjects: {{}}"))
+
+
+def mixer_file(tokens):
+    return yaml((241, 2410000, "".join(f"t{index}: {token}\n" for index, token in enumerate(tokens))))
+
+
+def build_table(root, records, mixer=None):
     """What the (later) builder will produce from the baseline project, written here from its files."""
     sha = lambda relative: identitymap.sha256_bytes((root / relative).read_bytes())
-    time = lambda relative: int(identitymap.TIME_CREATED.search((root / (relative + ".meta")).read_bytes())[0].split()[1])
-    table = {"header": dict(HEADER), "collections": {}, "scripts": {}, "mixer": {"Assets/Audio/Main.mixer": list(MIXER_BASE)},
+    time = lambda relative: int(
+        identitymap.TIME_CREATED.search((root / (relative + ".meta")).read_bytes())[0].split()[1])
+    table = {"header": dict(HEADER), "collections": {}, "scripts": {},
+             "mixer": {"Assets/Audio/Main.mixer": list(MIXER_BASE if mixer is None else mixer)},
              "witnessed": [], "unresolved": {UNRESOLVED}, "files": {}}
     owned = set()
     for entry in records:
@@ -95,13 +113,14 @@ def build_table(root, records):
         kind = identitymap.ANCHOR_RULES[entry["type"]][0]
         if kind == "script":
             for relative in entry["paths"]:
-                table["scripts"][relative] = {"guid": BASE["scr"], "time_created": time(relative), "sha256": sha(relative),
-                                              "meta_sha256": sha(relative + ".meta")}
+                table["scripts"][relative] = {"guid": BASE["scr"], "time_created": time(relative),
+                                              "sha256": sha(relative), "meta_sha256": sha(relative + ".meta")}
         elif kind != "none":
             member = identitymap.anchor(root, entry)
             table["collections"][(member[0], member[1], member[2])] = {
-                "guid": entry["guid"], "digest": identitymap.member_digest(entry["members"]), "paths": sorted(entry["paths"]),
-                "time_created": [time(p) for p in sorted(entry["paths"])], "sha256": [sha(p) for p in sorted(entry["paths"])],
+                "guid": entry["guid"], "digest": identitymap.member_digest(entry["members"]),
+                "paths": sorted(entry["paths"]), "time_created": [time(p) for p in sorted(entry["paths"])],
+                "sha256": [sha(p) for p in sorted(entry["paths"])],
                 "meta_sha256": [sha(p + ".meta") for p in sorted(entry["paths"])]}
     table["files"] = {path.relative_to(root).as_posix(): sha(path.relative_to(root).as_posix())
                       for path in root.rglob("*") if path.is_file() and path.relative_to(root).as_posix() not in owned}
@@ -133,6 +152,18 @@ class Fixture(unittest.TestCase):
         self.assertEqual(kind, caught.exception.kind, str(caught.exception))
         return str(caught.exception)
 
+    def set_mixer(self, fresh, base):
+        """Give the mixer these bare tokens in the fresh export and in the baseline, and remake the table."""
+        write(self.fresh_dir, {"Assets/Audio/Main.mixer": mixer_file(fresh)})
+        write(self.baseline_dir, {"Assets/Audio/Main.mixer": mixer_file(base)})
+        self.table = build_table(self.baseline_dir, collections(BASE), mixer=base)
+
+    def add_build_settings(self):
+        """Add the build settings, naming the scene by GUID, to both projects and remake the table."""
+        write(self.fresh_dir, {BUILD_SETTINGS: build_settings(FRESH["sce"])})
+        write(self.baseline_dir, {BUILD_SETTINGS: build_settings(BASE["sce"])})
+        self.table = build_table(self.baseline_dir, collections(BASE))
+
     def fresh_file(self, relative, old, new):
         path = self.fresh_dir / relative
         data = path.read_bytes()
@@ -161,6 +192,111 @@ class TableTests(Fixture):
             with self.subTest(label):
                 with self.assertRaises(IdentityMapError):
                     identitymap.parse_table(broken)
+
+    def resorted(self, text, extra=(), drop=()):
+        """The table text with lines added or dropped and the body sorted again (so only that change is wrong)."""
+        head, *body = text[:-1].split("\n")
+        return head + "\n" + "".join(line + "\n" for line in sorted([x for x in body if x not in drop] + list(extra)))
+
+    def test_unsorted_table_without_mixer_rows_is_refused(self):
+        self.table["mixer"] = {}  # the mixer ordinals would otherwise refuse a reversed table first
+        lines = identitymap.format_table(self.table).split("\n")
+        self.assertGreater(len(lines[1:-1]), 3)
+        self.assertIn("not sorted", self.refused("table_malformed", lambda: identitymap.parse_table(
+            "\n".join([lines[0]] + lines[1:-1][::-1]) + "\n")))
+
+    def awkward_table(self):
+        """A table whose paths hold `|`, TAB, `%` and every escape sequence as literal text."""
+        paths = sorted([AMY, "Assets/tab\there/a%b.png", "Assets/plain.png", "Assets/pct%7Cliteral.png"])
+        self.table["collections"][("cab|odd\t%", 1, 28)] = {
+            "guid": g("9"), "digest": "d" * 64, "paths": paths, "time_created": [1, 2, 3, 4],
+            "sha256": ["e" * 64] * 4, "meta_sha256": ["f" * 64] * 4}
+        self.table["files"]["ProjectSettings/new\nline\rx|y%.asset"] = "b" * 64
+        self.table["mixer"]["Assets/Audio/Mix|er.mixer"] = [g("7"), g("7")]
+        self.table["scripts"]["Assets/Scripts/p|q%.cs"] = {"guid": g("8"), "time_created": 5, "sha256": "1" * 64,
+                                                            "meta_sha256": "2" * 64}
+
+    def test_real_baseline_path_with_a_pipe_round_trips(self):
+        self.awkward_table()
+        text = identitymap.format_table(self.table)
+        self.assertEqual(self.table, identitymap.parse_table(text))
+        self.assertEqual(text, identitymap.format_table(identitymap.parse_table(text)))
+        self.assertIn("amy_hammer%7Camy_hammerAction.anim", text)
+        self.assertNotIn("amy_hammer|amy_hammerAction", text)
+        self.assertIn("a%25b.png", text)
+        self.assertIn("tab%09here", text)
+        self.assertIn("pct%257Cliteral", text)  # a literal `%7C` in a path is not mistaken for an escaped pipe
+        for line in text.split("\n")[1:-1]:  # one table line per object, in the column count of its kind
+            self.assertEqual({"C": 10, "F": 3, "M": 4, "S": 6, "U": 2, "W": 2}[line[0]], len(line.split("\t")), line)
+
+    def test_unwritable_fields_are_refused_when_formatting(self):
+        for label, change in {
+                "tab in a guid": lambda t: t["collections"][("cab-t", 3, 28)].__setitem__("guid", "a\tb"),
+                "newline in a sha": lambda t: t["files"].__setitem__("x", "a\nb"),
+                "short guid": lambda t: t["collections"][("cab-t", 3, 28)].__setitem__("guid", "abc"),
+                "tab in the header": lambda t: t["header"].__setitem__("input", "a\tb"),
+                "number as text": lambda t: t["scripts"]["Assets/Scripts/x.cs"].__setitem__(
+                    "time_created", "1\t2")}.items():
+            with self.subTest(label):
+                self.setUp()
+                change(self.table)
+                message = self.refused("table_malformed", lambda: identitymap.format_table(self.table))
+                if label != "short guid":
+                    self.assertIn("cannot be written", message)  # the field guard, not the later re-parse
+
+    def test_non_canonical_escapes_are_refused(self):
+        self.awkward_table()
+        text = identitymap.format_table(self.table)
+        for label, old, new in (("lower case escape", "amy_hammer%7Camy", "amy_hammer%7camy"),
+                                ("unknown escape", "a%25b.png", "a%41b.png"),
+                                ("lone percent", "a%25b.png", "a%b.png"),
+                                ("raw pipe in a file path", "new%0Aline%0Dx%7Cy%25", "new%0Aline%0Dx|y%25")):
+            with self.subTest(label):
+                self.assertEqual(1, text.count(old))
+                self.refused("table_malformed", lambda: identitymap.parse_table(self.resorted(text.replace(old, new))))
+
+    def test_duplicate_and_overlapping_paths_are_refused(self):
+        text = identitymap.format_table(self.table)
+        script = "Assets/Scripts/x.cs"
+        cases = {"F path twice": ("F\tProjectSettings/ProjectSettings.asset\t" + "9" * 64,),
+                 "F path equal to a C path": ("F\tAssets/Material/a.mat\t" + "9" * 64,),
+                 "F path equal to a C meta": ("F\tAssets/Texture/t.png.meta\t" + "9" * 64,),
+                 "F path equal to a script": (f"F\t{script}\t" + "9" * 64,),
+                 "F path equal to a script meta": (f"F\t{script}.meta\t" + "9" * 64,)}
+        for label, extra in cases.items():
+            with self.subTest(label):
+                self.assertIn("more than one row", self.refused(
+                    "table_malformed", lambda: identitymap.parse_table(self.resorted(text, extra))))
+
+    def test_non_canonical_integers_are_refused(self):
+        text = identitymap.format_table(self.table)
+        mat_sha = self.table["collections"][("cab-m", 7, 21)]["sha256"][0]
+        cases = {"leading zeros in a PathID": ("\t7\t21\t", "\t007\t21\t"),
+                 "plus sign": ("\t7\t21\t", "\t+7\t21\t"),
+                 "minus zero": ("\t3\t28\t", "\t-0\t28\t"),
+                 "leading zeros in a ClassID": ("\t3\t28\t", "\t3\t028\t"),
+                 "leading zeros in a time": (f"\t1111\t{mat_sha}\t", f"\t01111\t{mat_sha}\t"),
+                 "space": ("\t7\t21\t", "\t7 \t21\t")}
+        for label, (old, new) in cases.items():
+            with self.subTest(label):
+                self.assertEqual(1, text.count(old), old)
+                self.assertIn("non-canonical", self.refused("table_malformed", lambda: identitymap.parse_table(
+                    self.resorted(text.replace(old, new)))))
+        script_time = f"{BASE['scr']}\t1111\t"
+        self.assertEqual(1, text.count(script_time))
+        self.refused("table_malformed", lambda: identitymap.parse_table(
+            self.resorted(text.replace(script_time, f"{BASE['scr']}\t1111.0\t"))))
+
+    def test_witnessed_classes_must_name_rows_and_not_overlap(self):
+        text = identitymap.format_table(self.table)
+        unknown = f"W\t{','.join(sorted([BASE['mat'], g('9')]))}"
+        self.assertIn("no row", self.refused("table_malformed", lambda: identitymap.parse_table(
+            self.resorted(text, [unknown]))))
+        first, second = sorted([BASE["mat"], BASE["tex"]]), sorted([BASE["tex"], BASE["pre"]])
+        self.assertIn("two witnessed", self.refused("table_malformed", lambda: identitymap.parse_table(
+            self.resorted(text, [f"W\t{','.join(first)}", f"W\t{','.join(second)}"]))))
+        one = self.resorted(text, [f"W\t{','.join(first)}"])  # a valid class is accepted
+        self.assertEqual([first], identitymap.parse_table(one)["witnessed"])
 
     def test_header_must_match_input_commit_and_patch(self):
         identitymap.require_header(self.table, "a" * 64, "b" * 40, "c" * 64)
@@ -207,6 +343,22 @@ class LookupTests(Fixture):
         self.assertEqual(["cab-p", 10, 1], identitymap.anchor(self.fresh_dir, self.records[2])[:3])
         self.fresh_file("Assets/Prefab/p.prefab", "m_Father: {fileID: 200}", "m_Father: {fileID: 0}")
         self.refused("anchor_ambiguous", self.lookup)
+
+    def test_scene_anchor_is_refused_when_members_come_from_two_serialized_files(self):
+        self.assertEqual(["cab-s", 11, 1], identitymap.anchor(self.fresh_dir, self.records[3])[:3])
+        self.records[3]["members"].append(["cab-s2", 2, 1, 2, True, True])  # a lower PathID, in another file
+        self.assertIn("2 serialized files", self.refused("anchor_ambiguous", self.lookup))
+        self.records[3]["members"][1][4] = False  # not written: it is not a candidate
+        self.assertEqual(["cab-s", 11, 1], identitymap.anchor(self.fresh_dir, self.records[3])[:3])
+
+    def test_scene_anchor_is_the_lowest_pathid_of_one_file(self):
+        self.records[3]["members"].append(["cab-s", 5, 1, 5, True, True])
+        self.assertEqual(["cab-s", 5, 1], identitymap.anchor(self.fresh_dir, self.records[3])[:3])
+
+    def test_two_table_rows_with_one_baseline_guid_are_refused(self):
+        # parse_table refuses this table; lookup is public and builds its own map, so it checks again.
+        self.table["collections"][("cab-t", 3, 28)]["guid"] = BASE["mat"]
+        self.refused("identity_not_injective", self.lookup)
 
     def test_missing_identity_is_refused(self):
         del self.table["collections"][("cab-t", 3, 28)]
@@ -303,12 +455,52 @@ class CollisionTests(Fixture):
         self.assertIn("ProjectSettings", self.refused("collision_outside_reference_position", self.check))
 
     def test_fresh_in_a_binary_file_or_upper_case_or_odd_reference_shape_is_refused(self):
-        for label, name, edit in (("binary", "Assets/Texture/t.png", lambda p: p.write_bytes(b"\0" + FRESH["mat"].encode())),
+        for label, name, edit in (("binary", "Assets/Texture/t.png",
+                                   lambda p: p.write_bytes(b"\0" + FRESH["mat"].encode())),
                                   ("upper case", "Assets/Scripts/x.cs", lambda p: p.write_text(FRESH["mat"].upper())),
-                                  ("reference shape", "Assets/Scripts/x.cs", lambda p: p.write_text(f"{{guid: {FRESH['mat']}}}"))):
+                                  ("reference shape", "Assets/Scripts/x.cs",
+                                   lambda p: p.write_text(f"{{guid: {FRESH['mat']}}}"))):
             with self.subTest(label):
                 self.setUp()
                 edit(self.fresh_dir / name)
+                self.refused("collision_outside_reference_position", self.check)
+
+    def test_build_settings_scene_entry_is_a_reference_position(self):
+        self.add_build_settings()
+        data = (self.fresh_dir / BUILD_SETTINGS).read_bytes()
+        self.assertEqual([("scene", FRESH["sce"])], [item[2:] for item in identitymap.tokens(data, BUILD_SETTINGS)])
+        counts = self.check()
+        self.assertEqual({"asset": 1, "meta": 6, "other": 2, "reference": 5, "scene": 1}, counts)
+
+    def test_a_scene_collision_in_the_build_settings_is_still_a_collision(self):
+        self.add_build_settings()
+        self.table["unresolved"].add(FRESH["sce"])
+        self.refused("collision_unresolved_reference", self.check)
+
+    def test_bare_guid_anywhere_else_is_not_a_scene_entry(self):
+        self.add_build_settings()
+        listed = "  m_Scenes:\n  - enabled: 1\n    path: Assets/Scenes/s.unity\n    guid: " + FRESH["mat"]
+        settings = (self.fresh_dir / BUILD_SETTINGS).read_text()
+        cases = {  # label: (file, text)
+            "settings, outside the list": (BUILD_SETTINGS, settings.replace(
+                "  m_configObjects: {}", f"  m_configObjects: {{}}\n  m_Other:\n    guid: {FRESH['mat']}")),
+            "settings, key not indented as a list entry": (BUILD_SETTINGS, settings.replace(
+                f"    guid: {FRESH['sce']}", f"  guid: {FRESH['mat']}")),
+            "settings, first key of a list entry": (BUILD_SETTINGS, settings.replace(
+                f"  - enabled: 1\n    path: Assets/Scenes/s.unity\n    guid: {FRESH['sce']}",
+                f"  - guid: {FRESH['mat']}")),
+            "settings, in a comment": (BUILD_SETTINGS, settings + f"# guid: {FRESH['mat']}\n"),
+            "another file with the same list": ("ProjectSettings/Other.asset", listed + "\n"),
+            "a script": ("Assets/Scripts/x.cs", listed + "\n"),
+            "settings copy": ("ProjectSettings/EditorBuildSettings.asset.bak", listed + "\n")}
+        for label, (name, text) in cases.items():
+            with self.subTest(label):
+                self.setUp()
+                self.add_build_settings()
+                (self.fresh_dir / name).write_text(text)
+                kinds = {item[2] for item in identitymap.tokens((self.fresh_dir / name).read_bytes(), name)
+                         if item[3] == FRESH["mat"]}
+                self.assertEqual({"other"}, kinds)
                 self.refused("collision_outside_reference_position", self.check)
 
     def test_unresolved_reference_that_equals_a_baseline_guid(self):
@@ -324,7 +516,8 @@ class RelabelTests(Fixture):
             p.relative_to(self.stage).as_posix() for p in self.stage.rglob("*") if p.is_file()})
         for path in self.baseline_dir.rglob("*"):
             if path.is_file():
-                self.assertEqual(path.read_bytes(), (self.stage / path.relative_to(self.baseline_dir)).read_bytes(), path)
+                self.assertEqual(path.read_bytes(),
+                                 (self.stage / path.relative_to(self.baseline_dir)).read_bytes(), path)
         self.assertEqual({"files": 13, "asset_guid_values": 1}, gate)
 
     def test_only_permitted_tokens_change(self):
@@ -354,19 +547,84 @@ class RelabelTests(Fixture):
         self.refused("stage_exists", lambda: identitymap.relabel(self.fresh_dir, self.stage, plan, self.table))
         shutil.rmtree(self.stage)
         self.table["mixer"]["Assets/Audio/Main.mixer"].append(g("9"))
-        self.refused("mixer_value_not_exactly_once", lambda: identitymap.relabel(self.fresh_dir, self.stage, plan, self.table))
+        self.refused("mixer_count_mismatch", lambda: identitymap.relabel(self.fresh_dir, self.stage, plan, self.table))
         self.assertFalse(self.stage.exists())
 
-    def test_mixer_value_not_exactly_once_is_refused(self):
-        cases = {"repeated": lambda: self.fresh_file("Assets/Audio/Main.mixer", f"snap: {MIXER_FRESH[1]}", f"snap: {MIXER_FRESH[0]}"),
-                 "extra": lambda: self.fresh_file("Assets/Audio/Main.mixer", "snap:", f"extra: {g('9')}\nsnap:"),
-                 "fewer": lambda: self.fresh_file("Assets/Audio/Main.mixer", f"snap: {MIXER_FRESH[1]}", "snap: 1")}
-        for label, change in cases.items():
+    def relabel_mixer(self, fresh, base):
+        self.set_mixer(fresh, base)
+        plan = self.lookup()
+        return lambda: identitymap.relabel(self.fresh_dir, self.stage, plan, self.table)
+
+    def test_mixer_positions_map_with_repeats_and_stable_values(self):
+        fresh = [g("f"), g("9"), g("f"), ZERO, STABLE, g("9"), ZERO]
+        base = [g("7"), g("8"), g("7"), ZERO, STABLE, g("8"), ZERO]
+        self.set_mixer(fresh, base)
+        plan, gate = self.run_all()
+        self.assertEqual((self.baseline_dir / "Assets/Audio/Main.mixer").read_bytes(),
+                         (self.stage / "Assets/Audio/Main.mixer").read_bytes())
+        self.assertEqual({"files": 13, "asset_guid_values": 1}, gate)
+
+    def test_mixer_token_count_must_equal_the_table(self):
+        for label, fresh in {"extra": [g("f"), g("9"), g("e")], "fewer": [g("f")]}.items():
             with self.subTest(label):
                 self.setUp()
-                change()
-                plan = self.lookup()
-                self.refused("mixer_value_not_exactly_once", lambda: identitymap.relabel(self.fresh_dir, self.stage, plan, self.table))
+                call = self.relabel_mixer([g("f"), g("9")], [g("7"), g("8")])  # the table has two positions
+                write(self.fresh_dir, {"Assets/Audio/Main.mixer": mixer_file(fresh)})
+                self.assertIn("table has 2", self.refused("mixer_count_mismatch", call))
+                self.assertFalse(self.stage.exists())
+
+    def test_mixer_one_fresh_value_must_not_map_to_two_baseline_values(self):
+        call = self.relabel_mixer([g("f"), g("f")], [g("7"), g("8")])
+        self.assertIn("position 1", self.refused("mixer_not_consistent", call))
+        self.assertFalse(self.stage.exists())
+
+    def test_mixer_two_fresh_values_must_not_map_to_one_baseline_value(self):
+        call = self.relabel_mixer([g("f"), g("9")], [g("7"), g("7")])
+        self.assertIn("position 1", self.refused("mixer_not_injective", call))
+        self.assertFalse(self.stage.exists())
+
+    def test_mixer_stable_value_may_not_stand_for_a_regenerated_one(self):
+        # fresh 7 is kept (stable) at one position and replaced by 8 at another: not a function
+        self.refused("mixer_not_consistent", self.relabel_mixer([g("7"), g("7")], [g("7"), g("8")]))
+        # a regenerated value landing on a stable value's name is the same fault seen the other way
+        self.refused("mixer_not_injective", self.relabel_mixer([g("7"), g("6")], [g("7"), g("7")]))
+
+    def test_build_settings_scene_entry_is_relabelled(self):
+        self.add_build_settings()
+        plan, gate = self.run_all()
+        self.assertEqual((self.baseline_dir / BUILD_SETTINGS).read_bytes(), (self.stage / BUILD_SETTINGS).read_bytes())
+        self.assertIn(f"guid: {BASE['sce']}", (self.stage / BUILD_SETTINGS).read_text())
+        self.assertEqual({"files": 14, "asset_guid_values": 1}, gate)
+
+    def test_a_bare_guid_next_to_the_scene_entry_is_never_rewritten(self):
+        self.add_build_settings()
+        self.fresh_file(BUILD_SETTINGS, "  m_configObjects: {}",
+                        f"  m_configObjects: {{}}\n  m_Other:\n    guid: {FRESH['mat']}")
+        plan = self.lookup()
+        identitymap.relabel(self.fresh_dir, self.stage, plan, self.table)
+        text = (self.stage / BUILD_SETTINGS).read_text()
+        self.assertIn(f"    guid: {BASE['sce']}\n", text)
+        self.assertIn(f"  m_Other:\n    guid: {FRESH['mat']}", text)
+        self.refused("hash_mismatch", lambda: identitymap.verify_output(self.fresh_dir, self.stage, plan, self.table))
+
+    def test_asset_guid_values_are_never_rewritten_even_when_they_equal_a_fresh_guid(self):
+        self.fresh_file("Assets/Material/a.mat", f"m_AssetGUID: {ASSET_GUID}", f"m_AssetGUID: {FRESH['tex']}")
+        plan = self.lookup()
+        identitymap.relabel(self.fresh_dir, self.stage, plan, self.table)
+        text = (self.stage / "Assets/Material/a.mat").read_text()
+        self.assertIn(f"m_AssetGUID: {FRESH['tex']}", text)  # untouched
+        self.assertIn(f"guid: {BASE['tex']}, type: 3", text)  # the reference on the line above was relabelled
+
+    def test_meta_that_no_row_owns_is_refused(self):
+        plan = self.lookup()
+        write(self.fresh_dir, {"Assets/Extra/z.cs.meta": "fileFormatVersion: 2\ntimeCreated: 5\n"})
+        self.refused("meta_unowned", lambda: identitymap.relabel(self.fresh_dir, self.stage, plan, self.table))
+        self.assertFalse(self.stage.exists())
+
+    def test_meta_needs_exactly_one_time_created(self):
+        plan = self.lookup()
+        self.fresh_file("Assets/Material/a.mat.meta", "timeCreated: 2222", "timeCreated: 2222\ntimeCreated: 2223")
+        self.refused("meta_time_created", lambda: identitymap.relabel(self.fresh_dir, self.stage, plan, self.table))
 
     def test_mixer_file_in_the_table_must_exist(self):
         self.table["mixer"]["Assets/Audio/Gone.mixer"] = [g("9")]
@@ -384,7 +642,8 @@ class EndGateTests(Fixture):
         plan = self.lookup()
         identitymap.relabel(self.fresh_dir, self.stage, plan, self.table)
         (self.stage / "Assets/Prefab/p.prefab").write_text("tampered")
-        message = self.refused("hash_mismatch", lambda: identitymap.verify_output(self.fresh_dir, self.stage, plan, self.table))
+        message = self.refused("hash_mismatch",
+                               lambda: identitymap.verify_output(self.fresh_dir, self.stage, plan, self.table))
         self.assertIn("Assets/Prefab/p.prefab", message)
         self.assertIn(identitymap.expected_hashes(self.table)["Assets/Prefab/p.prefab"], message)
 
@@ -419,17 +678,37 @@ class EndGateTests(Fixture):
         path.write_bytes(path.read_bytes().replace(ASSET_GUID.encode(), g("9").encode()))
         row = self.table["collections"][("cab-m", 7, 21)]
         row["sha256"] = [identitymap.sha256_bytes(path.read_bytes())]
-        self.refused("asset_guid_changed", lambda: identitymap.verify_output(self.fresh_dir, self.stage, plan, self.table))
+        self.refused("asset_guid_changed",
+                     lambda: identitymap.verify_output(self.fresh_dir, self.stage, plan, self.table))
 
 
 class WholeTests(Fixture):
     def test_build_baseline_project_from_files(self):
-        (self.tmp / "export_identity.json").write_text(json.dumps({"format": 1, "collections": self.records}))
-        (self.tmp / "table.txt").write_text(identitymap.format_table(self.table), encoding="utf-8")
-        result = identitymap.build_baseline_project(self.fresh_dir, self.tmp / "export_identity.json", self.tmp / "table.txt",
-                                                    self.stage, [CATALOG])
+        result = self.build()
         self.assertEqual({"files": 13, "asset_guid_values": 1}, result["gate"])
         self.assertEqual(exportidentity.check_identity(self.fresh_dir, self.records)["counts"], result["identity"])
+
+    def build(self, header=(HEADER["input"], HEADER["assetripper"], HEADER["patch"])):
+        (self.tmp / "export_identity.json").write_text(json.dumps({"format": 1, "collections": self.records}))
+        (self.tmp / "table.txt").write_text(identitymap.format_table(self.table), encoding="utf-8")
+        return identitymap.build_baseline_project(self.fresh_dir, self.tmp / "export_identity.json",
+                                                  self.tmp / "table.txt", self.stage, [CATALOG], *header)
+
+    def test_table_for_another_input_commit_or_patch_is_refused_before_anything_is_read(self):
+        for index, other in enumerate(("f" * 64, "f" * 40, "f" * 64)):
+            with self.subTest(("input", "assetripper", "patch")[index]):
+                header = [HEADER["input"], HEADER["assetripper"], HEADER["patch"]]
+                header[index] = other
+                self.refused("table_header_mismatch", lambda: self.build(header))
+                self.assertFalse(self.stage.exists())
+
+    def test_a_refused_end_gate_leaves_no_stage(self):
+        self.table["files"]["ProjectSettings/ProjectSettings.asset"] = "0" * 64
+        self.refused("hash_mismatch", self.build)
+        self.assertFalse(self.stage.exists())
+        self.table["files"]["ProjectSettings/ProjectSettings.asset"] = identitymap.sha256_bytes(b"settings: 1\n")
+        self.build()  # the same call succeeds once the table is right, so the stage was removed, not blocking
+        self.assertTrue(self.stage.exists())
 
 
 if __name__ == "__main__":
