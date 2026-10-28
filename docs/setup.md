@@ -26,6 +26,7 @@ Python. `doctor` reports whether `lipo` is present, but recovery does not requir
 installing it on Linux or Windows.
 
 `bootstrap` installs pinned recovery tools into `.cache/project-lucid/tools/`.
+Each install directory is named after the tool, its pinned version and the start of the archive hash, so a new pin installs beside the old one; `bootstrap` removes the superseded installs once the new one is verified.
 `recover-code` defaults to declarations and serialization schemas. Experimental
 body recovery is a separate mode and must be audited before its output is used.
 `extract-assets` exports to a new staging directory, verifies it, and records a

@@ -91,7 +91,7 @@ class AssetRipperRuntimeCopyTests(unittest.TestCase):
 
     @property
     def install(self):
-        return self.work / "tools/assetripper"
+        return bootstrap.install_path(self.work, "assetripper")
 
     def runtime_copies(self):
         return sorted((self.work / "tools").glob(".run-assetripper-*"))

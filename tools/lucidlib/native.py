@@ -11,7 +11,7 @@ import shutil
 import uuid
 import xml.etree.ElementTree as ET
 
-from .bootstrap import (REPO_ROOT, ToolError, bootstrap, open_coordinator_lock, download_artifact,
+from .bootstrap import (REPO_ROOT, ToolError, bootstrap, install_path, open_coordinator_lock, download_artifact,
                         NO_BUILD_SERVER_ARGS, dotnet_environment, exclusive_lock, executable, host_lock, load_lock, managed_path,
                         run_logged, validate_work_dir, write_json, tool_work_dir,
                         seal_built_tool, verify_built_tool, retain_failure, unpack_archive, tree_seal,
@@ -166,7 +166,7 @@ def build_native_harness(work_dir: Path, leases: ExitStack | None = None) -> dic
             sdk = installed.get("tools", {}).get("dotnet", {})
             if installed.get("status") != "ready" or sdk.get("status") != "ready":
                 raise ToolError(sdk.get("error", "Pinned SDK bootstrap failed"))
-            dotnet = executable(managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet"))
+            dotnet = executable(install_path(work_dir, "dotnet") / "dotnet")
             artifact = host_lock(lock)["artifacts"]["cpp2il-source"]
             archive = download_artifact(artifact, work_dir)
             stage = managed_path(work_dir, "native-recovery", "builds", f".stage-{run_id}")
@@ -379,9 +379,9 @@ def _native_evidence_leased(input_path: Path, work_dir: Path, command: str, asse
     try:
         if build.get("status") != "ready":
             raise ToolError(build.get("error", "Pinned native harness build failed"))
-        environment = dotnet_environment(work_dir, managed_path(tool_work_dir(work_dir), "tools", "dotnet"))
+        environment = dotnet_environment(work_dir, install_path(work_dir, "dotnet"))
         environment.update(DOTNET_TieredCompilation="0", COMPlus_TieredCompilation="0", DOTNET_TieredPGO="0")
-        args = [str(executable(managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet"))), build["path"], command,
+        args = [str(executable(install_path(work_dir, "dotnet") / "dotnet")), build["path"], command,
                 "--binary", str(thin), "--metadata", str(metadata_path), "--unity-version", version,
                 "--output", str(evidence_dir)]
         if assembly is not None:

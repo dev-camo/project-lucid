@@ -1038,7 +1038,7 @@ class AssetTests(unittest.TestCase):
                      "metadata_sha256": digest["Contents/Resources/Data/il2cpp_data/Metadata/global-metadata.dat"],
                      "info_plist_sha256": digest["Contents/Info.plist"], "x86_64_slice_sha256": None,
                      "qualified": frozenset((assets.inputvariants.ASSET_PREPARATION,))}
-        tool = executable(self.work / "tools/assetripper/AssetRipper.GUI.Free")
+        tool = executable(bootstrap.install_path(self.work, "assetripper") / "AssetRipper.GUI.Free")
         tool.parent.mkdir(parents=True)
         tool.write_text("synthetic")
         pointer = self.work / "assets/latest-assets.json"

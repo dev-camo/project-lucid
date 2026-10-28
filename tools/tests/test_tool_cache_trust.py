@@ -70,7 +70,7 @@ class ToolCacheTrustTests(unittest.TestCase):
 
     def test_matching_public_marker_cannot_authorize_fake_sdk(self):
         artifact = self.archive("dotnet", {"dotnet": b"verified host", "runtime.dll": b"verified runtime"}, "dotnet")
-        cached = self.work / "tools/dotnet"
+        cached = bootstrap.install_path(self.work, "dotnet", self.lock)
         cached.mkdir(parents=True)
         (cached / "dotnet").write_bytes(b"inert contributor payload")
         (cached / "runtime.dll").write_bytes(b"inert substituted dependency")
@@ -78,6 +78,92 @@ class ToolCacheTrustTests(unittest.TestCase):
         with self.assertRaisesRegex(bootstrap.ToolError, "closure differs"):
             bootstrap._install("dotnet", self.lock, self.work)
         self.spawn.assert_not_called()
+
+    def older_pin_install(self):
+        """Install the fixture SDK under a first pin, then move the lock to a second pin."""
+        first = self.install_fixture()
+        self.assertEqual(first, bootstrap.install_path(self.work, "dotnet", self.lock))
+        before = bootstrap.tree_seal(first)
+        self.archive("dotnet", {"dotnet": b"newer verified host", "shared/runtime.dll": b"newer verified dependency"}, "dotnet")
+        self.lock["artifacts"]["dotnet"]["version"] = "fixture-pin-2"
+        return first, before
+
+    def test_new_pin_installs_beside_an_older_pin_without_touching_it(self):
+        first, before = self.older_pin_install()
+        second = bootstrap._install("dotnet", self.lock, self.work)
+        self.assertNotEqual(first, second)
+        self.assertEqual(first.parent, second.parent)
+        self.assertEqual(b"newer verified host", (second / "dotnet").read_bytes())
+        self.assertEqual(before, bootstrap.tree_seal(first))
+        self.spawn.assert_not_called()
+
+    def test_unversioned_layout_of_older_checkouts_is_neither_trusted_nor_blocking(self):
+        legacy = self.work / "tools/dotnet"
+        legacy.mkdir(parents=True)
+        (legacy / "dotnet").write_bytes(b"inert legacy payload")
+        self.archive("dotnet", {"dotnet": b"verified host"}, "dotnet")
+        installed = bootstrap._install("dotnet", self.lock, self.work)
+        self.assertEqual(b"verified host", (installed / "dotnet").read_bytes())
+        self.assertEqual(b"inert legacy payload", (legacy / "dotnet").read_bytes())
+
+    def test_bootstrap_removes_only_superseded_installs_of_the_same_tool(self):
+        first, _ = self.older_pin_install()
+        legacy = self.work / "tools/dotnet"
+        legacy.mkdir()
+        (legacy / "dotnet").write_bytes(b"inert legacy payload")
+        unrelated = self.work / "tools/dotnet-builds"
+        unrelated.mkdir()
+        outside = self.directory / "outside"
+        outside.mkdir()
+        (outside / "keep").write_bytes(b"must survive")
+        link = self.work / "tools/dotnet-fixture-pin-0000000000aa"
+        link.symlink_to(outside, target_is_directory=True)
+        # A link nested inside a superseded tree is removed as an entry, never followed.
+        (first / "nested-link").symlink_to(outside, target_is_directory=True)
+        with mock.patch.object(bootstrap, "load_lock", return_value=self.lock):
+            result = bootstrap.bootstrap(self.work, ["dotnet"])
+        self.assertEqual("ready", result["status"], result)
+        current = bootstrap.install_path(self.work, "dotnet", self.lock)
+        self.assertTrue(current.is_dir())
+        self.assertFalse(first.exists())
+        self.assertFalse(legacy.exists())
+        self.assertTrue(unrelated.is_dir())
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(b"must survive", (outside / "keep").read_bytes())
+
+    def test_pruning_a_tool_keeps_installs_of_tools_whose_names_extend_it(self):
+        # "assetripper-source-<pin>-<digest>" and "cpp2il-source-..." fit the "<name>-<version>-<digest>" shape.
+        kept = {}
+        for short, long in (("assetripper", "assetripper-source"), ("cpp2il", "cpp2il-source")):
+            self.archive(short, {"tool": short.encode()}, "tool")
+            self.archive(long, {"tool": long.encode()}, "tool")
+            kept[long] = bootstrap.install_path(self.work, long, self.lock)
+            current = bootstrap.install_path(self.work, short, self.lock)
+            kept[long].mkdir(parents=True)
+            current.mkdir()
+            stale_short = self.work / f"tools/{short}-older-pin-0123456789ab"
+            stale_long = self.work / f"tools/{long}-older-pin-0123456789ab"
+            stale_short.mkdir()
+            stale_long.mkdir()
+            self.assertEqual([], bootstrap._prune_superseded(short, self.lock, self.work))
+            self.assertTrue(current.is_dir())
+            self.assertTrue(kept[long].is_dir(), long)
+            self.assertTrue(stale_long.is_dir(), long)  # not the shorter tool's to prune
+            self.assertFalse(stale_short.exists(), short)
+            # The longer tool still prunes its own superseded pins.
+            self.assertEqual([], bootstrap._prune_superseded(long, self.lock, self.work))
+            self.assertTrue(kept[long].is_dir())
+            self.assertFalse(stale_long.exists(), long)
+            self.assertTrue(current.is_dir())
+
+    def test_failed_pruning_is_reported_without_failing_the_bootstrap(self):
+        first, _ = self.older_pin_install()
+        with mock.patch.object(bootstrap, "load_lock", return_value=self.lock), \
+                mock.patch.object(bootstrap, "_remove_unpacked_tree", side_effect=PermissionError("denied")):
+            result = bootstrap.bootstrap(self.work, ["dotnet"])
+        self.assertEqual("ready", result["status"], result)
+        self.assertIn(str(first), result["tools"]["dotnet"]["cleanup_warnings"][0])
+        self.assertTrue(first.is_dir())
 
     def test_archive_verified_install_can_be_revalidated_without_marker_authority(self):
         destination = self.install_fixture()
@@ -635,7 +721,7 @@ class ToolCacheTrustTests(unittest.TestCase):
                 recovery._inspect_managed_output(self.work, self.work, "sealed")
                 calls = runner.call_count
                 build = Path(self.executed[0][0]).parents[3]
-                mutate(build, self.work / "tools/dotnet")
+                mutate(build, bootstrap.install_path(self.work, "dotnet", self.lock))
                 with self.assertRaisesRegex(bootstrap.ToolError, "changed|link or special file"):
                     recovery._inspect_managed_output(self.work, self.work, "after-change")
                 self.assertEqual(calls, runner.call_count)
@@ -644,7 +730,7 @@ class ToolCacheTrustTests(unittest.TestCase):
 
     def reset_inspector_fixture(self):
         self.release_leases()
-        bootstrap._INSTALL_SEALS.pop(self.work / "tools/dotnet", None)
+        bootstrap._INSTALL_SEALS.pop(bootstrap.install_path(self.work, "dotnet", self.lock), None)
         shutil.rmtree(self.work / "tools")
 
     def test_self_consistent_native_build_pointer_cannot_create_origin(self):
@@ -670,7 +756,7 @@ class ToolCacheTrustTests(unittest.TestCase):
             (host / "downloads").mkdir()
             shutil.copyfile(self.work / "downloads" / artifact["filename"], host / "downloads" / artifact["filename"])
             tool = bootstrap._install("dotnet", self.lock, self.work)
-            self.assertEqual(host / "tools/dotnet", tool)
+            self.assertEqual(bootstrap.install_path(host, "dotnet", self.lock), tool)
             self.assertEqual(b"verified host", (tool / "dotnet").read_bytes())
             with mock.patch.dict(os.environ, {"HOME": str(self.work), "DOTNET_STARTUP_HOOKS": "inert-poison", "MSBuildSDKsPath": str(self.work), "NUGET_PACKAGES": str(self.work)}):
                 env = bootstrap.dotnet_environment(self.work, tool)
@@ -702,7 +788,7 @@ class ToolCacheTrustTests(unittest.TestCase):
         for name in ("Directory.Build.props", "Directory.Build.targets", "NuGet.Config", "global.json"):
             (self.work / name).write_text("inert contributor config")
         with bootstrap.isolated_host_cache(self.directory) as host:
-            sdk = host / "tools/dotnet/dotnet"
+            sdk = host / "tools/dotnet-fixture/dotnet"  # verified_tool_path is mocked below, so any pinned-looking location serves
             sdk.parent.mkdir(parents=True)
             sdk.write_bytes(b"inert verified SDK stand-in")
             dependency = host / "native-dependency"

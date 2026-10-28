@@ -476,7 +476,7 @@ class RuntimeContractReaderBuildTests(unittest.TestCase):
         self.binary_path = self.run / 'reader/ProjectLucid.ThemeContracts.dll'
         self.binary_path.parent.mkdir(parents=True)
         self.binary_path.write_bytes(b'explicit synthetic metadata bytes, never acceptance')
-        self.host = self.work / 'tools/dotnet/dotnet'
+        self.host = self.work / 'tools' / bootstrap.install_dir_name('dotnet', bootstrap.host_lock()['artifacts']['dotnet']) / 'dotnet'
         self.host.parent.mkdir(parents=True); self.host.write_bytes(b'not invoked')
         self.sources = [self.root/'tools/theme-contracts/ThemeContracts.csproj',
                         self.root/'tools/theme-contracts/Program.cs',self.root/'tools/theme-contracts/LoadedDeclarations.cs']
@@ -528,7 +528,7 @@ class RuntimeContractReaderBuildTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.invoke()
 
     def test_windows_reader_host_is_the_verified_dotnet_exe(self):
-        windows_host = self.work / 'tools/dotnet/dotnet.exe'
+        windows_host = self.work / 'tools' / bootstrap.install_dir_name('dotnet', bootstrap.host_lock()['artifacts']['dotnet']) / 'dotnet.exe'
         windows_host.write_bytes(b'not invoked either')
         with mock.patch.object(bootstrap, '_windows_host', return_value=True):
             with self.assertRaises(ValueError): self.invoke()

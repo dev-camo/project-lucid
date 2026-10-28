@@ -39,7 +39,7 @@ class NativeHelpersTests(unittest.TestCase):
         self.project = self.project_dir / "NativeRecovery.csproj"
         self.project.write_text("fixture project")
         (self.project_dir / "Program.cs").write_text("fixture harness")
-        self.source = self.work / "tools/cpp2il-source"
+        self.source = bootstrap_module.install_path(self.work, "cpp2il-source")
         items = []
         for name in native._SOURCE_PROJECTS:
             source_file = self.source / name / "Original.cs"
@@ -49,7 +49,7 @@ class NativeHelpersTests(unittest.TestCase):
             items.append(f'<PinnedCpp2ILSource Include="$(Cpp2ILSource)/{name}/Original.cs" ExpectedHash="{checksum}" />')
         self.manifest = self.project_dir / "SourcePin.props"
         self.manifest.write_text("<Project><ItemGroup>" + "".join(items) + "</ItemGroup></Project>")
-        self.dotnet = self.work / "tools/dotnet/dotnet"
+        self.dotnet = bootstrap_module.install_path(self.work, "dotnet") / "dotnet"
         self.dotnet.parent.mkdir(parents=True)
         self.dotnet.write_bytes(b"pinned dotnet fixture")
         self.archive = self.work / "downloads/source.tar.gz"
@@ -513,7 +513,7 @@ class NativeHelpersTests(unittest.TestCase):
 
     def windows_host(self):
         fake = RegionMsvcrt()
-        (self.work / "tools/dotnet/dotnet.exe").write_bytes(b"pinned windows dotnet fixture")
+        (bootstrap_module.install_path(self.work, "dotnet") / "dotnet.exe").write_bytes(b"pinned windows dotnet fixture")
         return fake, mock.patch.multiple(bootstrap_module, fcntl=None, msvcrt=fake,
                                          _windows_host=mock.Mock(return_value=True))
 
@@ -540,7 +540,7 @@ class NativeHelpersTests(unittest.TestCase):
         self.assertEqual("ready", results[0]["status"])
         self.assertEqual([1], held)
         self.assertEqual({}, fake.held)
-        self.assertEqual(str(self.work / "tools/dotnet/dotnet.exe"), run.call_args.args[0][0])
+        self.assertEqual(str(bootstrap_module.install_path(self.work, "dotnet") / "dotnet.exe"), run.call_args.args[0][0])
         self.assertEqual(hashlib.sha256(b"pinned windows dotnet fixture").hexdigest(),
                          results[0]["dotnet_host_sha256"])
 
@@ -593,7 +593,7 @@ class NativeHelpersTests(unittest.TestCase):
                  mock.patch.object(bootstrap_module, "_windows_host", return_value=windows):
                 report, run = self.invoke()
                 self.assertEqual("ready", report["status"])
-                self.assertEqual(str(self.work / "tools/dotnet" / name), run.call_args.args[0][0])
+                self.assertEqual(str(bootstrap_module.install_path(self.work, "dotnet") / name), run.call_args.args[0][0])
 
     def test_work_dir_and_symlink_boundaries_are_enforced(self):
         with self.assertRaises(ValueError):

@@ -10,7 +10,7 @@ import plistlib
 import re
 import uuid
 
-from .bootstrap import (ToolError, NO_BUILD_SERVER_ARGS, bootstrap, dotnet_environment, exclusive_lock, executable, leased_build,
+from .bootstrap import (ToolError, install_path, NO_BUILD_SERVER_ARGS, bootstrap, dotnet_environment, exclusive_lock, executable, leased_build,
                         managed_path, open_coordinator_lock, run_logged, validate_work_dir, write_json,
                         tool_work_dir, verified_tool_path)
 from .inspection import sha256_file
@@ -191,7 +191,7 @@ def _managed_inspector(work_dir: Path, dotnet: Path, env: dict) -> tuple[Path, l
 
 def _inspect_managed_output(directory: Path, work_dir: Path, run_id: str, *, schemas: bool = False) -> dict:
     """Inspect actual emitted IL using .NET's metadata reader, not tool counters."""
-    dotnet_root = managed_path(tool_work_dir(work_dir), "tools", "dotnet")
+    dotnet_root = install_path(work_dir, "dotnet")
     if not executable(dotnet_root / "dotnet").is_file():
         raise ToolError("Native .NET 10 SDK is missing for managed-output inspection")
     env = dotnet_environment(work_dir, dotnet_root)
@@ -223,7 +223,7 @@ def _cpp2il(thin: Path, metadata: Path, version: str, work_dir: Path, mode: str,
         return {"tool": "cpp2il", "status": "failed", "error": item.get("error", "Bootstrap failed")}
     output = managed_path(work_dir, "recovery", run_id, "cpp2il")
     output.parent.mkdir(parents=True, exist_ok=True)
-    dotnet_root = managed_path(tool_work_dir(work_dir), "tools", "dotnet")
+    dotnet_root = install_path(work_dir, "dotnet")
     environment = dotnet_environment(work_dir, dotnet_root)
     # The selected upstream build has intermittently crashed during parallel
     # emission/analysis on the Mac host. Keep this experimental process bounded
@@ -279,7 +279,7 @@ def _dumper(thin: Path, metadata: Path, work_dir: Path, run_id: str) -> dict:
     output.mkdir(parents=True, exist_ok=False)
     # The net6 Il2CppDumper build runs on the pinned .NET 10 runtime; Major roll-forward lets
     # the net6 framework reference bind to it (its dump output is byte-identical to .NET 6).
-    runtime = managed_path(tool_work_dir(work_dir), "tools", "dotnet")
+    runtime = install_path(work_dir, "dotnet")
     process = run_logged([str(executable(runtime / "dotnet")), item["path"], str(thin), str(metadata), str(output)],
                          work_dir, f"dumper-{run_id}.log", timeout=300,
                          env={**dotnet_environment(work_dir, runtime), "DOTNET_ROLL_FORWARD": "Major"})
