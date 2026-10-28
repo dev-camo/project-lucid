@@ -42,8 +42,11 @@ python3 tools/assetripper_identity_table.py roundtrip --witness <new dir>/projec
 That runs `identitymap.build_baseline_project` and then compares every output file with the baseline
 file of the same path (not only with the table's hashes). `check` parses the table and its header.
 
-Two independent witness exports of the input made the same table, byte for byte (see the PR for the run
-labels and sha256). The roundtrip used the second witness.
+Two independent witness exports of the input made the same table, byte for byte (sha256
+`57029c814290dd35f777ce5111ceb53f30f1a94bf41fea546fcc13fef450476e`). The roundtrip on the second witness
+rewrote 29,285 `.meta` GUIDs, 33,062 `timeCreated` values, 1,877,440 references, 1 build-settings scene entry
+and 619 mixer tokens, and all 71,187 files of `ExportedProject` then equalled the baseline's by sha256 (about
+110 minutes on an Apple Silicon Mac, mostly in Python regular expressions over the 20 GB project).
 
 ## What is in it (1.10.1)
 
@@ -65,7 +68,7 @@ applies (written serialized member = a member read from a serialized file and wr
 
 | type | collections | rule |
 | --- | ---: | --- |
-| `AssetExportCollection`1` | 7,848 | `asset`: the only written member; if there is none, see below |
+| ``AssetExportCollection`1`` | 7,848 | `asset`: the only written member; if there is none, see below |
 | `ScriptableObjectExportCollection` | 8,170 | `single` |
 | `YamlStreamedAssetExportCollection` | 5,912 | `single` |
 | `PrefabExportCollection` | 3,588 | `prefab_root`: the GameObject whose transform has no father |
@@ -88,14 +91,14 @@ applies (written serialized member = a member read from a serialized file and wr
 
 Findings that changed the rules the relabel step started with (all had tests added):
 
-- The real type names differ from the first guesses (`AssetExportCollection`1` is generic, there is no
+- The real type names differ from the first guesses (``AssetExportCollection`1`` is generic, there is no
   `MaterialExportCollection`). Every real type now has a rule; a type without one is still refused.
 - `TextureExportCollection` includes 147 cubemaps (class 89) and `FontAssetExportCollection` writes a
   material, a texture and a font, so the old rules `class 28` and `single` could not select one member.
 - `ManagerExportCollection` (15) and `EditorBuildSettingsExportCollection` (1) own no file but do have a
   random GUID, so the old `none` rule (no GUID) refused them. The new `unowned` rule accepts the GUID and
   records it so that it can never appear in the output.
-- 57 `AssetExportCollection`1` collections hold one generated `LightingDataAsset` (class 1120) and no
+- 57 ``AssetExportCollection`1`` collections hold one generated `LightingDataAsset` (class 1120) and no
   original member: the path is `<scene folder>/LightingData.asset` and the object lives in AssetRipper's
   `Generated Lighting Data Assets`, with a generation-order PathID. They are anchored on the scene their
   `m_Scene` names: the scene's anchor file and PathID with class 1120. This rule is more than the
@@ -109,7 +112,8 @@ Findings that changed the rules the relabel step started with (all had tests add
 exports the tokens map by position to the baseline's: 156 distinct witness values, the value mapping is a
 function and injective (`identitymap._mixer_edits` refuses otherwise). 115 of the 619 positions (46 of the
 156 values) are the same in the witness and the baseline (AssetRipper does not regenerate them); the other
-values are fresh in every export and are rewritten by position.
+values are fresh in every export and are rewritten by position. Comparing the two witnesses directly, the
+same 115 positions and 46 values are equal, and the W1 to W2 mapping is also a function.
 
 ### Order-witnessed classes (`W` rows)
 
@@ -117,12 +121,14 @@ Colour refinement over the baseline's collections, with no path, name, PathID or
 information: the start colour is the file content with every GUID position masked (and the `.meta`
 without `guid:` and `timeCreated:`), and each round adds the colours of the collections referenced (in file
 order) and of the referrers. 539 classes (1,249 collections) stay in one class after 5 rounds: sizes 2
-(518 classes), 3 (4), 4 (6), 5 (1), 6 (2), 8 (2), 17 (1), 18 (2), 23 (1), 26 (1), 42 (1). They are mostly
-`.asset` meshes (`PolybrushMesh-*`, 1,109 collections) and `.mat` materials (`Custom_Mesh_-_BakedMat_*`,
-122); 520 of the 539 classes have members that share a path once a collision suffix is removed. For these
-the baseline GUID given to each collection rests on AssetRipper's export order, which two witness exports
-reproduced; the bytes of the output cannot differ either way. They are listed as `W` rows, reported by
-`build_baseline_project` as `order_witnessed`, and are never used as provenance evidence.
+(518 classes), 3 (4), 4 (6), 5 (1), 6 (2), 8 (2), 17 (1), 18 (2), 23 (1), 26 (1), 42 (1). By the directory
+of the first member: 483 of the size-2 classes are sprites below `Assets/Sprite` (the same sprite in the HD
+and the SD atlas bundle, as the design expected); the larger classes are `PolybrushMesh-*` meshes and
+`Custom_Mesh_-_BakedMat_*` materials, and the rest are a few ScriptableObjects, audio clips, two pairs of scenes, a
+cubemap and a prefab. 520 of the 539 classes have members that share a path once a collision suffix is
+removed. For these the baseline GUID given to each collection rests on AssetRipper's export order, which
+two witness exports reproduced; the bytes of the output cannot differ either way. They are listed as `W`
+rows, reported by `build_baseline_project` as `order_witnessed`, and are never used as provenance evidence.
 
 ### Unresolved references (`U` rows)
 
