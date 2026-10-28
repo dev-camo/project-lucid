@@ -211,10 +211,31 @@ class TableTests(Fixture):
         self.table["collections"][("cab|odd\t%", 1, 28)] = {
             "guid": g("9"), "digest": "d" * 64, "paths": paths, "time_created": [1, 2, 3, 4],
             "sha256": ["e" * 64] * 4, "meta_sha256": ["f" * 64] * 4}
+        # Mixer rows may only name a collection's .mixer file, so the awkward mixer path is owned too.
+        self.table["collections"][("cab|mixer", 2, 241)] = {
+            "guid": g("5a"), "digest": "c" * 64, "paths": ["Assets/Audio/Mix|er.mixer"], "time_created": [6],
+            "sha256": ["e" * 64], "meta_sha256": ["f" * 64]}
         self.table["files"]["ProjectSettings/new\nline\rx|y%.asset"] = "b" * 64
         self.table["mixer"]["Assets/Audio/Mix|er.mixer"] = [g("7"), g("7")]
         self.table["scripts"]["Assets/Scripts/p|q%.cs"] = {"guid": g("8"), "time_created": 5, "sha256": "1" * 64,
                                                             "meta_sha256": "2" * 64}
+
+    def test_empty_file_path_is_refused(self):
+        text = identitymap.format_table(self.table)
+        self.assertIn("empty file path", self.refused("table_malformed", lambda: identitymap.parse_table(
+            self.resorted(text, extra=["F\t\t" + "b" * 64]))))
+
+    def test_mixer_rows_must_name_a_collections_mixer_file(self):
+        owned = next(path for row in self.table["collections"].values() for path in row["paths"]
+                     if not path.endswith(".mixer"))
+        cases = {"a file no collection owns": "Assets/Audio/Other.mixer",
+                 "a collection's file that is not a mixer": owned,
+                 "an unowned settings file": "ProjectSettings/ProjectSettings.asset", "an empty path": ""}
+        for label, path in cases.items():
+            with self.subTest(label):
+                table = dict(self.table, mixer={path: [g("7")]})
+                self.assertIn("mixer rows must name", self.refused(
+                    "table_malformed", lambda: identitymap.parse_table(identitymap.format_table(table))))
 
     def test_real_baseline_path_with_a_pipe_round_trips(self):
         self.awkward_table()
@@ -564,6 +585,19 @@ class RelabelTests(Fixture):
                          (self.stage / "Assets/Audio/Main.mixer").read_bytes())
         self.assertEqual({"files": 13, "asset_guid_values": 1}, gate)
 
+    def test_reference_inside_the_mixer_is_relabelled_as_a_reference(self):
+        # Only bare tokens are mapped by position; a {fileID, guid, type} reference in the mixer goes
+        # through the collection GUID map like any other reference.
+        def mixer_with_reference(texture, tokens):
+            body = f"ref: {{fileID: 2800000, guid: {texture}, type: 3}}\n"
+            return yaml((241, 2410000, body + "".join(f"t{i}: {token}\n" for i, token in enumerate(tokens))))
+        write(self.fresh_dir, {"Assets/Audio/Main.mixer": mixer_with_reference(FRESH["tex"], MIXER_FRESH)})
+        write(self.baseline_dir, {"Assets/Audio/Main.mixer": mixer_with_reference(BASE["tex"], MIXER_BASE)})
+        self.table = build_table(self.baseline_dir, collections(BASE))
+        self.run_all()
+        self.assertEqual((self.baseline_dir / "Assets/Audio/Main.mixer").read_bytes(),
+                         (self.stage / "Assets/Audio/Main.mixer").read_bytes())
+
     def test_mixer_token_count_must_equal_the_table(self):
         for label, fresh in {"extra": [g("f"), g("9"), g("e")], "fewer": [g("f")]}.items():
             with self.subTest(label):
@@ -694,13 +728,21 @@ class WholeTests(Fixture):
         return identitymap.build_baseline_project(self.fresh_dir, self.tmp / "export_identity.json",
                                                   self.tmp / "table.txt", self.stage, [CATALOG], *header)
 
-    def test_table_for_another_input_commit_or_patch_is_refused_before_anything_is_read(self):
+    def test_table_for_another_input_commit_or_patch_is_refused_before_any_check_or_stage(self):
         for index, other in enumerate(("f" * 64, "f" * 40, "f" * 64)):
             with self.subTest(("input", "assetripper", "patch")[index]):
                 header = [HEADER["input"], HEADER["assetripper"], HEADER["patch"]]
                 header[index] = other
                 self.refused("table_header_mismatch", lambda: self.build(header))
                 self.assertFalse(self.stage.exists())
+
+    def test_table_file_with_crlf_line_ends_is_refused(self):
+        (self.tmp / "export_identity.json").write_text(json.dumps({"format": 1, "collections": self.records}))
+        (self.tmp / "table.txt").write_bytes(identitymap.format_table(self.table).replace("\n", "\r\n").encode())
+        self.refused("table_malformed", lambda: identitymap.build_baseline_project(
+            self.fresh_dir, self.tmp / "export_identity.json", self.tmp / "table.txt", self.stage, [CATALOG],
+            HEADER["input"], HEADER["assetripper"], HEADER["patch"]))
+        self.assertFalse(self.stage.exists())
 
     def test_a_refused_end_gate_leaves_no_stage(self):
         self.table["files"]["ProjectSettings/ProjectSettings.asset"] = "0" * 64

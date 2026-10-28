@@ -229,6 +229,12 @@ def parse_table(text: str) -> dict:
             table["witnessed"].append([_check(GUID, item, line) for item in members])
         else:
             raise IdentityMapError("table_malformed", f"unknown line kind: {line[:160]}")
+    # Positional mixer rewriting applies only to an AudioMixer asset a collection row owns, never to any
+    # other file the table might name.
+    owned = {path for row in table["collections"].values() for path in row["paths"]}
+    for path in table["mixer"]:
+        if not path.endswith(".mixer") or path not in owned:
+            raise IdentityMapError("table_malformed", f"mixer rows must name a collection's .mixer file: {path!r}")
     repeated = sorted(guid for guid, times in guids.items() if times > 1)
     if repeated:
         raise IdentityMapError("table_malformed", f"baseline GUID used by more than one row: {repeated[0]}")
@@ -469,7 +475,6 @@ def check_collisions(project: Path, plan: dict, table: dict, catalog_keys) -> di
     baseline = baseline_guids(table) | set(plan["guids"].values())
     catalog = {key.lower() for key in catalog_keys}
     references, assets, others, counts = set(), {}, {}, Counter()
-    mixers = set(table["mixer"])
     for path, relative in _files(project):
         for _, _, kind, text in tokens(path.read_bytes(), relative):
             counts[kind] += 1
@@ -507,8 +512,8 @@ def relabel(project: Path, stage: Path, plan: dict, table: dict) -> dict:
         times.update({path + ".meta": time for path, time in zip(row["paths"], row["time_created"])})
     times.update({path + ".meta": row["time_created"] for path, row in table["scripts"].items()})
     mapping, counts = plan["guids"], Counter()
-    shutil.copytree(project, stage)
     try:
+        shutil.copytree(project, stage)
         return _relabel_stage(stage, plan, table, times, mapping, counts)
     except BaseException:
         shutil.rmtree(stage, ignore_errors=True)  # a refused stage must not look like a result
@@ -627,7 +632,7 @@ def build_baseline_project(project: Path, identity: Path, table_path: Path, stag
     """Run steps 1 to 5 on an exported project and write the baseline project to `stage`. The table must
     have been made for this input, AssetRipper commit and patch. A refusal in any step leaves no stage."""
     collections = exportidentity.load_identity(identity)
-    table = parse_table(Path(table_path).read_text(encoding="utf-8"))
+    table = parse_table(Path(table_path).read_bytes().decode("utf-8"))  # read_text would turn CRLF into LF
     require_header(table, input_sha256, assetripper, patch_sha256)
     counts = validate_identity(project, collections)
     plan = lookup(project, collections, table)
