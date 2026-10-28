@@ -72,30 +72,46 @@ SCENE_GUID = re.compile(rb"^    guid: ([0-9a-f]{32})[ \t]*\r?$", re.MULTILINE)
 TIME_CREATED = re.compile(rb"^timeCreated: -?\d+(?=[ \t]*\r?$)", re.MULTILINE)
 DOCUMENT = re.compile(rb"^--- !u!(\d+) &(-?\d+)(?: stripped)?\r?$", re.MULTILINE)
 GAME_OBJECT, TRANSFORM, RECT_TRANSFORM = 1, 4, 224
+LIGHTING_DATA_ASSET = 1120
+LIGHTING_SCENE = re.compile(rb"^  m_Scene: \{fileID: 102900000, guid: ([0-9a-f]{32}), type: 3\}[ \t]*\r?$", re.MULTILINE)
 
-# Anchor rule per collection type. ("single",): the only written serialized member.
-# ("class", n): the only written serialized member of ClassID n. ("prefab_root",): the root
-# GameObject. ("first",): the written serialized member with the lowest PathID (a scene is one
-# serialized file; members from two files are refused). ("script",) is verified by path. ("none",)
-# owns no files and no GUID.
-# A type not listed here is refused: its rule must be chosen on evidence.
+# Anchor rule per collection type (the names are AssetRipper 2.0.0's C# type names; a generic type keeps
+# its backtick arity). ("single",): the only written serialized member. ("class", n): the only written
+# serialized member of ClassID n. ("classes", (n, ...)): the only written serialized member whose ClassID
+# is one of them. ("asset",): like "single", except that a collection whose only written member is a
+# generated LightingDataAsset (class 1120, no original PathID) is anchored on the scene its m_Scene
+# names: the scene's anchor file and PathID with class 1120. ("prefab_root",): the root GameObject.
+# ("first",): the written serialized member with the lowest PathID (all from one serialized file;
+# members from two files are refused). ("script",) is verified by path. ("none",) owns no files and
+# no GUID. ("unowned",) owns no files; it has a random GUID that is never written to the project.
+# A type not listed here is refused: its rule must be chosen on evidence. The types in the last block
+# are the ones the 1.10.1 export has (tools/assetripper/TABLE.md); the others are kept for the tests.
 ANCHOR_RULES = {
     "AssetExportCollection": ("single",),
     "MaterialExportCollection": ("single",),
     "ShaderExportCollection": ("single",),
-    "TextAssetExportCollection": ("single",),
-    "FontAssetExportCollection": ("single",),
     "AudioExportCollection": ("single",),
-    "VideoClipExportCollection": ("single",),
-    "TextureExportCollection": ("class", 28),
     "AudioMixerExportCollection": ("class", 241),
     "AnimatorControllerExportCollection": ("class", 91),
     "PrefabExportCollection": ("prefab_root",),
     "SceneExportCollection": ("first",),
     "ScriptExportCollection": ("script",),
     "SceneAssetExportCollection": ("none",),
-    "ManagerExportCollection": ("none",),
-    "EditorBuildSettingsExportCollection": ("none",),
+    # Present in the 1.10.1 export:
+    "AssetExportCollection`1": ("asset",),
+    "AudioClipExportCollection": ("single",),
+    "EditorBuildSettingsExportCollection": ("unowned",),
+    "FontAssetExportCollection": ("class", 128),
+    "ManagerExportCollection": ("unowned",),
+    "ScriptableObjectExportCollection": ("single",),
+    "ScriptableObjectGroupExportCollection": ("first",),
+    "TerrainYamlExportCollection": ("single",),
+    "TextAssetExportCollection": ("single",),
+    "TextureArrayAssetExportCollection": ("single",),
+    "TextureExportCollection": ("classes", (28, 89)),
+    "VideoClipExportCollection": ("single",),
+    "YamlShaderExportCollection": ("single",),
+    "YamlStreamedAssetExportCollection": ("single",),
 }
 
 
@@ -343,20 +359,51 @@ def _prefab_root(project: Path, entry: dict) -> tuple:
     return members[0]
 
 
-def anchor(project: Path, entry: dict):
+def scene_anchors(collections: list[dict]) -> dict:
+    """Fresh scene GUID -> (serialized file, PathID) of each scene collection's anchor, for anchor()."""
+    found = {}
+    for entry in collections:
+        if entry["type"] in exportidentity.SCENE_TYPES and entry["guid"] is not None:
+            member = anchor(None, entry)
+            found[entry["guid"]] = (member[0], member[1])
+    return found
+
+
+def _lighting_anchor(project: Path, entry: dict, scenes: dict | None):
+    """A generated LightingDataAsset has no original PathID; it belongs to the scene it names."""
+    generated = [member for member in entry["members"] if member[5] and not member[4]]
+    if scenes is None or len(entry["paths"]) != 1 or len(generated) != 1 or generated[0][2] != LIGHTING_DATA_ASSET \
+            or len(entry["members"]) != 1:
+        raise IdentityMapError("anchor_missing", f"{entry['type']} collection {entry['order']} "
+                               f"({entry['paths'][:1]}): no original member and not a lone LightingDataAsset")
+    found = LIGHTING_SCENE.findall((project / entry["paths"][0]).read_bytes())
+    if len(found) != 1 or found[0].decode() not in scenes:
+        raise IdentityMapError("anchor_missing", f"{entry['paths'][0]}: {len(found)} m_Scene reference(s), "
+                               f"{sum(item.decode() in scenes for item in found)} to a known scene")
+    file, path_id = scenes[found[0].decode()]
+    return [file, path_id, LIGHTING_DATA_ASSET, generated[0][3], True, True]
+
+
+def anchor(project: Path | None, entry: dict, scenes: dict | None = None):
     """The anchor member of a collection, or None for collections that own no files. Refuses a type
-    with no rule and a collection whose rule does not select exactly one member."""
+    with no rule and a collection whose rule does not select exactly one member. `scenes` is
+    scene_anchors(...) and is needed only for a LightingDataAsset collection."""
     rule = ANCHOR_RULES.get(entry["type"])
     if rule is None:
         raise IdentityMapError(
             "unknown_collection_type", f"{entry['type']} (collection {entry['order']}) has no anchor rule")
-    if rule[0] in ("none", "script"):
+    if rule[0] in ("none", "unowned", "script"):
         return None
     written = _written(entry)
-    if rule[0] == "single":
+    if rule[0] in ("single", "asset"):
+        # Edge: one written serialized member plus a stray generated member (not read from a serialized file)
+        # still anchors on the written one, because only serialized members are counted. The generated member is
+        # not lost: member_digest covers every member, so a different generated member changes the digest.
         chosen = written
     elif rule[0] == "class":
         chosen = [member for member in written if member[2] == rule[1]]
+    elif rule[0] == "classes":
+        chosen = [member for member in written if member[2] in rule[1]]
     elif rule[0] == "first":
         if len({member[0] for member in written}) > 1:  # "lowest PathID" is only defined inside one file
             raise IdentityMapError("anchor_ambiguous", f"{entry['type']} collection {entry['order']} "
@@ -365,6 +412,8 @@ def anchor(project: Path, entry: dict):
         chosen = sorted(written, key=lambda member: member[1])[:1]
     else:
         return _prefab_root(project, entry)
+    if rule[0] == "asset" and not chosen:
+        return _lighting_anchor(project, entry, scenes)
     if len(chosen) != 1:
         raise IdentityMapError("anchor_ambiguous" if chosen else "anchor_missing",
                                f"{entry['type']} collection {entry['order']} ({entry['paths'][:1]}): "
@@ -378,15 +427,19 @@ def lookup(project: Path, collections: list[dict], table: dict) -> dict:
     verified against the table and never remapped.
 
     Returns {"guids": fresh -> baseline, "scripts": set of script GUIDs, "rows": fresh -> row,
-    "order_witnessed": sorted baseline GUIDs attributed by witnessed order (never provenance)}."""
-    guids, rows, used, script_paths = {}, {}, {}, []
+    "order_witnessed": sorted baseline GUIDs attributed by witnessed order (never provenance),
+    "unowned": fresh GUIDs of collections that own no file}."""
+    guids, rows, used, script_paths, unowned = {}, {}, {}, [], set()
+    scenes = scene_anchors(collections)
     for entry in collections:
-        member = anchor(project, entry)
+        member = anchor(project, entry, scenes)
         kind = ANCHOR_RULES[entry["type"]][0]
-        if kind == "none":
-            if entry["paths"] or entry["guid"] is not None:
+        if kind in ("none", "unowned"):
+            if entry["paths"] or (kind == "none" and entry["guid"] is not None):
                 raise IdentityMapError(
                     "identity_unexpected_files", f"{entry['type']} collection {entry['order']} owns files or a GUID")
+            if entry["guid"] is not None:
+                unowned.add(entry["guid"])  # random and never written: it must not appear in the output
             continue
         if kind == "script":
             script_paths += entry["paths"]
@@ -427,7 +480,7 @@ def lookup(project: Path, collections: list[dict], table: dict) -> dict:
                 "script_guid_differs", f"{path}: export {found and found[1].decode()} != table {row['guid']}")
     witnessed = sorted(item for members in table["witnessed"] for item in members)
     return {"guids": guids, "rows": rows, "scripts": {row["guid"] for row in table["scripts"].values()},
-            "order_witnessed": witnessed}
+            "order_witnessed": witnessed, "unowned": unowned}
 
 
 # ---------------------------------------------------------------- positions
@@ -471,7 +524,7 @@ def check_collisions(project: Path, plan: dict, table: dict, catalog_keys) -> di
     settings counts as a reference position). Also, a reference that
     resolves to nothing must not equal a baseline GUID, or it would bind after relabelling.
     Returns counts of the scanned positions."""
-    fresh = set(plan["guids"])
+    fresh = set(plan["guids"]) | plan.get("unowned", set())
     baseline = baseline_guids(table) | set(plan["guids"].values())
     catalog = {key.lower() for key in catalog_keys}
     references, assets, others, counts = set(), {}, {}, Counter()
@@ -567,10 +620,15 @@ def _relabel_stage(stage: Path, plan: dict, table: dict, times: dict, mapping: d
                           str(times[relative]).encode(), "time"))
         if not edits:
             continue
-        for start, end, value, kind in sorted(edits, reverse=True):
-            data = data[:start] + value + data[end:]
+        parts, cursor = [], 0  # one pass: the unedited stretches and the new values, in file order
+        for start, end, value, kind in sorted(edits):
+            if start < cursor:
+                raise IdentityMapError("edits_overlap", f"{relative}: two rewrites at byte {start}")
+            parts += (data[cursor:start], value)
+            cursor = end
             counts[kind] += 1
-        path.write_bytes(data)
+        parts.append(data[cursor:])
+        path.write_bytes(b"".join(parts))
     if mixers_done != set(table["mixer"]):
         raise IdentityMapError("mixer_file_missing", f"{sorted(set(table['mixer']) - mixers_done)[0]}")
     return dict(sorted(counts.items()))
@@ -613,7 +671,7 @@ def verify_output(source: Path, stage: Path, plan: dict, table: dict) -> dict:
         raise IdentityMapError("file_missing", relative)
     for relative in sorted(set(actual) - set(expected)):
         raise IdentityMapError("file_extra", relative)
-    fresh = set(plan["guids"])
+    fresh = set(plan["guids"]) | plan.get("unowned", set())
     for path, relative in _files(Path(stage)):
         for _, _, _, text in tokens(path.read_bytes(), relative):
             if text in fresh:
