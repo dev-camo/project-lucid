@@ -131,6 +131,31 @@ class ToolCacheTrustTests(unittest.TestCase):
         self.assertTrue(link.is_symlink())
         self.assertEqual(b"must survive", (outside / "keep").read_bytes())
 
+    def test_pruning_a_tool_keeps_installs_of_tools_whose_names_extend_it(self):
+        # "assetripper-source-<pin>-<digest>" and "cpp2il-source-..." fit the "<name>-<version>-<digest>" shape.
+        kept = {}
+        for short, long in (("assetripper", "assetripper-source"), ("cpp2il", "cpp2il-source")):
+            self.archive(short, {"tool": short.encode()}, "tool")
+            self.archive(long, {"tool": long.encode()}, "tool")
+            kept[long] = bootstrap.install_path(self.work, long, self.lock)
+            current = bootstrap.install_path(self.work, short, self.lock)
+            kept[long].mkdir(parents=True)
+            current.mkdir()
+            stale_short = self.work / f"tools/{short}-older-pin-0123456789ab"
+            stale_long = self.work / f"tools/{long}-older-pin-0123456789ab"
+            stale_short.mkdir()
+            stale_long.mkdir()
+            self.assertEqual([], bootstrap._prune_superseded(short, self.lock, self.work))
+            self.assertTrue(current.is_dir())
+            self.assertTrue(kept[long].is_dir(), long)
+            self.assertTrue(stale_long.is_dir(), long)  # not the shorter tool's to prune
+            self.assertFalse(stale_short.exists(), short)
+            # The longer tool still prunes its own superseded pins.
+            self.assertEqual([], bootstrap._prune_superseded(long, self.lock, self.work))
+            self.assertTrue(kept[long].is_dir())
+            self.assertFalse(stale_long.exists(), long)
+            self.assertTrue(current.is_dir())
+
     def test_failed_pruning_is_reported_without_failing_the_bootstrap(self):
         first, _ = self.older_pin_install()
         with mock.patch.object(bootstrap, "load_lock", return_value=self.lock), \

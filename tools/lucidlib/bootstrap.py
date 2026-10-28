@@ -988,8 +988,14 @@ def _prune_superseded(name: str, lock: dict, work_dir: Path) -> list[str]:
     warnings: list[str] = []
     current = install_dir_name(name, host_lock(lock)["artifacts"][name])
     older = re.compile(re.escape(name) + r"-.+-[0-9a-f]{12}")
+    # "assetripper-source-<commit>-<digest>" also fits "assetripper-<version>-<digest>": a
+    # directory that starts with a longer-named pinned tool's name is that tool's, not ours.
+    pinned = {*lock["artifacts"], *(key for host in lock.get("hosts", {}).values() for key in host["artifacts"])}
+    longer = tuple(other + "-" for other in pinned if other.startswith(name + "-"))
     for path in sorted(managed_path(work_dir, "tools").iterdir()):
         if path.name == current or not (path.name == name or older.fullmatch(path.name)):
+            continue
+        if path.name.startswith(longer):
             continue
         if _is_link(path) or not path.is_dir():
             continue
