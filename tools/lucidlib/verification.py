@@ -1113,6 +1113,25 @@ def isolation_verdict(path, nonce, xml, mode, allowlist=None, side_effects=None)
             "leaks": leaks, "allowlisted": allowlisted, "side_effects": permanent, "errors": errors}
 
 
+# Unity Test Framework 1.1.33 sets Application.runInBackground before a PlayMode run
+# (PlaymodeLauncher.cs:36) and restores it only on re-entering Edit Mode, which a batch
+# run that quits never reaches, so the shipped `runInBackground: 0` is saved as 1.
+def _restore_test_framework_run_in_background(settings, before):
+    """Put back ProjectSettings.asset when that one line is its only change; True if restored."""
+    if before is None or not settings.is_file():
+        return False
+    now = settings.read_bytes()
+    if now == before:
+        return False
+    old_lines, new_lines = before.split(b"\n"), now.split(b"\n")
+    changed = [i for i in range(min(len(old_lines), len(new_lines))) if old_lines[i] != new_lines[i]]
+    if len(old_lines) != len(new_lines) or len(changed) != 1 or (
+            old_lines[changed[0]], new_lines[changed[0]]) != (b"  runInBackground: 0", b"  runInBackground: 1"):
+        return False
+    settings.write_bytes(before)
+    return True
+
+
 def run_tests(repo_root, work_dir, mode):
     if mode not in ("editmode", "playmode"):
         raise ValueError("Test mode must be editmode or playmode")
@@ -1149,7 +1168,10 @@ def run_tests(repo_root, work_dir, mode):
         write_json(fixture_path, fixture)
         environment["LUCID_FONT_REFERENCE_IMPORT_FIXTURE"] = str(fixture_path.resolve())
         environment["LUCID_FONT_REFERENCE_IMPORT_NONCE"] = fixture["nonce"]
+    settings = Path(repo_root) / "ProjectSettings/ProjectSettings.asset"
+    settings_before = settings.read_bytes() if mode == "playmode" and settings.is_file() else None
     result = run_owned(command, env=environment, timeout=1800)
+    restored_settings = _restore_test_framework_run_in_background(settings, settings_before)
     after = current_identity(repo_root)
     errors = []
     version_match = re.search(r"Unity Editor version:\s+(\S+)", log.read_text(errors="replace")) if log.is_file() else None
@@ -1180,6 +1202,8 @@ def run_tests(repo_root, work_dir, mode):
               "unity_version": actual_version, "editor": str(editor), "exit_code": result.returncode,
               "xml": str(xml), "log": str(log), "verdict": verdict, "isolation": isolation_result,
               "errors": errors, **after}
+    if restored_settings:
+        report["restored_test_framework_settings"] = ["ProjectSettings/ProjectSettings.asset: runInBackground"]
     write_json(managed_path(work_dir, "reports", mode + "-verification.json"), report)
     return report
 
