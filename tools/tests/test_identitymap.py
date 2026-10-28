@@ -744,6 +744,13 @@ class WholeTests(Fixture):
             HEADER["input"], HEADER["assetripper"], HEADER["patch"]))
         self.assertFalse(self.stage.exists())
 
+    def test_table_file_that_is_not_utf8_is_refused(self):
+        (self.tmp / "export_identity.json").write_text(json.dumps({"format": 1, "collections": self.records}))
+        (self.tmp / "table.txt").write_bytes(identitymap.format_table(self.table).encode() + b"\xff\n")
+        self.assertIn("not UTF-8", self.refused("table_malformed", lambda: identitymap.build_baseline_project(
+            self.fresh_dir, self.tmp / "export_identity.json", self.tmp / "table.txt", self.stage, [CATALOG],
+            HEADER["input"], HEADER["assetripper"], HEADER["patch"])))
+
     def test_a_refused_end_gate_leaves_no_stage(self):
         self.table["files"]["ProjectSettings/ProjectSettings.asset"] = "0" * 64
         self.refused("hash_mismatch", self.build)

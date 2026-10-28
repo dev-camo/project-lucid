@@ -632,7 +632,11 @@ def build_baseline_project(project: Path, identity: Path, table_path: Path, stag
     """Run steps 1 to 5 on an exported project and write the baseline project to `stage`. The table must
     have been made for this input, AssetRipper commit and patch. A refusal in any step leaves no stage."""
     collections = exportidentity.load_identity(identity)
-    table = parse_table(Path(table_path).read_bytes().decode("utf-8"))  # read_text would turn CRLF into LF
+    try:
+        text = Path(table_path).read_bytes().decode("utf-8")  # read_text would turn CRLF into LF
+    except UnicodeDecodeError as error:
+        raise IdentityMapError("table_malformed", f"table is not UTF-8: {error}") from error
+    table = parse_table(text)
     require_header(table, input_sha256, assetripper, patch_sha256)
     counts = validate_identity(project, collections)
     plan = lookup(project, collections, table)
