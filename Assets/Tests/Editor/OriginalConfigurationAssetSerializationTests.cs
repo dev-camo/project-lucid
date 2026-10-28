@@ -373,8 +373,8 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(export.input_fingerprint.sha256, prepared.input_fingerprint.sha256, "Immutable supplied release identity.");
             ImportBindings proof = prepared.script_bindings;
             Assert.IsNotNull(proof); Assert.AreEqual("verified_layout", proof.status); Assert.IsTrue(proof.references_modified);
-            // The separate Image rule extends, rather than replaces, the exact original 42-owner roster.
-            Assert.IsNotNull(proof.bindings); Assert.AreEqual(43, proof.bindings.Length);
+            // The separate Image and TransformRotator (#554) rules extend, rather than replace, the exact original 42-owner roster.
+            Assert.IsNotNull(proof.bindings); Assert.AreEqual(44, proof.bindings.Length);
             Assert.IsNotNull(proof.assets);
             var expectedOwners = new HashSet<string>(new[] {
                 "Game.Runtime::HardlightProject.LevelStartPositionDefinition",
@@ -420,12 +420,13 @@ namespace ProjectLucid.Tests
                 "Game.Runtime::HardlightProject.UIBlurRenderFeature",
                 "HLUnityCore.Runtime::Hardlight.ScalableFeature" }, StringComparer.Ordinal);
             Assert.AreEqual(1, proof.bindings.Count(b => b != null && b.assembly == "UnityEngine.UI" && b.full_name == "UnityEngine.UI.Image"));
+            Assert.AreEqual(1, proof.bindings.Count(b => b != null && b.assembly == "Game.Runtime" && b.full_name == "HardlightProject.TransformRotator"));
             var actualOwners = new HashSet<string>(StringComparer.Ordinal);
             foreach (ImportBinding item in proof.bindings)
             {
                 Assert.IsNotNull(item);
                 string owner = item.assembly + "::" + item.full_name;
-                if (owner == OriginalBindingRosterAssertions.ImageOwner) continue;
+                if (OriginalBindingRosterAssertions.IsAdmittedExtension(owner)) continue;
                 Assert.IsTrue(expectedOwners.Contains(owner), "Unexpected exact binding owner: " + owner);
                 Assert.IsTrue(actualOwners.Add(owner), "Duplicate exact binding owner: " + owner);
             }
