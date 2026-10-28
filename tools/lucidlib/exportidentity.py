@@ -16,7 +16,10 @@ import re
 ANCHOR = re.compile(rb"--- !u!(\d+) &(-?\d+)(?: stripped)?\r?$")
 META_GUID = re.compile(rb"^guid: ([0-9a-f]{32})\s*$", re.MULTILINE)
 SCENE_TYPES = ("SceneExportCollection",)
-YAML_SUFFIXES = (".unity", ".prefab")  # always YAML documents: an unreadable one is a failure, not a binary export
+# Every file with one of these suffixes in the protected baseline export starts with %YAML (zero exceptions across
+# 26k files), so an unreadable one is a failure. Genuine binary exports have their own suffixes (.png, .wav, ...).
+YAML_SUFFIXES = (".asset", ".anim", ".prefab", ".mat", ".playable", ".controller", ".texture2d", ".unity", ".lighting",
+                 ".overridecontroller", ".rendertexture", ".physicmaterial", ".guiskin", ".shadervariants", ".mixer")
 
 
 class IdentityError(ValueError):

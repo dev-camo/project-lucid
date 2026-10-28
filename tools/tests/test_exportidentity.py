@@ -105,6 +105,20 @@ class ExportIdentityTests(unittest.TestCase):
         self.fresh()
         self.assertEqual(1, self.check()["counts"]["non_yaml_files"])
 
+    def test_every_yaml_suffix_of_the_baseline_export_requires_yaml_but_binary_suffixes_stay_exempt(self):
+        # Review: the baseline export's .asset/.anim/.mat/... files all start with %YAML; only they are required.
+        self.write("Assets/A/a.asset", "", OTHER)
+        self.collections[1].update(paths=["Assets/A/a.asset"], type="ScriptableObjectExportCollection")
+        self.assertIn("yaml_unreadable", self.check()["failures"])
+        self.fresh()
+        (self.root / "Assets/Material/a.mat").write_text("damaged")
+        self.assertIn("yaml_unreadable", self.check()["failures"])
+        self.fresh()
+        (self.root / "Assets/Texture/t.png").write_bytes(b"\x89PNG\r\n")
+        result = self.check()
+        self.assertNotIn("yaml_unreadable", result["failures"])
+        self.assertEqual(1, result["counts"]["non_yaml_files"])
+
     def test_yaml_anchors_reads_stripped_documents_and_ignores_binary_files(self):
         path = self.root / "p.prefab"
         path.write_text("%YAML 1.1\n--- !u!1 &-5\nA:\n--- !u!4 &9 stripped\nB:\n")
