@@ -280,6 +280,9 @@ namespace ProjectLucid.Tests
             Assert.That(source, Does.Contain("CustomEditor \"UnityEditor.ShaderGraph.GenericShaderGraphMaterialGUI\""));
             Assert.That(source, Does.Contain("FallBack \"Hidden/Shader Graph/FallbackError\""));
             Assert.That(source, Does.Not.Contain("Fallback Off"));
+            // URP 14.0.11 CorePragmas.Forward (Unlit graph): the rendering-layer instancing option sits between the
+            // DOTS target line and the _WRITE_RENDERING_LAYERS variant.
+            Assert.That(source, Does.Match(@"#pragma target 4\.5 DOTS_INSTANCING_ON\s+#pragma instancing_options renderinglayer\s+#pragma multi_compile_fragment _ _WRITE_RENDERING_LAYERS"));
         }
 
         [Test]

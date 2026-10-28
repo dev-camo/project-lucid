@@ -45,6 +45,7 @@ Shader "HardLight/Sky/HL_Sky_Cubemap"
             #pragma multi_compile_instancing
             #pragma multi_compile _ DOTS_INSTANCING_ON
             #pragma target 4.5 DOTS_INSTANCING_ON
+            #pragma instancing_options renderinglayer
             #pragma multi_compile_fragment _ _WRITE_RENDERING_LAYERS
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
