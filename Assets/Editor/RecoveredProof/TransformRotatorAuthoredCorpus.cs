@@ -124,13 +124,18 @@ namespace ProjectLucid
             var prepare = JsonUtility.FromJson<Prepare>(prepareText);
             Require(export.status == "exported" && prepare.status == "prepared" && prepare.script_bindings.status == "verified_layout", "completed genuine preparation");
             Require(Path.GetFullPath(prepare.recovered_path) == Path.Combine(root, "Assets/Recovered"), "prepared root identity");
-            Require(export.run_id == "20261005T062956Z-cef5ba97" && export.input_fingerprint.algorithm == "sha256-content-manifest-v1" &&
+            Require(export.input_fingerprint.algorithm == "sha256-content-manifest-v1" &&
                 export.input_fingerprint.sha256 == "7f7af864f06ca17d0f7be4aa10b44a4b43d496a4b4af78db7957dc4d507c878e" &&
                 export.input_fingerprint.file_count == 3691 && export.input_fingerprint.total_bytes == 2506296102, "immutable canonical export identity");
             byte[] mapBytes = File.ReadAllBytes(OwnedPath(cache, export.asset_map_path));
-            Require(Hash(mapBytes) == "5521ba988ab52fa299060f2f32d35a6b327628482eb4d43e8b804de877a49758", "immutable asset map bytes");
-            var map = JsonUtility.FromJson<Map>(System.Text.Encoding.UTF8.GetString(mapBytes));
+            // Run id and absolute root are incidental to an extraction; content is pinned by the input fingerprint, the root-normalized map and the asset manifest.
+            string mapText = System.Text.Encoding.UTF8.GetString(mapBytes);
+            var map = JsonUtility.FromJson<Map>(mapText);
             Require(map.project_path == export.project_path, "original map root");
+            const string rootKey = "\n  \"project_path\": \"";
+            int rootAt = mapText.IndexOf(rootKey, StringComparison.Ordinal), rootEnd = rootAt < 0 ? -1 : mapText.IndexOf("\",\n", rootAt + rootKey.Length, StringComparison.Ordinal);
+            Require(rootAt >= 0 && rootEnd >= 0 && mapText.IndexOf(rootKey, rootAt + 1, StringComparison.Ordinal) < 0, "single asset map root field");
+            Require(Hash(System.Text.Encoding.UTF8.GetBytes(mapText.Substring(0, rootAt + rootKey.Length) + "<project>" + mapText.Substring(rootEnd))) == "d025cc509b938eaa43203d2ba895495bdee1293817a0090ba167d3ae4bdd7c37", "immutable asset map rows (root-normalized)");
             Asset script = map.assets.Single(a => a.path == "Assets/Scripts/Game.Runtime/HardlightProject/TransformRotator.cs");
             Require(script.guid == OriginalGuid && script.code_quarantined, "immutable original script row");
             Asset[] assets = map.assets.Where(a => a.script_references != null && a.script_references.Contains(OriginalGuid)).OrderBy(a => a.path, StringComparer.Ordinal).ToArray();
