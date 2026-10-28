@@ -270,6 +270,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.RecoveredShaderBatchTwoContractTests
     "SkyboxPortalVaryingsKeepDecodedVertexOutputs",
     "GameplayTimedPlatformVaryingsKeepDecodedVertexOutputs",
     "CharBoss03BodyBlobsVaryingsKeepDecodedVertexOutputs",
+    "SkyCubemapKeywordScopesAndPassMasksMatchOriginal",
+    "SkyCubemapKeepsShippedTagsEditorAndFallback",
+    "SkyCubemapVaryingsKeepDecodedVertexOutputs",
 ))
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
 
