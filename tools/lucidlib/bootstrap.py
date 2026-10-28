@@ -961,12 +961,43 @@ def dotnet_environment(work_dir: Path, dotnet_root: Path | None = None) -> dict:
     return env
 
 
+def install_dir_name(name: str, artifact: dict) -> str:
+    """Name an install after the pinned archive identity so a new pin installs beside an old one."""
+    digest = artifact.get("sha256") or artifact["sha512"]
+    return f"{name}-{artifact['version']}-{digest[:12]}"
+
+
+def install_path(work_dir: Path, name: str, lock: dict | None = None) -> Path:
+    """Where the currently pinned install of a tool lives (it may not be installed yet)."""
+    artifact = host_lock(lock)["artifacts"][name]
+    return managed_path(tool_work_dir(work_dir), "tools", install_dir_name(name, artifact))
+
+
+def _prune_superseded(name: str, lock: dict, work_dir: Path) -> None:
+    """Remove this tool's installs of other pins, including the unversioned layout of older checkouts.
+
+    Only names of the pattern this module creates are touched, never links. A failure
+    is ignored because the current install is already verified and the leftover is inert.
+    """
+    current = install_dir_name(name, host_lock(lock)["artifacts"][name])
+    older = re.compile(re.escape(name) + r"-.+-[0-9a-f]{12}")
+    for path in sorted(managed_path(work_dir, "tools").iterdir()):
+        if path.name == current or not (path.name == name or older.fullmatch(path.name)):
+            continue
+        if _is_link(path) or not path.is_dir():
+            continue
+        try:
+            _remove_unpacked_tree(path)
+        except OSError:
+            pass
+
+
 def _install(name: str, lock: dict, work_dir: Path) -> Path:
     work_dir = tool_work_dir(work_dir)
     artifact = host_lock(lock)["artifacts"][name]
-    destination = managed_path(work_dir, "tools", name)
+    destination = install_path(work_dir, name, lock)
     identity = {key: artifact[key] for key in ("version", "sha256", "sha512") if key in artifact}
-    managed_path(work_dir, "tools", name, artifact["entrypoint"])
+    managed_path(work_dir, "tools", destination.name, artifact["entrypoint"])
     recorded = _INSTALL_SEALS.get(destination)
     if recorded is not None and recorded[0] == identity:
         if recorded[1] != tree_seal(destination):
@@ -1016,7 +1047,7 @@ def _install(name: str, lock: dict, work_dir: Path) -> Path:
         if not published and tree_seal(destination) != expected:
             raise ToolError(
                 f"Cached {name} executable/dependency closure differs from the pinned archive; "
-                f"if it was installed by an older version of this tool, delete {destination} to reinstall")
+                f"delete {destination} to reinstall")
         _INSTALL_SEALS[destination] = (identity, expected)
     finally:
         if stage.exists():
@@ -1395,6 +1426,11 @@ def _ensure_assetripper_source(lock: dict, work_dir: Path) -> dict:
     return result
 
 
+# Pinned installs each tool selection leaves in use (the others are superseded).
+_INSTALLS_OF = {"cpp2il": ("dotnet", "cpp2il-source"), "assetripper-source": ("dotnet", "assetripper-source"),
+                "dumper": ("dumper", "dotnet")}
+
+
 def bootstrap(work_dir: Path, selected=None) -> dict:
     """Install selected pinned tools. Defaults to AssetRipper and Cpp2IL."""
     work_dir = tool_work_dir(work_dir)
@@ -1427,6 +1463,9 @@ def bootstrap(work_dir: Path, selected=None) -> dict:
                     item = {"status": "ready", "path": str(destination / artifact["entrypoint"]),
                             "version": artifact["version"]}
                 result["tools"][name] = item
+                # Only after the pinned install is verified: the old trees are not needed any more.
+                for installed in _INSTALLS_OF.get(name, (name,)):
+                    _prune_superseded(installed, lock, work_dir)
             except (ToolError, OSError, ValueError) as exc:
                 result["status"] = "failed"
                 result["tools"][name] = {"status": "failed", "error": str(exc)}

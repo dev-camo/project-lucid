@@ -31,7 +31,7 @@ import uuid
 from .audio import normalize_audio
 from .bootstrap import (ToolError, executable as native_executable, host_lock,
                         managed_path, tool_work_dir, tree_seal, validate_work_dir,
-                        verified_install_seal, verified_tool_path)
+                        verified_install_seal, verified_tool_path, install_path)
 from . import inputvariants
 from .inspection import _manifest, sha256_file
 
@@ -679,7 +679,7 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
     run = managed_path(work, "assets", "runs", run_id)
     # Reject retained publication links before creating any extraction output.
     managed_path(work, "assets", "latest-assets.json")
-    executable = native_executable(tool_work_dir(work) / "tools/assetripper/AssetRipper.GUI.Free")
+    executable = native_executable(install_path(work, "assetripper") / "AssetRipper.GUI.Free")
     if not executable.is_file():
         raise FileNotFoundError(f"AssetRipper is missing at {executable}; run the bootstrap command first")
     executable = verified_tool_path(work, "assetripper")
@@ -700,7 +700,7 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
               "input_variant": variant, "warnings": ["Generated script bodies are placeholders and remain quarantined.",
                            "Compiled shader data is preserved; shader source has not been reconstructed.",
                            "Catalog path matches require review before generating Addressables bindings."]}
-    install = managed_path(tool_work_dir(work), "tools", "assetripper")
+    install = install_path(work, "assetripper")
     runtime = managed_path(tool_work_dir(work), "tools", f".run-assetripper-{run_id}")
     stale = _stale_runtime_copies(install.parent)
     if stale:

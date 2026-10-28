@@ -42,7 +42,7 @@ class NativeIntegrationPreflightTests(unittest.TestCase):
         self.manifest = self.control / "SourcePin.props"
         for path in (self.project, self.manifest, self.control / "Program.cs"):
             path.write_text("inert control fixture; never built\n")
-        self.dotnet = self.work / "tools/dotnet" / bootstrap.host_lock()["artifacts"]["dotnet"]["entrypoint"]
+        self.dotnet = self.work / "tools" / bootstrap.install_dir_name("dotnet", bootstrap.host_lock()["artifacts"]["dotnet"]) / bootstrap.host_lock()["artifacts"]["dotnet"]["entrypoint"]
         self.dotnet.parent.mkdir(parents=True)
         self.dotnet.write_bytes(b"inert host fixture; never executed")
         (self.dotnet.parent / "host-dependency").write_bytes(b"inert host dependency")

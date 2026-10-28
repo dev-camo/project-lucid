@@ -57,7 +57,7 @@ class PlayerSchemaTests(unittest.TestCase):
         for entry in engine:
             if entry["name"] in ("cecil", "serialization"):
                 (output / Path(entry["path"]).name).write_bytes(Path(entry["path"]).read_bytes())
-        host = work / "tools/dotnet/dotnet"
+        host = bootstrap.install_path(work, "dotnet") / "dotnet"
         host.parent.mkdir(parents=True, exist_ok=True)
         host.write_bytes(b"sealed host fixture")
         source = root / "Assets/Fixture.cs"

@@ -527,7 +527,7 @@ class WrapperPublicationTests(unittest.TestCase):
         self.run = run; self.runs.append(run)
         output = run / "reader"; output.mkdir(); reader = output / "ProjectLucid.CodeProgress.dll"; reader.write_bytes(b"pinned reader")
         core = output / "Cpp2IL.Core.dll"; core.write_bytes(b"pinned cpp core")
-        host = work / "tools/dotnet/dotnet"; host.parent.mkdir(parents=True, exist_ok=True); host.write_bytes(b"pinned host")
+        host = bootstrap.install_path(work, "dotnet") / "dotnet"; host.parent.mkdir(parents=True, exist_ok=True); host.write_bytes(b"pinned host")
         return {"host": codeprogress.playercode._file_record(host), "path": str(reader), "sha256": codeprogress.sha256_file(reader), "sources": [],
                 "outputs": codeprogress.playerschema._tree_records(output, work)}
 

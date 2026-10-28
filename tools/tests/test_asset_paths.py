@@ -47,7 +47,7 @@ class AssetPathTests(unittest.TestCase):
         cache_root = mock.patch.object(bootstrap, "CACHE_ROOT", self.work)
         cache_root.start()
         self.addCleanup(cache_root.stop)
-        self.tool = bootstrap.executable(self.work / "tools/assetripper/AssetRipper.GUI.Free")
+        self.tool = bootstrap.executable(bootstrap.install_path(self.work, "assetripper") / "AssetRipper.GUI.Free")
         self.tool.parent.mkdir(parents=True)
         self.tool.write_bytes(b"not executable")
 

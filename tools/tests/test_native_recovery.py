@@ -102,7 +102,7 @@ class _IntegrationPreflight:
 
     def _host(self):
         host_work = bootstrap.tool_work_dir(self.work)
-        directory = bootstrap.managed_path(host_work, "tools", "dotnet")
+        directory = bootstrap.install_path(host_work, "dotnet")
         # Do not let verified_tool_path install/download on an opt-in test's behalf.
         # Presence is only a prerequisite: its production validator checks the
         # exact pinned identity and complete executable/dependency closure below.
@@ -607,13 +607,13 @@ Console.WriteLine("guard_checks=11");
         return result
 
     def test_verified_source_passes_build_pin(self):
-        result = self.verify_source(CACHE / "tools/cpp2il-source")
+        result = self.verify_source(bootstrap.install_path(CACHE, "cpp2il-source"))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_changed_source_fails_build_pin(self):
         source = self.directory / "source"
         for name in ("Cpp2IL.Core", "LibCpp2IL", "StableNameDotNet", "WasmDisassembler"):
-            shutil.copytree(CACHE / "tools/cpp2il-source" / name, source / name,
+            shutil.copytree(bootstrap.install_path(CACHE, "cpp2il-source") / name, source / name,
                             ignore=shutil.ignore_patterns("bin", "obj"))
         (source / "Cpp2IL.Core/Cpp2IlApi.cs").write_text("// changed upstream input\n")
         archive = CACHE / "downloads" / f"Cpp2IL-{PIN}.tar.gz"
