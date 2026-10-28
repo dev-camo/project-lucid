@@ -23,7 +23,7 @@ Shader "HardLight/Sky/HL_Sky_Cubemap"
     {
         // The original is an opaque mesh pass with depth writes disabled.
         // Its direction comes from world normals, rather than camera position.
-        Tags { "RenderPipeline"="UniversalPipeline" "RenderType"="Opaque" "Queue"="Geometry" "UniversalMaterialType"="Unlit" }
+        Tags { "RenderPipeline"="UniversalPipeline" "RenderType"="Opaque" "Queue"="Geometry" "UniversalMaterialType"="Unlit" "DisableBatching"="False" "ShaderGraphShader"="true" "ShaderGraphTargetId"="UniversalUnlitSubTarget" }
         Pass
         {
             Name "Universal Forward"
@@ -35,8 +35,19 @@ Shader "HardLight/Sky/HL_Sky_Cubemap"
             #pragma target 3.5
             #pragma vertex Vert
             #pragma fragment Frag
-            #pragma multi_compile _ _WRITE_RENDERING_LAYERS
+            #pragma multi_compile _ LIGHTMAP_ON
+            #pragma multi_compile _ DIRLIGHTMAP_COMBINED
+            #pragma shader_feature _ _SAMPLE_GI
+            #pragma multi_compile_fog
+            #pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
+            #pragma multi_compile_fragment _ DEBUG_DISPLAY
+            #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
+            #pragma multi_compile_instancing
+            #pragma multi_compile _ DOTS_INSTANCING_ON
+            #pragma target 4.5 DOTS_INSTANCING_ON
+            #pragma multi_compile_fragment _ _WRITE_RENDERING_LAYERS
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
@@ -51,12 +62,28 @@ Shader "HardLight/Sky/HL_Sky_Cubemap"
             TEXTURECUBE(_Cubemap_Texture);
             SAMPLER(sampler_Cubemap_Texture);
 
-            struct Attributes { float3 positionOS : POSITION; float3 normalOS : NORMAL; };
-            struct Varyings { float4 positionCS : SV_POSITION; float3 normalWS : TEXCOORD1; };
+            struct Attributes
+            {
+                float3 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float3 positionWS : TEXCOORD0;
+                float3 normalWS : TEXCOORD1;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
             Varyings Vert(Attributes input)
             {
-                Varyings output;
-                output.positionCS = TransformObjectToHClip(input.positionOS);
+                Varyings output = (Varyings)0;
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_TRANSFER_INSTANCE_ID(input, output);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+                output.positionWS = TransformObjectToWorld(input.positionOS);
+                output.positionCS = TransformWorldToHClip(output.positionWS);
                 float3 normal = mul(input.normalOS, (float3x3)GetWorldToObjectMatrix());
                 output.normalWS = normal * rsqrt(max(dot(normal, normal), 1.17549435e-38));
                 return output;
@@ -68,6 +95,7 @@ Shader "HardLight/Sky/HL_Sky_Cubemap"
                       #endif
                       )
             {
+                UNITY_SETUP_INSTANCE_ID(input);
                 float3 normal = input.normalWS / sqrt(dot(input.normalWS, input.normalWS));
                 float sine, cosine;
                 sincos(_Cubemap_Rotation * 0.0174532924, sine, cosine);
@@ -83,5 +111,6 @@ Shader "HardLight/Sky/HL_Sky_Cubemap"
             ENDHLSL
         }
     }
-    Fallback Off
+    CustomEditor "UnityEditor.ShaderGraph.GenericShaderGraphMaterialGUI"
+    FallBack "Hidden/Shader Graph/FallbackError"
 }
