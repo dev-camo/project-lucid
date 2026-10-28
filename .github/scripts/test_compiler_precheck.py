@@ -259,6 +259,7 @@ class OptionalPrecheckTests(unittest.TestCase):
                 with mock.patch.object(sys, 'argv', arguments), \
                         mock.patch.object(precheck.Path, 'home', return_value=self.root), \
                         mock.patch.object(precheck.witness, '_tracked_inventory', return_value=inventory), \
+                        mock.patch.object(precheck, 'game_runtime_roster', return_value=[relative]), \
                         mock.patch.object(precheck.witness, 'admit_source_changes', return_value=(relative,)), \
                         mock.patch.object(precheck.shared, 'git_head', side_effect=lambda path: self.identity['head' if path == self.source else 'control_commit']), \
                         mock.patch.object(precheck.shared.driver, 'require_control_reporting_tools'), \
@@ -284,6 +285,55 @@ class OptionalPrecheckTests(unittest.TestCase):
                                           package_identity=precheck.identity_digest(precheck.tree_identity(state / 'package-seed'))),
                                      json.loads(output.getvalue()))
                     self.assertEqual('', errors.getvalue())
+
+    def test_non_runtime_change_is_unavailable_before_any_preparation(self):
+        # An Editor or test source is outside the Game.Runtime roster, so no child
+        # resource, broker, capture or Editor may be started for it.
+        def write(root, editor_text):
+            for relative, text in (('Assets/Scripts/RecoveredProof/Game.Runtime.asmdef', '{"name": "Game.Runtime"}'),
+                                   ('Assets/Scripts/RecoveredProof/A.cs', 'class A {}'),
+                                   ('Assets/Editor/E.cs', editor_text), ('Packages/manifest.json', '{}'),
+                                   ('ProjectSettings/ProjectVersion.txt', 'x')):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text)
+            subprocess.run(['git', 'init', '-q'], cwd=root, check=True)
+            subprocess.run(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', 'add', '-A'], cwd=root, check=True)
+            subprocess.run(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x'], cwd=root, check=True)
+        write(self.control, 'class E {}')
+        write(self.source, 'class E { int changed; }')
+        self.assertEqual(['Assets/Scripts/RecoveredProof/A.cs'],
+                         precheck.game_runtime_roster(self.control, precheck.witness._tracked_inventory(self.control)))
+        state = self.root / 'child'
+        state.mkdir()
+        output, errors = io.StringIO(), io.StringIO()
+        arguments = ['compiler_precheck.py', '--source', str(self.source), '--control', str(self.control),
+                     '--state', str(state), '--job-marker', str(self.root / 'job.json'), '--job-root', '100']
+        for name, value in self.identity.items():
+            arguments += ['--' + name.replace('_', '-'), value]
+        with mock.patch.object(sys, 'argv', arguments), \
+                mock.patch.object(precheck, 'child_resources', side_effect=AssertionError('prepared')) as prepared, \
+                mock.patch.object(precheck, 'capture_plan', side_effect=AssertionError('launched')) as launched, \
+                contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            precheck.main()
+        prepared.assert_not_called()
+        launched.assert_not_called()
+        self.assertEqual({'status': 'unavailable'}, json.loads(output.getvalue()))
+        self.assertEqual('admission', json.loads(errors.getvalue())['stage'])
+
+    def test_roster_follows_asmdef_asmref_ownership(self):
+        files = {'Assets/A/Game.Runtime.asmdef': '{"name": "Game.Runtime"}',
+                 'Assets/A/Game.Runtime.asmdef.meta': 'guid: ' + '1' * 32 + '\n',
+                 'Assets/A/X.cs': '', 'Assets/A/Sub/Y.cs': '',
+                 'Assets/A/Other/Other.asmdef': '{"name": "Other"}', 'Assets/A/Other/Z.cs': '',
+                 'Assets/B/Game.Runtime.asmref': '{"reference": "GUID:' + '1' * 32 + '"}',
+                 'Assets/B/W.cs': '', 'Assets/C/V.cs': '', 'Assets/A/Hidden~/H.cs': ''}
+        for relative, text in files.items():
+            path = self.control / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        self.assertEqual(['Assets/A/Sub/Y.cs', 'Assets/A/X.cs', 'Assets/B/W.cs'],
+                         precheck.game_runtime_roster(self.control, files))
 
     def test_parent_timeout_diagnostic_is_bounded_private_and_neutral(self):
         failure = subprocess.TimeoutExpired(['inert-' + 'x' * 4096], precheck.PRECHECK_SECONDS)
