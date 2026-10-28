@@ -1,6 +1,6 @@
 """The committed identity table (tools/assetripper/identity-table.txt) is canonical and made for the pinned inputs.
 
-Regenerating it needs the baseline export and a patched witness export, so that gate is a maintainer command
+Regenerating it needs the baseline export and a patched witness export, so that gate is a separate command
 (tools/assetripper/TABLE.md): assetripper_identity_table.py build ... --expect tools/assetripper/identity-table.txt.
 """
 
@@ -60,7 +60,7 @@ class CommittedTableTests(unittest.TestCase):
         self.assertEqual(len(witnessed), len(set(witnessed)))
         self.assertTrue(all(len(members) >= 2 for members in self.table["witnessed"]))
 
-    def test_file_is_smaller_than_the_size_the_owner_asked_to_be_consulted_about(self):
+    def test_file_is_at_most_15_mb(self):
         self.assertLess(TABLE.stat().st_size, 15_000_000)
 
 

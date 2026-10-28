@@ -1,6 +1,6 @@
 """Build the committed identity table from a patched witness export and the baseline export (issue #552).
 
-Maintainer-side and pure stdlib. The table (format in tools/lucidlib/identitymap.py) maps each
+Used when building the table; pure stdlib. The table (format in tools/lucidlib/identitymap.py) maps each
 exported collection, keyed by the original object it is anchored on (serialized file, PathID,
 ClassID), to the baseline GUID, paths, timeCreated and file hashes. The witness export W says which
 original object each of its files came from; the baseline export (the immutable reference run) says

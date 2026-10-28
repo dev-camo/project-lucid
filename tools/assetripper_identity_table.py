@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Maintainer commands for the committed identity table (#552). Read-only on the baseline and the input.
+"""Commands for the committed identity table (#552). Read-only on the baseline and the input.
 
   build      --witness W --baseline RUN --app APP --out TABLE [--report JSON] [--expect COMMITTED_TABLE]
-             Proves the input is the pinned one and the witness export W equals the baseline apart from the
+             Proves RUN is the pinned baseline run (its input-manifest.json hashes to the pinned value), that
+             the input is the pinned one and the witness export W equals the baseline apart from the
              known random fields, then writes the table keyed by W's original identities. Refuses on any
              unexplained difference.
-  roundtrip  --witness W --baseline RUN --table TABLE --stage DIR
+  roundtrip  --witness W --baseline RUN --table TABLE --stage DIR   (RUN must be the pinned baseline run too)
              Runs identitymap.build_baseline_project on W with the table and checks every output file against
              the baseline files themselves (not only against the table).
   check      --table TABLE
@@ -47,6 +48,17 @@ def input_manifest_sha256(app: Path) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def require_pinned_baseline(run: Path) -> str | None:
+    """None when `run` is the pinned baseline run (its input-manifest.json hashes to the pinned value), else why not."""
+    manifest = Path(run) / "input-manifest.json"
+    if not manifest.is_file():
+        return f"{run} has no input-manifest.json, so it is not the pinned baseline run"
+    found = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    if found != INPUT_MANIFEST_SHA256:
+        return f"the baseline run's input manifest is {found}, the pinned one is {INPUT_MANIFEST_SHA256}"
+    return None
+
+
 def baseline_catalog_keys(run: Path) -> list[str]:
     """The catalog's identifiers that look like a GUID (check_collisions compares fresh GUIDs with them)."""
     asset_map = json.loads((run / "asset-map.json").read_text(encoding="utf-8"))
@@ -59,6 +71,10 @@ def baseline_catalog_keys(run: Path) -> list[str]:
 def build(args) -> int:
     witness, run = Path(args.witness).resolve(), Path(args.baseline).resolve()
     header = pinned_header()
+    why = require_pinned_baseline(run)
+    if why:
+        print(f"REFUSED: {why}")
+        return 1
     found = input_manifest_sha256(args.app)
     if found != header["input"]:
         print(f"REFUSED: the input manifest is {found}, the pinned one is {header['input']}")
@@ -100,6 +116,10 @@ def build(args) -> int:
 def roundtrip(args) -> int:
     witness, run = Path(args.witness).resolve(), Path(args.baseline).resolve()
     header = pinned_header()
+    why = require_pinned_baseline(run)
+    if why:
+        print(f"REFUSED: {why}")
+        return 1
     result = identitymap.build_baseline_project(
         witness / "ExportedProject", witness / compare.IDENTITY, Path(args.table), Path(args.stage),
         baseline_catalog_keys(run), header["input"], header["assetripper"], header["patch"])

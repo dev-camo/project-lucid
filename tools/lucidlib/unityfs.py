@@ -1,5 +1,8 @@
 """Read-only reader of UnityFS (version 6 to 8) bundle headers and SerializedFile object tables, pure stdlib.
 
+Tested on the 3,497 bundles of the 1.10.1 input, all version 8 with the block info after the header (flags 0x240).
+A version 7 or 8 bundle with the block info at the end of the file is refused (not seen, so not verified).
+
 It exists to check the identity record against the input without AssetRipper (issue #552): the PathIDs
 that the patched exporter reports for a serialized file must be in that file's own object table. Only the
 parts needed for that are decoded: the bundle's block/node tables, the leading blocks of a node, and the
@@ -48,6 +51,9 @@ class Bundle:
         self.stream = self.path.open("rb")
         try:
             self._read_header()
+        except (struct.error, IndexError) as error:  # a truncated or inconsistent header
+            self.stream.close()
+            raise UnityFsError(f"truncated or malformed bundle {self.path}: {error}") from error
         except BaseException:
             self.stream.close()
             raise
@@ -75,7 +81,9 @@ class Bundle:
         position += 20
         if size != total or compressed > total or uncompressed > MAX_BLOCK_INFO or flags & 0x100:
             raise UnityFsError(f"bad UnityFS header sizes in {self.path}")
-        if flags & 0x80:  # block info at the end of the file
+        if flags & 0x80 and version >= 7:
+            raise UnityFsError(f"block info at the end of a version {version} bundle is not supported: {self.path}")
+        if flags & 0x80:  # block info at the end of the file (version 6)
             self.stream.seek(total - compressed)
             info_raw = self.stream.read(compressed)
             data_start = position
@@ -87,6 +95,8 @@ class Bundle:
             data_start = position + compressed
         if version >= 7 and flags & 0x200 and not flags & 0x80:
             data_start = (data_start + 15) & ~15
+        if len(info_raw) != compressed:
+            raise UnityFsError(f"truncated block info in {self.path}")
         info = _decode(flags, info_raw, uncompressed)
         count = struct.unpack_from(">i", info, 16)[0]
         if not 0 <= count <= MAX_BLOCKS:
@@ -127,7 +137,19 @@ class Bundle:
 
 
 def object_table(read) -> dict[int, int]:
-    """PathID -> ClassID (resolved through the type table) of a SerializedFile (version 17 to 22+); `read(offset, length)` returns file bytes."""
+    """PathID -> ClassID (resolved through the type table) of a SerializedFile (version 17 to 30); `read(offset, length)` returns file bytes."""
+    return {path_id: found[0] for path_id, found in objects(read).items()}
+
+
+def objects(read) -> dict[int, tuple[int, int, int]]:
+    """PathID -> (ClassID, absolute byte offset, byte size) of a SerializedFile; truncation raises UnityFsError."""
+    try:
+        return _objects(read)
+    except (struct.error, IndexError) as error:
+        raise UnityFsError(f"truncated or malformed serialized file: {error}") from error
+
+
+def _objects(read) -> dict[int, tuple[int, int, int]]:
     head = read(0, 48)
     metadata_size, file_size, version, data_offset = struct.unpack_from(">IIII", head, 0)
     if not 17 <= version <= 30:
@@ -181,12 +203,57 @@ def object_table(read) -> dict[int, int]:
     for _ in range(count):
         cursor = (cursor + 3) & ~3
         path_id = take("q")
-        take("Q" if version >= 22 else "I")  # byte start
-        take("I")  # byte size
+        start = take("Q" if version >= 22 else "I")  # byte start, relative to the data offset
+        size = take("I")
         type_id = take("i")
         if path_id in objects:
             raise UnityFsError(f"duplicate PathID {path_id}")
         if not 0 <= type_id < len(class_ids):
             raise UnityFsError(f"bad type index {type_id}")
-        objects[path_id] = class_ids[type_id]
+        objects[path_id] = (class_ids[type_id], data_offset + start, size)
     return objects
+
+
+ASSET_BUNDLE = 142
+
+
+def asset_bundle_container(data: bytes) -> list[tuple[str, int, int]]:
+    """The m_Container entries (key, PPtr fileID, PPtr pathID) of a little-endian class-142 AssetBundle object.
+
+    Layout (Unity 2022): m_Name (string), m_PreloadTable (PPtr vector), m_Container (map of string to
+    AssetInfo{preloadIndex, preloadSize, PPtr}); strings are 4-aligned, a PPtr is int32 + int64.
+    """
+    cursor = 0
+
+    def number(fmt: str):
+        nonlocal cursor
+        value = struct.unpack_from("<" + fmt, data, cursor)[0]
+        cursor += struct.calcsize(fmt)
+        return value
+
+    def string() -> str:
+        nonlocal cursor
+        length = number("i")
+        if not 0 <= length <= len(data) - cursor:
+            raise UnityFsError("bad string length in an AssetBundle object")
+        text = data[cursor:cursor + length].decode("utf-8", "replace")
+        cursor = (cursor + length + 3) & ~3
+        return text
+
+    try:
+        string()  # m_Name
+        preload = number("i")
+        if not 0 <= preload <= (len(data) - cursor) // 12:
+            raise UnityFsError("bad preload table size")
+        cursor += 12 * preload
+        count = number("i")
+        if not 0 <= count <= (len(data) - cursor) // 24:
+            raise UnityFsError("bad container size")
+        entries = []
+        for _ in range(count):
+            key = string()
+            number("i"), number("i")  # preload index and size
+            entries.append((key, number("i"), number("q")))
+    except (struct.error, IndexError) as error:
+        raise UnityFsError(f"truncated AssetBundle object: {error}") from error
+    return entries

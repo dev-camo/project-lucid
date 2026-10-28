@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the source-built AssetRipper on an original .app with the pipeline's export settings.
 
-Maintainer helper for #552 evidence runs: it writes only below --out (which must not
+Helper for #552 evidence runs: it writes only below --out (which must not
 exist) and never launches anything from the input; the built tool reads the input.
 Usage: assetripper_identity_export.py --ripper <AssetRipper.GUI.Free> --app <.app> --out <new dir>
 """

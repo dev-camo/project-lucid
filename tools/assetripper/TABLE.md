@@ -7,7 +7,7 @@ relabel step that uses it is `identitymap.build_baseline_project`. It is plain t
 tab separated, sorted, so that it can be regenerated and diffed. It discloses original asset paths and
 nothing else.
 
-It is made once by the maintainer, from the immutable baseline export (read only) and a patched witness
+It is made once, from the immutable baseline export (read only) and a patched witness
 export, and committed. A different input, AssetRipper commit or patch changes the header and is refused.
 
 | header field | value | where it comes from |
@@ -16,7 +16,7 @@ export, and committed. A different input, AssetRipper commit or patch changes th
 | `assetripper` | `1ac666f47d8e9dedf96afb0b914c70d7656151ea` | `tools/tool-lock.json`, `assetripper-source` |
 | `patch` | `18f417cf86131bafb64982441f6709ccb2cbbeddd7c53a5cd2241b4e8c6a50f8` | sha256 of `lucid-identity.patch` |
 
-## Regenerating it (maintainer)
+## Regenerating it
 
 ```
 python3 tools/lucid.py bootstrap --tool assetripper-source
@@ -27,7 +27,8 @@ python3 tools/assetripper_identity_table.py build --witness <new dir>/project \
     --expect tools/assetripper/identity-table.txt
 ```
 
-`build` refuses unless (1) the input's manifest hash equals the pinned one, (2) the witness equals the
+`build` refuses unless (0) `--baseline` is the pinned baseline run (its `input-manifest.json` hashes to the
+pinned `input` value; `roundtrip` requires the same), (1) the input's manifest hash equals the pinned one, (2) the witness equals the
 baseline apart from the known random fields (`assetripper_identity_compare.py compare`: the GUIDs, `.meta`
 `timeCreated`, the 110 `Main.mixer` values and the 16-byte MVID of 95 game assemblies; no other
 difference), (3) the identity record agrees with the exported files (`identitymap.validate_identity`),
@@ -45,8 +46,18 @@ file of the same path (not only with the table's hashes). `check` parses the tab
 Two independent witness exports of the input made the same table, byte for byte (sha256
 `57029c814290dd35f777ce5111ceb53f30f1a94bf41fea546fcc13fef450476e`). The roundtrip on the second witness
 rewrote 29,285 `.meta` GUIDs, 33,062 `timeCreated` values, 1,877,440 references, 1 build-settings scene entry
-and 619 mixer tokens, and all 71,187 files of `ExportedProject` then equalled the baseline's by sha256 (about
-110 minutes on an Apple Silicon Mac, mostly in Python regular expressions over the 20 GB project).
+and 619 mixer tokens, and all 71,187 files of `ExportedProject` then equalled the baseline's by sha256 (1 hour 53
+minutes 22 seconds of wall time on an Apple Silicon Mac, mostly in Python regular expressions and per-edit
+byte slicing over the 20 GB project; that run was made before the relabel step wrote each file in one pass).
+
+The static checks below run from the input, the committed table and the baseline run alone:
+
+```
+python3 -I tools/assetripper_identity_static.py table --app input/SonicDreamTeam.app \
+    --table tools/assetripper/identity-table.txt
+python3 -I tools/assetripper_identity_static.py container --app input/SonicDreamTeam.app \
+    --table tools/assetripper/identity-table.txt --asset-map <baseline run dir>/asset-map.json
+```
 
 ## What is in it (1.10.1)
 
@@ -101,10 +112,9 @@ Findings that changed the rules the relabel step started with (all had tests add
 - 57 ``AssetExportCollection`1`` collections hold one generated `LightingDataAsset` (class 1120) and no
   original member: the path is `<scene folder>/LightingData.asset` and the object lives in AssetRipper's
   `Generated Lighting Data Assets`, with a generation-order PathID. They are anchored on the scene their
-  `m_Scene` names: the scene's anchor file and PathID with class 1120. This rule is more than the
-  owner's recorded decision ("reject collections that have no original member") allows, because without
-  it no input can finish; it is limited to a lone generated class 1120 member whose `m_Scene` names
-  exactly one exported scene, and it needs the owner's approval before the extraction step relies on it.
+  `m_Scene` names: the scene's anchor file and PathID with class 1120. The rule applies only to a lone
+  generated class 1120 member whose `m_Scene` names exactly one exported scene; any other collection without
+  an original member is refused (each refusal has a test).
 
 ### Main.mixer
 
@@ -138,17 +148,57 @@ The asset map's `unresolved_references` (2,370) is a looser count: it also count
 of game data that are not references; they are bare tokens outside any reference position, are never
 rewritten, and a fresh GUID equal to one is refused.
 
-## The static check that does not use AssetRipper
+## The static checks that do not use AssetRipper
 
 `tools/assetripper_identity_static.py` reads the input directly (`tools/lucidlib/unityfs.py`: UnityFS
-block and node tables, and the SerializedFile header, type table and object table; LZ4 blocks are decoded
-with `shaders.decode_lz4_block`) and confirms that each identity-record member that came from a serialized
-file is in that file's object table, with the same ClassID.
+block and node tables, the SerializedFile header, type table and object table, and the class-142 AssetBundle
+`m_Container`; LZ4 blocks are decoded with `shaders.decode_lz4_block`). The reader was run on all 3,497
+bundles of the input (all version 8, block info after the header); a version 7 or 8 bundle with the block info
+at the end of the file is refused as unsupported. Nothing is executed or written. Observed on 1.10.1:
 
-- `scenes`: the 57 scene collections, 2,522,193 members, 57 serialized files (56 bundle nodes and
-  `level0`).
-- `all`: all 29,359 collections, 6,946,257 members, 3,551 serialized files (3,546 bundle nodes and 5 plain
-  files). Members whose `from a serialized file` flag is false are generated and are not checked.
+- `scenes` and `all` (they need the witness's identity record): each member of the record that came from a
+  serialized file is in that file's object table with the same ClassID. Scenes: the 57 scene collections,
+  2,522,193 members, 57 serialized files (56 bundle nodes and `level0`). All: 29,359 collections, 6,946,257
+  members, 3,551 serialized files (3,546 bundle nodes and 5 plain files). Members whose `from a serialized
+  file` flag is false are generated and are not checked. No failure in either.
+- `table` (the committed table and the input only): every anchor (file, PathID, ClassID) of the 29,285 `C`
+  rows is in the object table of its file with that ClassID, across 3,550 serialized files (3,546 bundle nodes
+  and 4 plain files). The 57 `LightingData` rows are anchored on their scene's object and carry ClassID 1120,
+  which no original object has, so for them only the PathID is checked. The 57 scene rows are all found: 56 in
+  bundle nodes (56 of 56 scene bundles) and 1 in `level0`.
+- `container` (the committed table, the input and the baseline `asset-map.json`): the PathIDs in the
+  `m_Container` of every bundle's AssetBundle object (3,497 objects, 17,400 entries) are in the object table of
+  their file: 17,342 entries point to an object, 56 are the null PPtr of a scene bundle's entry and 2 are null
+  PPtrs of other entries; none is missing. Then each of the baseline asset map's 8,720 `exact_path` catalog
+  identities (the catalog `internal_id` is the original asset address) is looked up among the container keys:
+  all 8,720 keys exist in some bundle's container. 8,643 are confirmed by the table: the key's object is an
+  anchor of a `C` row and that row's paths contain the baseline file the asset map gives. 75 are timelines
+  (`.playable`) whose object is not the anchor of its collection (the collection is a group anchored on its
+  lowest PathID), and are confirmed only at the level of the CAB: the row of the baseline file is anchored in a
+  CAB whose container has the key. Two (8,643 + 75 + 2 = 8,720) are disagreements that are facts about the
+  baseline export, not table errors: the baseline names an object by its `m_Name` and gives the unsuffixed file
+  name to the first of two objects with one path, so `cutscene_miles_electric_scan_beam.prefab` is the
+  FBX-derived prefab and the authored prefab (the container's object) is `..._scan_beam_0.prefab`, and
+  `CS_Zone2_Boss_E_Cream_3D.playable` is the timeline whose `m_Name` is Cream_3D in the Tails_3D bundle while
+  the container's Cream_3D timeline is `..._Cream_3D_0.playable`. For these two the asset map's `exact_path`
+  match names a file that is not the original object, which the table does not repeat (it keys on the original
+  object). `BASELINE_NAMING_EXCEPTIONS` lists exactly these two; any other disagreement fails the check.
 
-No failure in either. It is a check of the exporter's record against the input, not a reimplementation of
-the export: it does not derive paths, GUIDs or fileIDs.
+These checks compare the exporter's record, the table and the catalog with the input; they do not derive paths,
+GUIDs or fileIDs.
+
+### The colour-refinement cross-check
+
+A refinement that does not use paths (the one that finds the `W` classes) agrees with the table on every
+collection it resolves uniquely, by the following argument, and it is not run as a separate comparison on a
+second export. The table assigns each witness collection the baseline GUID of the baseline collection at the
+same path (path alignment), and the round trip then proves that every one of the 71,187 output files equals the
+baseline file at its path by sha256, with all references rewritten through that assignment. So the alignment
+is a bijection between the witness's collections and the baseline's that maps each collection's content (with
+GUID positions masked) and its ordered references onto the baseline's; that is, an isomorphism of the two
+labelled reference graphs. Colour refinement colours are invariants of such an isomorphism, so a collection
+whose colour is unique in the baseline can only correspond to the one baseline collection of that colour, which
+is the one the alignment gave. A disagreement on a uniquely resolved collection would therefore have made some
+output file differ from the baseline's. Only the `W` classes (collections that refinement cannot tell apart)
+rest on the witnessed export order, and they are listed as such. This is an argument from the round trip, not an
+independent run.

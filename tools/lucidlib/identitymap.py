@@ -396,6 +396,9 @@ def anchor(project: Path | None, entry: dict, scenes: dict | None = None):
         return None
     written = _written(entry)
     if rule[0] in ("single", "asset"):
+        # Edge: one written serialized member plus a stray generated member (not read from a serialized file)
+        # still anchors on the written one, because only serialized members are counted. The generated member is
+        # not lost: member_digest covers every member, so a different generated member changes the digest.
         chosen = written
     elif rule[0] == "class":
         chosen = [member for member in written if member[2] == rule[1]]
@@ -617,10 +620,15 @@ def _relabel_stage(stage: Path, plan: dict, table: dict, times: dict, mapping: d
                           str(times[relative]).encode(), "time"))
         if not edits:
             continue
-        for start, end, value, kind in sorted(edits, reverse=True):
-            data = data[:start] + value + data[end:]
+        parts, cursor = [], 0  # one pass: the unedited stretches and the new values, in file order
+        for start, end, value, kind in sorted(edits):
+            if start < cursor:
+                raise IdentityMapError("edits_overlap", f"{relative}: two rewrites at byte {start}")
+            parts += (data[cursor:start], value)
+            cursor = end
             counts[kind] += 1
-        path.write_bytes(data)
+        parts.append(data[cursor:])
+        path.write_bytes(b"".join(parts))
     if mixers_done != set(table["mixer"]):
         raise IdentityMapError("mixer_file_missing", f"{sorted(set(table['mixer']) - mixers_done)[0]}")
     return dict(sorted(counts.items()))
