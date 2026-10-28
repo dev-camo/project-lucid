@@ -237,6 +237,52 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void SkyCubemapKeywordScopesAndPassMasksMatchOriginal()
+        {
+            // Literal original m_KeywordNames/Flags and the single Universal Forward pass's Metal stage masks.
+            CheckDeclarations(ShaderPath("HL_Sky_Cubemap"),
+                new[] {
+                    "STEREO_INSTANCING_ON", "UNITY_SINGLE_PASS_STEREO",
+                    "STEREO_MULTIVIEW_ON", "STEREO_CUBEMAP_RENDER_ON",
+                    "LIGHTMAP_ON", "DIRLIGHTMAP_COMBINED",
+                    "_SAMPLE_GI", "DOTS_INSTANCING_ON",
+                    "_FOVEATED_RENDERING_NON_UNIFORM_RASTER", "INSTANCING_ON",
+                    "FOG_LINEAR", "FOG_EXP",
+                    "FOG_EXP2", "_DBUFFER_MRT1",
+                    "_DBUFFER_MRT2", "_DBUFFER_MRT3",
+                    "DEBUG_DISPLAY", "_SCREEN_SPACE_OCCLUSION",
+                    "_WRITE_RENDERING_LAYERS", "_GBUFFER_NORMALS_OCT"
+                },
+                new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+                new[] {
+                    new[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 }, // Universal Forward vertex
+                    new[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 } // Universal Forward fragment
+                },
+                new[] { "_GBUFFER_NORMALS_OCT" }, hasDepthOnly: false);
+        }
+
+        [Test]
+        public void SkyCubemapKeepsShippedTagsEditorAndFallback()
+        {
+            // The original m_Tags, m_CustomEditorName and m_FallbackName of HardLight/Sky/HL_Sky_Cubemap.
+            string source = File.ReadAllText(ShaderPath("HL_Sky_Cubemap"));
+            var tags = new Dictionary<string, string>();
+            Match tagLine = Regex.Match(source, @"SubShader\s*\{\s*(?://[^\n]*\s*)*Tags\s*\{(.*?)\}", RegexOptions.Singleline);
+            Assert.That(tagLine.Success, Is.True, "the SubShader declares its Tags");
+            foreach (Match tag in Regex.Matches(tagLine.Groups[1].Value, "\"([^\"]+)\"\\s*=\\s*\"([^\"]*)\""))
+                tags.Add(tag.Groups[1].Value, tag.Groups[2].Value);
+            Assert.That(tags, Is.EquivalentTo(new Dictionary<string, string>
+            {
+                { "RenderPipeline", "UniversalPipeline" }, { "RenderType", "Opaque" }, { "Queue", "Geometry" },
+                { "UniversalMaterialType", "Unlit" }, { "DisableBatching", "False" },
+                { "ShaderGraphShader", "true" }, { "ShaderGraphTargetId", "UniversalUnlitSubTarget" }
+            }));
+            Assert.That(source, Does.Contain("CustomEditor \"UnityEditor.ShaderGraph.GenericShaderGraphMaterialGUI\""));
+            Assert.That(source, Does.Contain("FallBack \"Hidden/Shader Graph/FallbackError\""));
+            Assert.That(source, Does.Not.Contain("Fallback Off"));
+        }
+
+        [Test]
         public void GameplayTimedPlatformKeywordScopesAndPassMasksMatchOriginal()
         {
             // Literal original m_KeywordNames/Flags and every Metal stage mask, in table order.
@@ -337,6 +383,16 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void SkyCubemapVaryingsKeepDecodedVertexOutputs()
+        {
+            // Mtl_VertexOut INTERP0 (world position) and INTERP1 (world normal); the fragment reads only the normal.
+            CheckVaryings(ShaderPath("HL_Sky_Cubemap"), new[]
+            {
+                new[] { "float3", "float3" } // Universal Forward
+            });
+        }
+
+        [Test]
         public void CharBoss03BodyBlobsVaryingsKeepDecodedVertexOutputs()
         {
             // Each pass's decoded Metal Mtl_VertexOut interpolants (INTERP0..n), in order.
@@ -359,15 +415,19 @@ namespace ProjectLucid.Tests
             return target == BuildTarget.StandaloneOSX || target == BuildTarget.iOS || target == BuildTarget.tvOS;
         }
 
-        private static void CheckDeclarations(string path, string[] names, byte[] flags, int[][] masks, string[] unmasked)
+        private static void CheckDeclarations(string path, string[] names, byte[] flags, int[][] masks, string[] unmasked, bool hasDepthOnly = true)
         {
             string source = File.ReadAllText(path);
             Assert.That(Regex.IsMatch(source, @"\b(?:half|fixed)(?:[1-4])?\b"), Is.False,
                 path + ": the original Metal stage and arithmetic types are float");
-            string depthPass = source.Substring(source.IndexOf("Name \"DepthOnly\"", StringComparison.Ordinal));
-            depthPass = depthPass.Substring(0, depthPass.IndexOf("ENDHLSL", StringComparison.Ordinal));
-            Assert.That(Regex.IsMatch(depthPass, @"\bfloat4\s+Frag\s*\((?:float4\s+positionCS\s*:\s*SV_POSITION|Varyings\s+\w+)\)\s*:\s*SV_Target"),
-                Is.True, path + ": the original depth fragment has a float4 result");
+            if (hasDepthOnly)
+            {
+                string depthPass = source.Substring(source.IndexOf("Name \"DepthOnly\"", StringComparison.Ordinal));
+                depthPass = depthPass.Substring(0, depthPass.IndexOf("ENDHLSL", StringComparison.Ordinal));
+                Assert.That(Regex.IsMatch(depthPass, @"\bfloat4\s+Frag\s*\((?:float4\s+positionCS\s*:\s*SV_POSITION|Varyings\s+\w+)\)\s*:\s*SV_Target"),
+                    Is.True, path + ": the original depth fragment has a float4 result");
+            }
+            else Assert.That(source, Does.Not.Contain("Name \"DepthOnly\""), path + ": the original has no DepthOnly pass");
             Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(path);
             Assert.That(shader, Is.Not.Null, path);
             Assert.That(ShaderUtil.GetShaderData(shader).GetSerializedSubshader(0).PassCount * 2, Is.EqualTo(masks.Length), path);
