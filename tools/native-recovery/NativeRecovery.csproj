@@ -24,7 +24,7 @@
     <ProjectReference Include="$(Cpp2ILSource)/Cpp2IL.Core/Cpp2IL.Core.csproj" />
   </ItemGroup>
   <Target Name="VerifyCpp2ILSource" BeforeTargets="CollectPackageReferences;ResolveProjectReferences;PrepareForBuild">
-    <Error Condition="'$(NETCoreSdkVersion)' != '10.0.401'" Text="Use the pinned .NET SDK 10.0.401 from the recovery cache." />
+    <Error Condition="'$(NETCoreSdkVersion)' != '10.0.403'" Text="Use the pinned .NET SDK 10.0.403 from the recovery cache." />
     <Error Condition="'$(Cpp2ILSource)' == ''" Text="Pass -p:Cpp2ILSource=&lt;hash-verified cached pinned source directory&gt;." />
     <Error Condition="!Exists('$(Cpp2ILArchive)')" Text="The pinned Cpp2IL source archive is required for build verification." />
     <GetFileHash Files="$(Cpp2ILArchive)" Algorithm="SHA256">

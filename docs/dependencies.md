@@ -11,7 +11,7 @@ Extraction and analysis use separate tools downloaded into the local cache:
 | AssetRipper | 2.0.0 | [AssetRipper](https://github.com/AssetRipper/AssetRipper), GPL-3.0 |
 | Cpp2IL | b5ad444b82267cb1e4b88b8b373c008105bdea52 | [Cpp2IL](https://github.com/SamboyCoding/Cpp2IL), MIT |
 | Il2CppDumper | 6.7.46 | [Il2CppDumper](https://github.com/Perfare/Il2CppDumper), MIT |
-| .NET SDK | 10.0.401 | [Microsoft .NET](https://dotnet.microsoft.com/), distribution notices |
+| .NET SDK | 10.0.403 | [Microsoft .NET](https://dotnet.microsoft.com/), distribution notices |
 | .NET runtime | 6.0.36 | [Microsoft .NET](https://dotnet.microsoft.com/), distribution notices |
 
 Download locations and SHA-256 or SHA-512 hashes are recorded in `tools/tool-lock.json`.

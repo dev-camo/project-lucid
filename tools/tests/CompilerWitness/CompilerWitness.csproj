@@ -15,6 +15,6 @@
     <Reference Include="Microsoft.CodeAnalysis.CSharp" HintPath="$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll" />
   </ItemGroup>
   <Target Name="RequirePinnedSdk" BeforeTargets="PrepareForBuild">
-    <Error Condition="'$(NETCoreSdkVersion)' != '10.0.401'" Text="Use the pinned .NET SDK 10.0.401 for compiler witness tests." />
+    <Error Condition="'$(NETCoreSdkVersion)' != '10.0.403'" Text="Use the pinned .NET SDK 10.0.403 for compiler witness tests." />
   </Target>
 </Project>

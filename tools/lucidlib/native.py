@@ -23,7 +23,7 @@ from .recovery import _resolve_input, _thin_binary
 
 _PIN = "b5ad444b82267cb1e4b88b8b373c008105bdea52"
 _ARCHIVE_HASH = "e396fc9a5321a121458b261d6a164945b916c9d024bf2cc96e2953dfe7d4069f"
-_SDK = "10.0.401"
+_SDK = "10.0.403"
 _PROJECT = REPO_ROOT / "tools/native-recovery/NativeRecovery.csproj"
 _MANIFEST = _PROJECT.with_name("SourcePin.props")
 _HARNESS = "ProjectLucid.NativeRecovery.dll"
