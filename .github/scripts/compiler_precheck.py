@@ -268,6 +268,42 @@ def capture_plan(control, state, inventory, resources):
     return project, plan
 
 
+def game_runtime_roster(control, inventory):
+    """Static Game.Runtime source roster from the control checkout's asmdef/asmref layout."""
+    control = Path(control)
+    owners, guids = {}, {}
+    for relative in inventory:
+        if not relative.startswith('Assets/') or not relative.endswith(('.asmdef', '.asmref')):
+            continue
+        definition = json.loads((control / relative).read_bytes())
+        folder = relative.rsplit('/', 1)[0]
+        if relative.endswith('.asmdef'):
+            owners[folder] = definition.get('name')
+            meta = control / (relative + '.meta')
+            found = re.search(r'^guid: ([0-9a-f]{32})$', meta.read_text(), re.MULTILINE) if meta.is_file() else None
+            if found:
+                guids['GUID:' + found.group(1)] = definition.get('name')
+        else:
+            owners[folder] = ('ref', definition.get('reference'))
+    for folder, owner in owners.items():
+        if isinstance(owner, tuple):
+            owners[folder] = guids.get(owner[1], owner[1])
+    roster = []
+    for relative in sorted(inventory):
+        parts = relative.split('/')
+        if not relative.startswith('Assets/') or not relative.endswith('.cs') \
+                or any(part.startswith('.') or part.endswith('~') for part in parts[:-1]):
+            continue
+        # The nearest enclosing definition folder owns the file.
+        for depth in range(len(parts) - 1, 0, -1):
+            owner = owners.get('/'.join(parts[:depth]))
+            if owner is not None:
+                if owner == 'Game.Runtime':
+                    roster.append(relative)
+                break
+    return roster
+
+
 def parse_sources(control, source, state, project, plan, changed):
     runtime, roslyn = EDITOR_DATA / 'NetCoreRuntime', EDITOR_DATA / 'DotNetSdkRoslyn'
     output = state / 'parser'
@@ -321,7 +357,7 @@ def parse_sources(control, source, state, project, plan, changed):
     return [row['id'] for row in errors]
 
 
-def produce_precheck(source, control, state, identity, resources):
+def produce_precheck(source, control, state, identity, resources, roster, changed):
     sys.path.insert(0, str(control / 'tools'))
     from lucidlib.verification import artifact_fingerprint
 
@@ -333,11 +369,10 @@ def produce_precheck(source, control, state, identity, resources):
 
     unchanged()
     inventory = witness._tracked_inventory(control)
-    possible = [name for name in inventory if name.startswith('Assets/') and name.endswith('.cs')]
-    changed = witness.admit_source_changes(source, control, possible)
-    if not changed:
-        return {'status': 'unavailable'}
     project, plan = capture_plan(control, state, inventory, resources)
+    # Admission used the static roster; the captured Editor graph must agree with it.
+    if set(plan['candidate_sources']) != set(roster):
+        raise ValueError('Captured source roster differs from the static Game.Runtime roster')
     if witness.admit_source_changes(source, control, plan['candidate_sources']) != changed:
         raise ValueError('Admitted source changed during capture')
     # The copied control sources must remain the exact baseline supplied to the parser.
@@ -370,15 +405,17 @@ def main():
     try:
         source, control, state = (path.resolve(strict=True) for path in (args.source, args.control, args.state))
         inventory = witness._tracked_inventory(control)
-        candidates = [name for name in inventory if name.startswith('Assets/') and name.endswith('.cs')]
-        if not witness.admit_source_changes(source, control, candidates):
+        roster = game_runtime_roster(control, inventory)
+        # Admit before any copy, hash, broker or Editor work.
+        changed = witness.admit_source_changes(source, control, roster)
+        if not changed:
             result = {'status': 'unavailable'}
         else:
             registries = [(args.job_marker, args.job_root), (state / 'compiler-group.json', os.getpgrp())]
             stage = 'prepare-resources'
             with child_resources(control, state, registries) as resources:
                 stage = 'capture-and-parse'
-                result = produce_precheck(source, control, state, identity, resources)
+                result = produce_precheck(source, control, state, identity, resources, roster, changed)
                 stage = 'verify-resources-and-custody'
     except (ValueError, OSError, subprocess.SubprocessError, TypeError, KeyError) as error:
         # This stream is private diagnostic evidence, never classification input.
