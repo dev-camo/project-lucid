@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "AsmResolver.DotNet": {
+        "type": "Direct",
+        "requested": "[6.0.1, )",
+        "resolved": "6.0.1",
+        "contentHash": "npVfl5ar/5rVceEVc+IMbti1WViBmPTqRPCQHqL9PtidHpLzcHrY82CL9Tep+DVsZ/++4gzFdHqndRjbb0hBkg==",
+        "dependencies": {
+          "AsmResolver.PE": "6.0.1",
+          "IsExternalInit": "1.0.3"
+        }
+      },
+      "AssetRipper.Primitives": {
+        "type": "Direct",
+        "requested": "[3.2.0, )",
+        "resolved": "3.2.0",
+        "contentHash": "UtDpl72yG5/KUj3BsNP7k2sF13nqqeaJ4sTANZZd/gb+t9YULYYzcyNfxuvdptenlsQIUBmMwTVHUn6TZ61Jqg=="
+      },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "YlTamXppEQls6DYWt7RdUuwWDb0lyw/vXCaGeQpLCpsLmfwGuCkOz/vIGgMTV7ECsJcavkCOkxZXv9s8rdAHkQ=="
+      },
+      "AsmResolver": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "2+MlgBd4R5jv+kACL4CB4Jvd9xqmXLIn27nYNQvv98oQ5707D9ule3Kjtf65A0Lha7R64KZQYTrqAxlm0oQU8g=="
+      },
+      "AsmResolver.PE": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "n8mkaymM3P6b3HsTvLACSpPVnAf0n7gJEkrad4M1F5zwEN003T+nMeR6iM17AFEgVt+vTV2GQ6/0ZjHEASn81g==",
+        "dependencies": {
+          "AsmResolver.PE.File": "6.0.1"
+        }
+      },
+      "AsmResolver.PE.File": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "aHHgIq9SRMAktSuhPH5gXJfB+cCCyGtEaGuilrTfk0Q5A/4AYRNPTDffVSTdsicXw0Orc1lSArNYEoPTHuJFvg==",
+        "dependencies": {
+          "AsmResolver": "6.0.1"
+        }
+      },
+      "IsExternalInit": {
+        "type": "Transitive",
+        "resolved": "1.0.3",
+        "contentHash": "jcdN7vpDwjnV7U9KGCv/oNIWHJ/RIbyrpVsLQL2qbj6Cbi5U3iafKsaMn1rP+qCbkLbkB0v6oAwbVEkqrUnlyg=="
+      }
+    },
+    "net10.0/osx-arm64": {}
+  }
+}

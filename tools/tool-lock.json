@@ -57,6 +57,18 @@
       "max_unpacked_bytes": 1200000000,
       "entrypoint": "Cpp2IL/Cpp2IL.csproj"
     },
+    "assetripper-source": {
+      "version": "1ac666f47d8e9dedf96afb0b914c70d7656151ea",
+      "license": "GPL-3.0",
+      "source": "https://github.com/AssetRipper/AssetRipper/tree/1ac666f47d8e9dedf96afb0b914c70d7656151ea",
+      "url": "https://codeload.github.com/AssetRipper/AssetRipper/tar.gz/1ac666f47d8e9dedf96afb0b914c70d7656151ea",
+      "filename": "AssetRipper-1ac666f47d8e9dedf96afb0b914c70d7656151ea.tar.gz",
+      "sha256": "2f1a9fb64ee7ac561c38227f55860a3333b32ba78294e9923ab947488acf8341",
+      "format": "tar",
+      "strip_components": 1,
+      "max_unpacked_bytes": 200000000,
+      "entrypoint": "Source/AssetRipper.GUI.Free/AssetRipper.GUI.Free.csproj"
+    },
     "dumper": {
       "version": "6.7.46",
       "license": "MIT",

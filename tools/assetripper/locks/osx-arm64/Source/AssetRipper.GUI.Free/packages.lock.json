@@ -1,0 +1,548 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "YlTamXppEQls6DYWt7RdUuwWDb0lyw/vXCaGeQpLCpsLmfwGuCkOz/vIGgMTV7ECsJcavkCOkxZXv9s8rdAHkQ=="
+      },
+      "AsmResolver": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "2+MlgBd4R5jv+kACL4CB4Jvd9xqmXLIn27nYNQvv98oQ5707D9ule3Kjtf65A0Lha7R64KZQYTrqAxlm0oQU8g=="
+      },
+      "AsmResolver.DotNet": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "npVfl5ar/5rVceEVc+IMbti1WViBmPTqRPCQHqL9PtidHpLzcHrY82CL9Tep+DVsZ/++4gzFdHqndRjbb0hBkg==",
+        "dependencies": {
+          "AsmResolver.PE": "6.0.1",
+          "IsExternalInit": "1.0.3"
+        }
+      },
+      "AsmResolver.PE": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "n8mkaymM3P6b3HsTvLACSpPVnAf0n7gJEkrad4M1F5zwEN003T+nMeR6iM17AFEgVt+vTV2GQ6/0ZjHEASn81g==",
+        "dependencies": {
+          "AsmResolver.PE.File": "6.0.1"
+        }
+      },
+      "AsmResolver.PE.File": {
+        "type": "Transitive",
+        "resolved": "6.0.1",
+        "contentHash": "aHHgIq9SRMAktSuhPH5gXJfB+cCCyGtEaGuilrTfk0Q5A/4AYRNPTDffVSTdsicXw0Orc1lSArNYEoPTHuJFvg==",
+        "dependencies": {
+          "AsmResolver": "6.0.1"
+        }
+      },
+      "AssetRipper.Checksum": {
+        "type": "Transitive",
+        "resolved": "1.1.0",
+        "contentHash": "jbzAzpuQ2XxaKcJhcaJRi38pTX57Q8+OYmNwhx1Jp6adMwazJ0mj0yWwzfOQdk5r2D752vqSdfjoLF4ZsiLSCQ==",
+        "dependencies": {
+          "System.IO.Hashing": "9.0.7"
+        }
+      },
+      "AssetRipper.CIL": {
+        "type": "Transitive",
+        "resolved": "1.3.2",
+        "contentHash": "hhKWZzI9yKKjxkkylD73LX9KiPs43zBt1QADB+7vVz8oess3cs6Eg0SvsjBdPRI9VBj63GH2iLh/PsDG0lbcMg==",
+        "dependencies": {
+          "AsmResolver.DotNet": "6.0.1"
+        }
+      },
+      "AssetRipper.Conversions.Crunch": {
+        "type": "Transitive",
+        "resolved": "1.0.3",
+        "contentHash": "0augfn3MTCuW7IRQ72Qd06+U7oDpXb4cP2dqdgJLmNQQKAyqAnYZkiLYH4+sILwaL7gpG0Tg5DVybQhMph7TRQ==",
+        "dependencies": {
+          "System.Numerics.Tensors": "10.0.0-rc.1.25451.107"
+        }
+      },
+      "AssetRipper.Conversions.FastPng": {
+        "type": "Transitive",
+        "resolved": "1.1.0",
+        "contentHash": "ZrBWgdUDEdR4WWhgFeyeepcUPITpKdItz9gIj/Dws7llARCiF9rL6PvQZMW/33MsusveLYnZnWFYDDFifqC6qQ==",
+        "dependencies": {
+          "System.Numerics.Tensors": "10.0.0-preview.5.25277.114"
+        }
+      },
+      "AssetRipper.Conversions.UnityCrunch": {
+        "type": "Transitive",
+        "resolved": "1.0.3",
+        "contentHash": "PwTLL30EF861JpCVH5nQ3TO6qgW3P66e+qEOvRQITHctW9tT1J87ouAHXJUQTY2uG9LNAz/JZULBosuBF290KA==",
+        "dependencies": {
+          "System.Numerics.Tensors": "10.0.0-rc.1.25451.107"
+        }
+      },
+      "AssetRipper.Cpp2IL.Core": {
+        "type": "Transitive",
+        "resolved": "1.0.9",
+        "contentHash": "FlzhJJiVFCvedTKv1Bhiyuepsf97aocRNeHiYEUTzrUtxVyjPc7lrKKH/BnEUS+4ftj2ppzrHvO5gV94OCXuow==",
+        "dependencies": {
+          "AsmResolver.DotNet": "6.0.1",
+          "AssetRipper.CIL": "1.3.1",
+          "AssetRipper.Gee.External.Capstone": "2.3.2",
+          "AssetRipper.LibCpp2IL": "1.0.9",
+          "Disarm": "2022.1.0-master.99",
+          "Iced": "1.21.0"
+        }
+      },
+      "AssetRipper.Gee.External.Capstone": {
+        "type": "Transitive",
+        "resolved": "2.3.2",
+        "contentHash": "wOr5PQPL/2ZfD7+ebt6cpRbUhSzSY5nlHGHjjzuQRiU5zkQlqQNwWDLX0M3smrm5IkaDvONkmDjFMKTlZJmyuQ=="
+      },
+      "AssetRipper.GUI.Web.Dependencies": {
+        "type": "Transitive",
+        "resolved": "1.1.0",
+        "contentHash": "T3kVdsy2GWStdzyywCRY3J/0kt87oPbPovAzRBslyrZMYkb6+HZWSo5cf0balYStCbo2ye3RW6TbQSGtHIOP8A=="
+      },
+      "AssetRipper.HashAlgorithms": {
+        "type": "Transitive",
+        "resolved": "1.0.0",
+        "contentHash": "O7EJrP4gJcqnR7HU9H0YEO7Y6RkJ/Y1Ah2IXGG5dnqLXRYr2wXuPShBVnxPL0ArjrSTZiBZoq8MI1An7zQu1eg=="
+      },
+      "AssetRipper.ICSharpCode.Decompiler": {
+        "type": "Transitive",
+        "resolved": "11.0.0.9495",
+        "contentHash": "W6o/nu8xWLyu+7/x6+oBi0u30+SM1Z3z4bB/5hizSTfT4HAKI0PyyfoD3HMMquWxtH2IlesMfjLujygRQS3PnA=="
+      },
+      "AssetRipper.IO.Endian": {
+        "type": "Transitive",
+        "resolved": "2.1.0",
+        "contentHash": "d6WM+Az+bhBvoKrLLu8iqSGhCAgcODSt4sek3CQbfRDkx2jb6cQoFSSIkMJkj25oC45+nHEYQvFg+wnmIZwxhg==",
+        "dependencies": {
+          "AssetRipper.Primitives": "3.2.0"
+        }
+      },
+      "AssetRipper.LibCpp2IL": {
+        "type": "Transitive",
+        "resolved": "1.0.9",
+        "contentHash": "t0PZfeHXBPU8iJRh7Gqold2Mloz8iKmcF48nZl2UPcGyZJ3JFkbu7eXSrnrPUMzEgZFXKIl6IRLY2O8cLqGmeA==",
+        "dependencies": {
+          "AssetRipper.Primitives": "3.2.0"
+        }
+      },
+      "AssetRipper.Mining.PredefinedAssets": {
+        "type": "Transitive",
+        "resolved": "1.5.0",
+        "contentHash": "YIzLitn3PCnOiZcAeu2LTUCRzPQqUZtrkztXywAfrLoARQMWzMQftl4MgVv9DsvvdywIekc8TKJNi09Uftuqbw==",
+        "dependencies": {
+          "AssetRipper.Primitives": "3.1.6"
+        }
+      },
+      "AssetRipper.NativeDialogs": {
+        "type": "Transitive",
+        "resolved": "1.1.2",
+        "contentHash": "u0W6SrCJHQyaC2LkNQ5YLyrzNbhJyI3NPoepO6OwMO9d8bZgFcLzebQvXAGwVg9zmet9Ww/ceec4lWfpZLa5aQ==",
+        "dependencies": {
+          "TerraFX.Interop.Windows": "10.0.26100.6"
+        }
+      },
+      "AssetRipper.Primitives": {
+        "type": "Transitive",
+        "resolved": "3.2.0",
+        "contentHash": "UtDpl72yG5/KUj3BsNP7k2sF13nqqeaJ4sTANZZd/gb+t9YULYYzcyNfxuvdptenlsQIUBmMwTVHUn6TZ61Jqg=="
+      },
+      "AssetRipper.SharpGLTF.Core": {
+        "type": "Transitive",
+        "resolved": "1.0.2",
+        "contentHash": "24gbdRLx8ePyPz5XSkNBNkGN3AItp7sFWOPRFrW5oXFa9EVOQqcDaSTniVlIumqdYlNnUGq31alIbmn74Sl/fw=="
+      },
+      "AssetRipper.SharpGLTF.Runtime": {
+        "type": "Transitive",
+        "resolved": "1.0.2",
+        "contentHash": "o6q1dgMB7C7mL+rlzPHuHlP6CZbpPI5mh2vu7nG6f4Zc/o/4NnYgo7pijcgS4tM2R7DydfiKAoZUDk46Ruc0yA==",
+        "dependencies": {
+          "AssetRipper.SharpGLTF.Core": "1.0.2"
+        }
+      },
+      "AssetRipper.SharpGLTF.Toolkit": {
+        "type": "Transitive",
+        "resolved": "1.0.2",
+        "contentHash": "lyyJ/0nyEK3Xx3gZenP974OA4o3ulg7HA9Y6ZwGW3hQeA8UKjJRuMfv8hKk2TVtz8AqMYyNEkpXDczaSC4HRpw==",
+        "dependencies": {
+          "AssetRipper.SharpGLTF.Runtime": "1.0.2"
+        }
+      },
+      "AssetRipper.SourceGenerated": {
+        "type": "Transitive",
+        "resolved": "1.4.0",
+        "contentHash": "8LaqBVtgzqHBtVN/PGyU2DZ+hHp/0vz0vuuPZv8imYlHNKPWA/VMof6ctPzlunRHgR2+uWO7YNp4OnIvDB0Oxg=="
+      },
+      "AssetRipper.Text.Html": {
+        "type": "Transitive",
+        "resolved": "2.1.0",
+        "contentHash": "a/UDE3uHkRa4+tZ7i7Ovw5cmOdFtJTdE+XnsNbpeHaLOfTdtFwNq/2xbioz9GceqCAwGRBvb4BDaUFwbEjI0Fw=="
+      },
+      "AssetRipper.TextureDecoder": {
+        "type": "Transitive",
+        "resolved": "2.6.3",
+        "contentHash": "ksBcITGCJ2QJQ94dtmBYsx1Lg6+thSkeQYY3oN15v2Q0aCaIKfVHaw5H2iK6QF8FuGeQzf2CpcKJ8XeryCS6Cw=="
+      },
+      "AssetRipper.Tpk": {
+        "type": "Transitive",
+        "resolved": "2.0.0",
+        "contentHash": "76bju13Dk1iTVR5wseRgjZQTSj4CXs5N5HjtExc/ZqtD+bIYMDUIZ9ap9p/ctrVHVNBofvZ70nllPtB8NNth+g==",
+        "dependencies": {
+          "AssetRipper.Primitives": "3.2.0",
+          "K4os.Compression.LZ4": "1.3.8",
+          "SharpCompress": "0.49.1"
+        }
+      },
+      "Basic.Reference.Assemblies.Net100": {
+        "type": "Transitive",
+        "resolved": "1.8.11",
+        "contentHash": "1aR9YahySL3KPSv5QPk2P3Lez6pgmFIf8McJP13WBKMzE5xpERG7KPZworu1/AXz+PvEEjjv/n/tsEiQ37MUjw==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Common": "4.11.0"
+        }
+      },
+      "Disarm": {
+        "type": "Transitive",
+        "resolved": "2022.1.0-master.99",
+        "contentHash": "lNoK8MyhxxgO7PMp5W3sWIqRMU2neqPbDj+aNZTtnwrty4okYLe2/98t9b4E29LoQlarBfOsElV8wZIdxBk7zQ=="
+      },
+      "Fmod5Sharp": {
+        "type": "Transitive",
+        "resolved": "3.1.0",
+        "contentHash": "DPM710gixvM3GrF5FTceXgaAZmH4B3amo92HNIJHiXHUJdeIF3R/cZKDrZzc4A5gzX/M1MbqWBphR90e/b6HxQ==",
+        "dependencies": {
+          "IndexRange": "1.1.0",
+          "NAudio.Core": "2.2.1",
+          "OggVorbisEncoder": "1.2.2"
+        }
+      },
+      "Iced": {
+        "type": "Transitive",
+        "resolved": "1.21.0",
+        "contentHash": "dv5+81Q1TBQvVMSOOOmRcjJmvWcX3BZPZsIq31+RLc5cNft0IHAyNlkdb7ZarOWG913PyBoFDsDXoCIlKmLclg=="
+      },
+      "IndexRange": {
+        "type": "Transitive",
+        "resolved": "1.1.0",
+        "contentHash": "fG+2WP1e3Fg3ZVq85XAdiwG9t0twi3r0LvOrTjtbH/31Rd5gLnV5APOD2JHAowbZYDgj9D3rXRbUvIL+ew0WZQ==",
+        "dependencies": {
+          "Microsoft.Bcl.Memory": "9.0.0"
+        }
+      },
+      "IsExternalInit": {
+        "type": "Transitive",
+        "resolved": "1.0.3",
+        "contentHash": "jcdN7vpDwjnV7U9KGCv/oNIWHJ/RIbyrpVsLQL2qbj6Cbi5U3iafKsaMn1rP+qCbkLbkB0v6oAwbVEkqrUnlyg=="
+      },
+      "K4os.Compression.LZ4": {
+        "type": "Transitive",
+        "resolved": "1.3.8",
+        "contentHash": "LhwlPa7c1zs1OV2XadMtAWdImjLIsqFJPoRcIWAadSRn0Ri1DepK65UbWLPmt4riLqx2d40xjXRk0ogpqNtK7g=="
+      },
+      "Microsoft.AspNetCore.OpenApi": {
+        "type": "Transitive",
+        "resolved": "10.0.11",
+        "contentHash": "R/1EATnPLU+gRfB6lwVkMcymmyAY5ppBBdRN/5lhNEiT3xP1sWccuSFkU/f1lQvN/WgRq5Vn8AhCdE3fqgsL/w==",
+        "dependencies": {
+          "Microsoft.OpenApi": "[2.7.5, 3.0.0)"
+        }
+      },
+      "Microsoft.Bcl.Memory": {
+        "type": "Transitive",
+        "resolved": "10.0.11",
+        "contentHash": "gOK5j94niQhCvUXA5sXn/h4khL0ZHPlKZx//SJ9pwuydpWSDIPBpduLWty5MYMEJkWs/ewYbG1LAqfPLOprDgg=="
+      },
+      "Microsoft.CodeAnalysis.Analyzers": {
+        "type": "Transitive",
+        "resolved": "3.3.4",
+        "contentHash": "AxkxcPR+rheX0SmvpLVIGLhOUXAKG56a64kV9VQZ4y9gR9ZmPXnqZvHJnmwLSwzrEP6junUF11vuc+aqo5r68g=="
+      },
+      "Microsoft.CodeAnalysis.Common": {
+        "type": "Transitive",
+        "resolved": "4.11.0",
+        "contentHash": "djf8ujmqYImFgB04UGtcsEhHrzVqzHowS+EEl/Yunc5LdrYrZhGBWUTXoCF0NzYXJxtfuD+UVQarWpvrNc94Qg==",
+        "dependencies": {
+          "Microsoft.CodeAnalysis.Analyzers": "3.3.4"
+        }
+      },
+      "Microsoft.Extensions.ApiDescription.Server": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "NCWCGiwRwje8773yzPQhvucYnnfeR+ZoB1VRIrIMp4uaeUNw7jvEPHij3HIbwCDuNCrNcphA00KSAR9yD9qmbg=="
+      },
+      "Microsoft.OpenApi": {
+        "type": "Transitive",
+        "resolved": "2.10.0",
+        "contentHash": "tD7ve8JrWfJ+aRfW7J9yDj8t6pbMOzdr8nSc5BlIZaIRxqZZ67RJ8J69//Tx6HHSNFsqomBbipkPP20opnqvMg=="
+      },
+      "NAudio.Core": {
+        "type": "Transitive",
+        "resolved": "3.0.1",
+        "contentHash": "3fJ6UnkoiNBeeczKd9OozvcE85FvtyYCykmfzEbFW0uB0uT2+keKdconUGkz9qYlhaq1RJDTFptXOooQBYLijA==",
+        "dependencies": {
+          "System.Numerics.Tensors": "9.0.0"
+        }
+      },
+      "NAudio.Vorbis": {
+        "type": "Transitive",
+        "resolved": "1.5.0",
+        "contentHash": "llJMmUnFf0FGf4G1FKNftxt+Vc1CvBCSul0Ugbv/RahGbpKF2p+ujSEJHybPjl9b4FjbK8O2vRFIcRGcVfAooA==",
+        "dependencies": {
+          "NAudio.Core": "2.0.0",
+          "NVorbis": "0.10.4"
+        }
+      },
+      "NVorbis": {
+        "type": "Transitive",
+        "resolved": "0.10.4",
+        "contentHash": "WYnil3DhQHzjCY0dM9I2B3r1vWip90AOuQd25KE4NrjPQBg0tBJFluRLm5YPnO5ZLDmwrfosY8jCQGQRmWI/Pg=="
+      },
+      "OggVorbisEncoder": {
+        "type": "Transitive",
+        "resolved": "1.2.2",
+        "contentHash": "MZMa5URyED82nJUfGCbulS/1/Np+zhE2mt3h9TuAPOurVN3rYHEaVc7cKd7IK1vROB4UMdTgSoPCW3EJCNmHJw=="
+      },
+      "Ookii.CommandLine": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "UWVBWwBEa4zLMvnu/4XMTiaVwi6kFLaI/LNpLbSR/lBS1vJa2mJsQlez3nbVFY0vhHP06WcYDKgmvLur4cVD/g==",
+        "dependencies": {
+          "Ookii.Common": "1.0.0"
+        }
+      },
+      "Ookii.Common": {
+        "type": "Transitive",
+        "resolved": "1.0.0",
+        "contentHash": "ThSq6BoF8TvBxELlfo5Tbx4GaHzzK16Vyq1V2n2qq10UoUqjLK8Xj3a6OmcCEPhtY2E4fqajsQNUNRV4R6syaA=="
+      },
+      "oqo0.SwaggerThemes": {
+        "type": "Transitive",
+        "resolved": "1.4.3",
+        "contentHash": "hB2BtKIssGZ3N+G8x3lsvx54Mtkc7jv3iSjXolAzmjdhol/yOXTM7DWJYoXbdrsmHXXw/wy3JNpA3sVAvUZwiw=="
+      },
+      "SharpCompress": {
+        "type": "Transitive",
+        "resolved": "0.50.4",
+        "contentHash": "/hxjUR7DEX6mky8/LQXyrnrKioOL6D6veAID1EZpro+q4s02x5dHEYBV3qjEN6lDYYilDoQQ76BcmQj+lRx51w=="
+      },
+      "StbImageWriteSharp": {
+        "type": "Transitive",
+        "resolved": "1.16.7",
+        "contentHash": "NF9kOxi0iS9VunklnRKgOpAWC2knCGKRjdy7RT6XAqYNyb7LQfyPHPdl4l1fJw7TFYKrGQzQOmK1XpBONC2MoA=="
+      },
+      "Swashbuckle.AspNetCore": {
+        "type": "Transitive",
+        "resolved": "10.2.3",
+        "contentHash": "8KNh1RWvofdU6DVLyBs4Z/OpUMnmf8oNvJQc0QxpwySRbi42bwLfdVMMrXZWANg5U5KQGQq1xW6r/hlcqw99tQ==",
+        "dependencies": {
+          "Microsoft.Extensions.ApiDescription.Server": "10.0.0",
+          "Swashbuckle.AspNetCore.Swagger": "10.2.3",
+          "Swashbuckle.AspNetCore.SwaggerGen": "10.2.3",
+          "Swashbuckle.AspNetCore.SwaggerUI": "10.2.3"
+        }
+      },
+      "Swashbuckle.AspNetCore.Swagger": {
+        "type": "Transitive",
+        "resolved": "10.2.3",
+        "contentHash": "1jUUs3WQnrS0FUtaZPLSy1yYMEwS1zlvDmvQ2/eldPHUANX0LJSLVZecCMgSMdeGiRqeaRrIXLtSz++TCiTMww==",
+        "dependencies": {
+          "Microsoft.OpenApi": "2.7.5"
+        }
+      },
+      "Swashbuckle.AspNetCore.SwaggerGen": {
+        "type": "Transitive",
+        "resolved": "10.2.3",
+        "contentHash": "y7t4coDRAeFYChmvlMRiH2OjbiRrm9AVIDgt17fQfs3x9PVAI5PiwWYOhg+4F13R4Q36WDc9lqfoOnNa3tNbGg==",
+        "dependencies": {
+          "Swashbuckle.AspNetCore.Swagger": "10.2.3"
+        }
+      },
+      "Swashbuckle.AspNetCore.SwaggerUI": {
+        "type": "Transitive",
+        "resolved": "10.2.3",
+        "contentHash": "nthWONRs/FJ4yyG206g1cC52WEG8EqrjuMWjGdR+5XG7lbjFto6NqcI9EMICgVFom/UivIjUVwI76ZHbHwTPfQ=="
+      },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "9.0.7",
+        "contentHash": "2sMrwd/AHYipeiOwYcoqD99c4U8F2x7GalonEYxkHUvTLNzE9Pxx2lz8ygS9cOqyDsruYARZAYL5pPVFh/s3lw=="
+      },
+      "System.Numerics.Tensors": {
+        "type": "Transitive",
+        "resolved": "10.0.0-rc.1.25451.107",
+        "contentHash": "41i+B/PLuu7qnpmiyI5uME+Uujbs/RP9I3NuR42ydyS9yTj9jmULspznLyS/mncfdhvm3HJbYpfmA0u9/ZGYSw=="
+      },
+      "TerraFX.Interop.Windows": {
+        "type": "Transitive",
+        "resolved": "10.0.26100.6",
+        "contentHash": "QjL9vliSWmscUv6A7bjvsryHjYnY0norqvCNcLXSdEy1VIIzMF6FiS7BuvLTBuGUeN9FY4zJbU65OsHEv7jG9A=="
+      },
+      "ZstdSharp.Port": {
+        "type": "Transitive",
+        "resolved": "0.8.8",
+        "contentHash": "UIDFkA5DC3en3tOJ3Mof11yBx9kUQLsaeo/oFdvN6Bbkr9E9+VCqfIadHci8cu+I51K2Sl7XYWVl2R/mA75NBQ=="
+      },
+      "assetripper.assets": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.IO.Files": "[2.0.0, )"
+        }
+      },
+      "assetripper.configuration": {
+        "type": "Project"
+      },
+      "assetripper.export": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.ICSharpCode.Decompiler": "[11.0.0.9495, )",
+          "AssetRipper.Processing": "[2.0.0, )"
+        }
+      },
+      "assetripper.export.modules.audio": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.Export": "[2.0.0, )",
+          "Fmod5Sharp": "[3.1.0, )",
+          "Microsoft.Bcl.Memory": "[10.0.11, )",
+          "NAudio.Core": "[3.0.1, )",
+          "NAudio.Vorbis": "[1.5.0, )"
+        }
+      },
+      "assetripper.export.modules.models": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.Export": "[2.0.0, )",
+          "AssetRipper.Export.Modules.Textures": "[2.0.0, )",
+          "AssetRipper.SharpGLTF.Toolkit": "[1.0.2, )"
+        }
+      },
+      "assetripper.export.modules.textures": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.Conversions.Crunch": "[1.0.3, )",
+          "AssetRipper.Conversions.FastPng": "[1.1.0, )",
+          "AssetRipper.Conversions.UnityCrunch": "[1.0.3, )",
+          "AssetRipper.Export": "[2.0.0, )",
+          "AssetRipper.TextureDecoder": "[2.6.3, )",
+          "StbImageWriteSharp": "[1.16.7, )"
+        }
+      },
+      "assetripper.export.primarycontent": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.Export": "[2.0.0, )",
+          "AssetRipper.Export.Modules.Audio": "[2.0.0, )",
+          "AssetRipper.Export.Modules.Models": "[2.0.0, )"
+        }
+      },
+      "assetripper.export.unityprojects": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.Export.Modules.Audio": "[2.0.0, )",
+          "AssetRipper.Export.Modules.Models": "[2.0.0, )",
+          "AssetRipper.Export.Modules.Textures": "[2.0.0, )",
+          "AssetRipper.HashAlgorithms": "[1.0.0, )",
+          "AssetRipper.Import": "[2.0.0, )",
+          "AssetRipper.Mining.PredefinedAssets": "[1.5.0, )",
+          "AssetRipper.Processing": "[2.0.0, )",
+          "AssetRipper.Tpk": "[2.0.0, )",
+          "AssetRipper.Yaml": "[2.0.0, )"
+        }
+      },
+      "assetripper.gui.licensing": {
+        "type": "Project"
+      },
+      "assetripper.gui.localizations": {
+        "type": "Project"
+      },
+      "assetripper.gui.web": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.Export.PrimaryContent": "[2.0.0, )",
+          "AssetRipper.Export.UnityProjects": "[2.0.0, )",
+          "AssetRipper.GUI.Licensing": "[2.0.0, )",
+          "AssetRipper.GUI.Localizations": "[2.0.0, )",
+          "AssetRipper.GUI.Web.Dependencies": "[1.1.0, )",
+          "AssetRipper.NativeDialogs": "[1.1.2, )",
+          "AssetRipper.Text.Html": "[2.1.0, )",
+          "AssetRipper.Web": "[2.0.0, )",
+          "Microsoft.AspNetCore.OpenApi": "[10.0.11, )",
+          "Microsoft.OpenApi": "[2.10.0, )",
+          "Ookii.CommandLine": "[5.0.0, )",
+          "Swashbuckle.AspNetCore": "[10.2.3, )",
+          "oqo0.SwaggerThemes": "[1.4.3, )"
+        }
+      },
+      "assetripper.import": {
+        "type": "Project",
+        "dependencies": {
+          "AsmResolver.DotNet": "[6.0.1, )",
+          "AssetRipper.Assets": "[2.0.0, )",
+          "AssetRipper.CIL": "[1.3.2, )",
+          "AssetRipper.Configuration": "[2.0.0, )",
+          "AssetRipper.Cpp2IL.Core": "[1.0.9, )",
+          "AssetRipper.Mining.PredefinedAssets": "[1.5.0, )",
+          "AssetRipper.Numerics": "[2.0.0, )",
+          "AssetRipper.Primitives": "[3.2.0, )",
+          "AssetRipper.SerializationLogic": "[2.0.0, )",
+          "AssetRipper.SourceGenerated.Extensions": "[2.0.0, )",
+          "AssetRipper.Tpk": "[2.0.0, )",
+          "Basic.Reference.Assemblies.Net100": "[1.8.11, )"
+        }
+      },
+      "assetripper.io.files": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.IO.Endian": "[2.1.0, )",
+          "AssetRipper.Primitives": "[3.2.0, )",
+          "K4os.Compression.LZ4": "[1.3.8, )",
+          "SharpCompress": "[0.50.4, )",
+          "ZstdSharp.Port": "[0.8.8, )"
+        }
+      },
+      "assetripper.numerics": {
+        "type": "Project"
+      },
+      "assetripper.processing": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.CIL": "[1.3.2, )",
+          "AssetRipper.Import": "[2.0.0, )"
+        }
+      },
+      "assetripper.serializationlogic": {
+        "type": "Project",
+        "dependencies": {
+          "AsmResolver.DotNet": "[6.0.1, )",
+          "AssetRipper.Primitives": "[3.2.0, )"
+        }
+      },
+      "assetripper.sourcegenerated.extensions": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.Assets": "[2.0.0, )",
+          "AssetRipper.Checksum": "[1.1.0, )",
+          "AssetRipper.Numerics": "[2.0.0, )",
+          "AssetRipper.SourceGenerated": "[1.4.0, )"
+        }
+      },
+      "assetripper.web": {
+        "type": "Project"
+      },
+      "assetripper.yaml": {
+        "type": "Project",
+        "dependencies": {
+          "AssetRipper.Primitives": "[3.2.0, )"
+        }
+      }
+    },
+    "net10.0/osx-arm64": {
+      "AssetRipper.Gee.External.Capstone": {
+        "type": "Transitive",
+        "resolved": "2.3.2",
+        "contentHash": "wOr5PQPL/2ZfD7+ebt6cpRbUhSzSY5nlHGHjjzuQRiU5zkQlqQNwWDLX0M3smrm5IkaDvONkmDjFMKTlZJmyuQ=="
+      }
+    }
+  }
+}
