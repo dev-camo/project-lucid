@@ -237,6 +237,8 @@ namespace HardlightProject
         private bool ShouldShowPrompt(PromptTrigger trigger)
         {
             var promptDefinition = trigger.PromptDefinition;
+            // Declared first so the capturing slot predicate takes ordinal 0, as in the original.
+            Predicate<ActivePromptInfo> sameSlot = prompt => prompt.Slot.SlotType == promptDefinition.PromptSlot;
             if (!PromptActionAllowed(promptDefinition.DisplayOccurence, promptDefinition.GetGUID()))
                 return false;
             if (promptDefinition.IsExclusive)
@@ -248,7 +250,7 @@ namespace HardlightProject
             {
                 return false;
             }
-            var existingPrompt = m_activePrompts.Find(prompt => prompt.Slot.SlotType == promptDefinition.PromptSlot);
+            var existingPrompt = m_activePrompts.Find(sameSlot);
             if (existingPrompt != null)
                 return promptDefinition.Priority > existingPrompt.Definition.Priority;
             return true;

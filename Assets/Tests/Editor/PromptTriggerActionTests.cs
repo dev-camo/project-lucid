@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
@@ -28,6 +29,23 @@ namespace ProjectLucid.Tests
         }
 
         // The validity test (0x696910) comes first; without a PromptManager nothing else is touched.
+        // Original ShouldShowPrompt closures: the capturing slot predicate is <>c__DisplayClass29_0.<ShouldShowPrompt>b__0
+        // (0x06003722) and the static IsExclusive predicate is <>c.<ShouldShowPrompt>b__29_1 (0x0600371d).
+        [Test]
+        public void ShouldShowPromptLambdasKeepTheOriginalNames()
+        {
+            const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            Type display = typeof(PromptManager).GetNestedType("<>c__DisplayClass29_0", BindingFlags.NonPublic);
+            Assert.IsNotNull(display);
+            Assert.IsNotNull(display.GetMethod("<ShouldShowPrompt>b__0", all));
+            Assert.IsNull(display.GetMethod("<ShouldShowPrompt>b__1", all));
+            Type cache = typeof(PromptManager).GetNestedType("<>c", BindingFlags.NonPublic);
+            Assert.IsNotNull(cache);
+            Assert.IsNotNull(cache.GetMethod("<ShouldShowPrompt>b__29_1", all));
+            Assert.IsNull(cache.GetMethod("<ShouldShowPrompt>b__29_0", all));
+            Assert.IsNotNull(cache.GetField("<>9__29_1", all));
+        }
+
         [Test]
         public void HidingAllPromptsWithoutAPromptManagerDoesNothing()
         {

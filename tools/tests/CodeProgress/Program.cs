@@ -18,7 +18,7 @@ internal static class Program
             // BCL facades: the original names [mscorlib]/[System]/[System.Core], the
             // Unity compile names [netstandard]; the same type must render equally.
             string original = TypeIdentity.Qualified("mscorlib", "System.Collections.Generic.List`1");
-            foreach (string facade in new[] { "mscorlib", "netstandard", "System", "System.Core" })
+            foreach (string facade in new[] { "mscorlib", "netstandard", "System", "System.Core", "System.Xml" })
                 Require(TypeIdentity.Qualified(facade, "System.Collections.Generic.List`1") == original, "BCL facade " + facade);
             Require(original == "[mscorlib]System.Collections.Generic.List`1", "Canonical BCL scope spelling");
 

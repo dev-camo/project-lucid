@@ -5,15 +5,15 @@ namespace ProjectLucid.CodeProgress;
 internal static class TypeIdentity
 {
     // The original il2cpp metadata names base-class-library types by their defining
-    // assembly ([mscorlib], [System], [System.Core]); the Unity player compile only
+    // assembly ([mscorlib], [System], [System.Core], [System.Xml]); the Unity player compile only
     // references the netstandard facade, whose type forwards lead to those same
-    // types. Rule: these four scopes are one BCL identity space, because a
+    // types. Rule: these five scopes are one BCL identity space, because a
     // namespace-qualified BCL type name is unique across it, so the forward target is
     // implied by the name. No assembly is loaded to follow the forwards (the reader
     // forbids implicit resolution). Every other scope (Unity, HL*, Dreamteck,
     // Assembly-CSharp) keeps its own name, so a same-named type from a different
     // assembly still renders differently and stays an unresolved difference.
-    private static readonly HashSet<string> BclFacades = new(StringComparer.Ordinal) { "mscorlib", "netstandard", "System", "System.Core" };
+    private static readonly HashSet<string> BclFacades = new(StringComparer.Ordinal) { "mscorlib", "netstandard", "System", "System.Core", "System.Xml" };
     internal const string BclScope = "mscorlib";
 
     internal static string Scope(string assembly) => BclFacades.Contains(assembly) ? BclScope : assembly;
