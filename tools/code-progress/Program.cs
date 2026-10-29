@@ -33,9 +33,21 @@ internal static class Program
     private static string Text(JsonElement value, string key) => value.GetProperty(key).GetString() ?? throw new InvalidDataException("Null context string.");
     private static bool Selected(JsonElement context, string assembly, string type)
     {
-        if (!context.GetProperty("namespace_filters").TryGetProperty(assembly, out var filters)) return true;
-        return filters.EnumerateArray().Any(prefix => Name(type).StartsWith(prefix.GetString()!, StringComparison.Ordinal));
+        bool prefixed = context.GetProperty("namespace_filters").TryGetProperty(assembly, out var filters);
+        bool named = context.GetProperty("type_filters").TryGetProperty(assembly, out var names);
+        if (!prefixed && !named) return true;
+        // Global types match by exact top-level name, so a lookalike name stays out.
+        string full = Name(type), top = full.Split('+')[0];
+        return (prefixed && filters.EnumerateArray().Any(prefix => full.StartsWith(prefix.GetString()!, StringComparison.Ordinal))) ||
+               (named && names.EnumerateArray().Any(name => name.GetString() == top));
     }
+    private static bool Excluded(JsonElement context, string assembly)
+    {
+        var excluded = context.GetProperty("excluded_assemblies");
+        return excluded.GetProperty("exact").EnumerateObject().Any(entry => entry.Name == assembly) ||
+               excluded.GetProperty("prefixes").EnumerateObject().Any(entry => assembly.StartsWith(entry.Name, StringComparison.Ordinal));
+    }
+    private static string[] Strings(JsonElement array) => array.ValueKind == JsonValueKind.Array ? array.EnumerateArray().Select(e => e.GetString() ?? "").ToArray() : [];
     private static string Regular(string path, long maximum)
     {
         if (Path.GetFullPath(path) != path) throw new InvalidDataException("Evidence paths must be canonical absolute paths.");
@@ -55,7 +67,7 @@ internal static class Program
     }
     private static string[] ValidateContext(JsonElement context, string contextPath)
     {
-        string[] fields = ["schema_version", "kind", "identity_nonce", "source_fingerprint", "source_root", "work_root", "run", "binary", "metadata", "scope", "namespace_filters", "player_modules"];
+        string[] fields = ["schema_version", "kind", "identity_nonce", "source_fingerprint", "source_root", "work_root", "run", "binary", "metadata", "scope", "namespace_filters", "type_filters", "excluded_assemblies", "player_modules"];
         if (context.ValueKind != JsonValueKind.Object || context.EnumerateObject().Select(p => p.Name).OrderBy(p => p).SequenceEqual(fields.OrderBy(p => p)) != true ||
             context.GetProperty("schema_version").GetInt32() != 1 || Text(context, "kind") != "project-lucid-code-progress-v1")
             throw new InvalidDataException("Invalid reader context.");
@@ -68,15 +80,25 @@ internal static class Program
             throw new InvalidDataException("Reader requires a nonce-owned work run.");
         string[] scope = context.GetProperty("scope").EnumerateArray().Select(e => e.GetString()!).ToArray();
         if (scope.Length is 0 or > 256 || scope.Distinct().Count() != scope.Length || scope.Any(name => name == null ||
-            !Regex.IsMatch(name, "\\A(?:Game\\.Runtime|Dreamteck\\.(?:Utilities|Splines)|com\\.olegknyazev\\.softmask|HL[A-Za-z0-9]+(?:\\.Runtime)?|Assembly-CSharp(?:-firstpass)?)\\z")))
+            !Regex.IsMatch(name, "\\A(?:Game\\.Runtime|Dreamteck\\.(?:Utilities|Splines)|com\\.olegknyazev\\.softmask|HL[A-Za-z0-9]+(?:\\.Runtime)?|Assembly-CSharp(?:-firstpass)?|Apple\\.Arcade\\.SplashScreen|FairPlay\\.Runtime|MeshCombineStudio\\.Runtime|MeshExtension)\\z")))
             throw new InvalidDataException("Invalid fixed assembly scope.");
         var filters = context.GetProperty("namespace_filters");
         if (filters.ValueKind != JsonValueKind.Object || filters.EnumerateObject().Count() != 2 ||
             !filters.TryGetProperty("Assembly-CSharp", out var game) || !filters.TryGetProperty("Assembly-CSharp-firstpass", out var first) ||
             game.ValueKind != JsonValueKind.Array || first.ValueKind != JsonValueKind.Array ||
-            !game.EnumerateArray().Select(e => e.GetString()).SequenceEqual(new[] { "HardlightProject." }) ||
-            !first.EnumerateArray().Select(e => e.GetString()).SequenceEqual(new[] { "Hardlight." }))
+            !Strings(game).SequenceEqual(new[] { "HardlightProject.", "AmplifyColor." }) ||
+            !Strings(first).SequenceEqual(new[] { "Hardlight." }))
             throw new InvalidDataException("Mixed assemblies require exact proprietary namespace scope.");
+        var types = context.GetProperty("type_filters");
+        if (types.ValueKind != JsonValueKind.Object || types.EnumerateObject().Count() != 1 || !types.TryGetProperty("Assembly-CSharp", out var globals) ||
+            !Strings(globals).SequenceEqual(new[] { "AmplifyColorBase", "AmplifyColorEffect", "AmplifyColorRenderMask", "AmplifyColorRenderMaskBase",
+                "AmplifyColorTriggerProxy", "AmplifyColorTriggerProxy2D", "AmplifyColorTriggerProxyBase", "AmplifyColorVolume", "AmplifyColorVolume2D", "AmplifyColorVolumeBase" }))
+            throw new InvalidDataException("Mixed assemblies require exact vendored type scope.");
+        var excluded = context.GetProperty("excluded_assemblies");
+        if (excluded.ValueKind != JsonValueKind.Object || excluded.EnumerateObject().Count() != 2 ||
+            !excluded.TryGetProperty("exact", out var exact) || exact.ValueKind != JsonValueKind.Object ||
+            !excluded.TryGetProperty("prefixes", out var prefixes) || prefixes.ValueKind != JsonValueKind.Object)
+            throw new InvalidDataException("Invalid excluded assembly classification.");
         var modules = context.GetProperty("player_modules");
         if (modules.ValueKind != JsonValueKind.Array || modules.GetArrayLength() > 256 || modules.EnumerateArray().Select(e => e.GetString()).Distinct().Count() != modules.GetArrayLength())
             throw new InvalidDataException("Invalid returned player module selection.");
@@ -146,9 +168,12 @@ internal static class Program
         new Cpp2IlCorePlugin().OnLoad();
         Cpp2IlApi.InitializeLibCpp2Il(binary, metadata, UnityVersion.Parse("2022.3.54f1"), false);
         var app = Cpp2IlApi.CurrentAppContext!;
-        var expectedScope = app.Assemblies.Where(a => a.Definition != null && (a.DefaultName is "Game.Runtime" or "Dreamteck.Utilities" or "Dreamteck.Splines" or "com.olegknyazev.softmask" || a.DefaultName.StartsWith("HL", StringComparison.Ordinal) ||
-            a.DefaultName is "Assembly-CSharp" or "Assembly-CSharp-firstpass")).Select(a => a.DefaultName).OrderBy(n => n, StringComparer.Ordinal).ToArray();
-        if (!expectedScope.SequenceEqual(scope.OrderBy(n => n, StringComparer.Ordinal))) throw new InvalidDataException("Scope omits original proprietary assemblies.");
+        // Inventory every original assembly independently of the scope list: each must be measured or
+        // explicitly excluded, so a newly found original assembly fails here instead of being skipped.
+        var originals = app.Assemblies.Select(a => a.DefaultName).OrderBy(n => n, StringComparer.Ordinal).ToArray();
+        if (originals.Distinct().Count() != originals.Length) throw new InvalidDataException("Duplicate original assembly names.");
+        foreach (string name in originals)
+            if (!scope.Contains(name, StringComparer.Ordinal) && !Excluded(context, name)) throw new InvalidDataException("Unclassified original assembly: " + name);
         var assemblies = app.Assemblies.Where(a => a.Definition != null && scope.Contains(a.DefaultName, StringComparer.Ordinal)).ToArray();
         if (assemblies.Length != scope.Length) throw new InvalidDataException("Original assembly scope is incomplete.");
         var rows = new List<Dictionary<string, object?>>();
@@ -185,7 +210,7 @@ internal static class Program
         if (rows.Select(r => r["id"]).Distinct().Count() != rows.Count) throw new InvalidDataException("Duplicate original methods.");
         if (Hash(binary) != ((JsonElement)JsonSerializer.SerializeToElement(seals[0])).GetProperty("sha256").GetString())
             throw new InvalidDataException("Input changed during native inventory.");
-        return new { kind = "original-native-method-inventory-v1", cpp2il_pin = Pin, modules = seals, methods = rows.OrderBy(r => r["id"], Comparer<object?>.Create((a,b) => StringComparer.Ordinal.Compare((string?)a,(string?)b))).ToArray(),
+        return new { kind = "original-native-method-inventory-v1", cpp2il_pin = Pin, modules = seals, assemblies = originals, methods = rows.OrderBy(r => r["id"], Comparer<object?>.Create((a,b) => StringComparer.Ordinal.Compare((string?)a,(string?)b))).ToArray(),
             native_byte_matching_verified = false, gameplay_verified = false };
     }
 

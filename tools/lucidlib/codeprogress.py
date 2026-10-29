@@ -17,7 +17,7 @@ import struct
 import subprocess
 import uuid
 
-from . import inputvariants, native, playercode, playerschema, recovery
+from . import inputvariants, native, playercode, playerschema, recovery, shaderprogress
 from .bootstrap import (run_owned, NO_BUILD_SERVER_ARGS, dotnet_environment, host_lock, load_lock, managed_path,
                         validate_work_dir, write_json, reader_build_paths, tool_work_dir,
                         verified_tool_path, take_work_lock, release_work_lock)
@@ -25,8 +25,20 @@ from .inspection import sha256_file
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
 SCOPE_PATH = "tools/code-progress/scope.json"
-# Original assemblies measured: studio, Game.Runtime, shipped third-party packages and the mixed Assembly-CSharp pair.
-SCOPE_NAME_PATTERN = r"Game\.Runtime|Dreamteck\.(?:Utilities|Splines)|com\.olegknyazev\.softmask|HL[A-Za-z0-9]+(?:\.Runtime)?|Assembly-CSharp(?:-firstpass)?"
+# Original assemblies measured: studio, Game.Runtime, shipped third-party and platform packages and the mixed Assembly-CSharp pair.
+SCOPE_NAME_PATTERN = (r"Game\.Runtime|Dreamteck\.(?:Utilities|Splines)|com\.olegknyazev\.softmask|HL[A-Za-z0-9]+(?:\.Runtime)?|Assembly-CSharp(?:-firstpass)?|"
+                      r"Apple\.Arcade\.SplashScreen|FairPlay\.Runtime|MeshCombineStudio\.Runtime|MeshExtension")
+# The original Assembly-CSharp holds the studio's HardlightProject types and the vendored AmplifyColor (namespaced
+# and global types); its firstpass twin holds the Hardlight namespace. Global types match by exact top-level name so
+# a lookalike such as AmplifyColorBaseX stays out.
+NAMESPACE_FILTERS = {"Assembly-CSharp": ["HardlightProject.", "AmplifyColor."], "Assembly-CSharp-firstpass": ["Hardlight."]}
+TYPE_FILTERS = {"Assembly-CSharp": ["AmplifyColorBase", "AmplifyColorEffect", "AmplifyColorRenderMask", "AmplifyColorRenderMaskBase",
+                                    "AmplifyColorTriggerProxy", "AmplifyColorTriggerProxy2D", "AmplifyColorTriggerProxyBase",
+                                    "AmplifyColorVolume", "AmplifyColorVolume2D", "AmplifyColorVolumeBase"]}
+# Original assemblies that are engine, platform or library code and are never reconstructed from source. Every other
+# original assembly must be in the scope; an unclassified one fails the measurement.
+EXCLUDED_EXACT = frozenset({"mscorlib", "System", "UnityEngine", "Newtonsoft.Json", "Cinemachine", "__Generated"})
+EXCLUDED_PREFIXES = frozenset({"System.", "UnityEngine.", "Unity.", "Mono."})
 HASH = re.compile(r"[0-9a-f]{64}\Z")
 TOKEN = re.compile(r"0x06[0-9a-f]{6}\Z")
 BODY_STATUSES = {"implementation_candidate", "no_body", "compiler_generated_unresolved",
@@ -40,6 +52,20 @@ AVAILABILITY_REASONS = {
 }
 MEASUREMENT_STATUSES = {"measured", "no_recovered_source", "unavailable"}
 SOURCE_STATUSES = {"verified", "no_sequence_points", "outside_maintained_runtime_source", "source_checksum_mismatch"}
+# Every state that folds into withheld_bodies, so the breakdown reconciles exhaustively.
+WITHHELD_REASONS = tuple(sorted((BODY_STATUSES - {"implementation_candidate"}) | (SOURCE_STATUSES - {"verified"})))
+WITHHELD_LABELS = {
+    "no_body": "Compiled method has no body",
+    "compiler_generated_unresolved": "Compiler-generated member",
+    "empty_body_withheld": "Empty or base-forwarding body",
+    "exception_placeholder_withheld": "Not-implemented placeholder",
+    "throw_only_withheld": "Throw-only body",
+    "constant_or_default_body_withheld": "Constant, default or argument-forwarding body",
+    "no_sequence_points": "No source line information",
+    "outside_maintained_runtime_source": "Source outside the maintained runtime code",
+    "source_checksum_mismatch": "Source differs from the compiled build"}
+WITHHELD_ORDER = ("exception_placeholder_withheld", "throw_only_withheld", "empty_body_withheld", "constant_or_default_body_withheld",
+                  "compiler_generated_unresolved", "no_body", "no_sequence_points", "outside_maintained_runtime_source", "source_checksum_mismatch")
 
 
 def _json(path, limit=64 * 1024 * 1024):
@@ -49,16 +75,52 @@ def _json(path, limit=64 * 1024 * 1024):
     return raw, value
 
 
-def _scope(root):
+def _scope_config(root):
     raw, config = _json(Path(root) / SCOPE_PATH, 65536)
     names = config.get("assemblies")
-    filters = config.get("namespace_filters")
-    if (config.get("schema_version") != 2 or set(config) != {"schema_version", "assemblies", "namespace_filters"} or
+    excluded = config.get("excluded_assemblies")
+    if (config.get("schema_version") != 3 or set(config) != {"schema_version", "assemblies", "namespace_filters", "type_filters", "excluded_assemblies"} or
             not isinstance(names, list) or not names or len(set(names)) != len(names) or
             any(not isinstance(name, str) or re.fullmatch(SCOPE_NAME_PATTERN, name) is None for name in names) or
-            filters != {"Assembly-CSharp": ["HardlightProject."], "Assembly-CSharp-firstpass": ["Hardlight."]}):
+            config.get("namespace_filters") != NAMESPACE_FILTERS or config.get("type_filters") != TYPE_FILTERS or
+            not isinstance(excluded, dict) or set(excluded) != {"exact", "prefixes"} or
+            not isinstance(excluded["exact"], dict) or set(excluded["exact"]) != EXCLUDED_EXACT or
+            not isinstance(excluded["prefixes"], dict) or set(excluded["prefixes"]) != EXCLUDED_PREFIXES or
+            any(not isinstance(reason, str) or not reason for group in excluded.values() for reason in group.values())):
         raise ValueError("Invalid fixed proprietary assembly scope")
-    return sorted(names), filters, hashlib.sha256(raw).hexdigest()
+    return {"assemblies": sorted(names), "namespace_filters": config["namespace_filters"], "type_filters": config["type_filters"],
+            "excluded_assemblies": excluded}, hashlib.sha256(raw).hexdigest()
+
+
+def _scope(root):
+    config, digest = _scope_config(root)
+    return config["assemblies"], config["namespace_filters"], digest
+
+
+def classify_original_assemblies(original_names, scope):
+    """Classify every original assembly as measured or explicitly excluded; omissions and unknowns fail.
+
+    The original inventory comes from the metadata reader, not from the scope list, so an original
+    assembly missing from the scope cannot hide behind a copy of the same allowlist.
+    """
+    if (not isinstance(original_names, list) or not original_names or any(not isinstance(name, str) or not name for name in original_names) or
+            original_names != sorted(set(original_names))):
+        raise ValueError("Original assembly inventory is missing or not canonical")
+    missing = set(scope) - set(original_names)
+    if missing: raise ValueError("Scope names an assembly absent from the original: " + ", ".join(sorted(missing)))
+    result = {}
+    for name in original_names:
+        if name in scope: result[name] = "measured"
+        elif name in EXCLUDED_EXACT or name.startswith(tuple(EXCLUDED_PREFIXES)): result[name] = "excluded"
+        else: raise ValueError("Unclassified original assembly: " + name)
+    return result
+
+
+def selected_type(assembly, declaring_type, namespace_filters, type_filters):
+    """Whether a type of a mixed assembly is part of the measured proprietary or vendored code."""
+    prefixes, names = namespace_filters.get(assembly), (type_filters or {}).get(assembly)
+    if not prefixes and not names: return True
+    return any(declaring_type.startswith(prefix) for prefix in prefixes or ()) or declaring_type.split("+", 1)[0] in (names or ())
 
 
 def _signature(value):
@@ -84,18 +146,18 @@ def _signature(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
-def measure_code_work(original, maintained, scope, namespace_filters=None, assembly_availability=None):
+def measure_code_work(original, maintained, scope, namespace_filters=None, assembly_availability=None, type_filters=None):
     """Pure deterministic matching; the wrapper independently seals all inputs."""
     namespace_filters = namespace_filters or {}
+    type_filters = type_filters or {}
     if len(scope) != len(set(scope)) or not scope or any(not isinstance(name, str) or re.fullmatch(SCOPE_NAME_PATTERN, name) is None for name in scope):
         raise ValueError("Invalid assembly scope")
-    if any(name.startswith("Assembly-CSharp") and namespace_filters.get(name) != (["Hardlight."] if name.endswith("firstpass") else ["HardlightProject."]) for name in scope):
+    if any(name.startswith("Assembly-CSharp") and (namespace_filters.get(name) != NAMESPACE_FILTERS[name] or type_filters.get(name) != TYPE_FILTERS.get(name)) for name in scope):
         raise ValueError("Mixed proprietary/third-party assemblies require exact namespace filters")
     if assembly_availability is not None:
         _validate_availability(assembly_availability, scope)
     def selected(row):
-        filters = namespace_filters.get(row["assembly"])
-        return not filters or any(row.get("declaring_type", "").startswith(prefix) for prefix in filters)
+        return selected_type(row["assembly"], row.get("declaring_type", ""), namespace_filters, type_filters)
     if original.get("kind") != "original-native-method-inventory-v1" or maintained.get("kind") != "maintained-player-source-body-inventory-v1":
         raise ValueError("Wrong method evidence kind")
     for inventory in (original, maintained):
@@ -176,16 +238,21 @@ def measure_code_work(original, maintained, scope, namespace_filters=None, assem
             if availability["measurement_status"] == "unavailable":
                 for key in COUNT_FIELDS:
                     group[key] = None
+            group["withheld_reasons"] = (None if availability["measurement_status"] == "unavailable" else
+                                         {reason: counts[group["assembly"]][reason] for reason in WITHHELD_REASONS})
             group.update(availability)
         for method in method_map:
             name = method["original_id"].split(":", 1)[0]
             if assembly_availability[name]["measurement_status"] == "unavailable":
                 method["status"] = "measurement_unavailable"
     total = {key: sum(group[key] for group in groups if group[key] is not None) for key in COUNT_FIELDS}
+    if assembly_availability is not None:
+        total["withheld_reasons"] = {reason: sum(group["withheld_reasons"][reason] for group in groups if group["withheld_reasons"] is not None)
+                                     for reason in WITHHELD_REASONS}
     if total["implemented_source_bodies"] > total["original_native_bodies"]:
         raise ValueError("Impossible method body credit")
-    # Schema 3 keeps availability accounting but simplifies ordinary zero-credit rows.
-    return {"schema_version": 3 if assembly_availability is not None else 1, "measure": "maintained-original-source-body-coverage-v1", "assemblies": groups,
+    # Schema 3 keeps availability accounting but simplifies ordinary zero-credit rows; schema 4 adds the withheld-reason breakdown.
+    return {"schema_version": 4 if assembly_availability is not None else 1, "measure": "maintained-original-source-body-coverage-v1", "assemblies": groups,
             "totals": total, "method_map": method_map, "behavior_parity_verified": False, "native_byte_matching_verified": False}
 
 
@@ -317,26 +384,36 @@ def _assembly_availability(root, evidence, scope, target):
     return result
 
 
+def _reasons(value, expected):
+    """A fixed, exhaustive withheld-reason map whose counts equal the withheld total."""
+    if (not isinstance(value, dict) or list(value) != list(WITHHELD_REASONS) or
+            any(type(count) is not int or not 0 <= count <= 1000000 for count in value.values()) or sum(value.values()) != expected):
+        raise ValueError("Withheld reasons do not account for withheld bodies")
+    return dict(value)
+
+
 def _count_groups(measurement):
     schema = measurement.get("schema_version")
-    if (type(schema) is not int or schema not in (1, 2, 3) or measurement.get("measure") != "maintained-original-source-body-coverage-v1" or
+    if (type(schema) is not int or schema not in (1, 2, 3, 4) or measurement.get("measure") != "maintained-original-source-body-coverage-v1" or
             measurement.get("behavior_parity_verified") is not False or measurement.get("native_byte_matching_verified") is not False):
         raise ValueError("Unsupported code-work measurement or parity claim")
     groups, totals = measurement.get("assemblies"), measurement.get("totals")
-    if not isinstance(groups, list) or not 1 <= len(groups) <= 256 or not isinstance(totals, dict) or set(totals) != COUNT_FIELDS:
+    reasons = schema == 4
+    if (not isinstance(groups, list) or not 1 <= len(groups) <= 256 or not isinstance(totals, dict) or
+            set(totals) != COUNT_FIELDS | ({"withheld_reasons"} if reasons else set())):
         raise ValueError("Incomplete public code-work groups")
     names, result = [], []
-    extra = {"measurement_status", "unavailable_reason"} if schema in (2, 3) else set()
+    extra = ({"measurement_status", "unavailable_reason"} if schema >= 2 else set()) | ({"withheld_reasons"} if reasons else set())
     for row in groups:
         if (not isinstance(row, dict) or set(row) != COUNT_FIELDS | {"assembly"} | extra or not isinstance(row["assembly"], str) or
                 re.fullmatch(SCOPE_NAME_PATTERN, row["assembly"]) is None):
             raise ValueError("Unsupported public assembly group")
         names.append(row["assembly"])
-        if schema in (2, 3):
-            _validate_availability({row["assembly"]: {k: row[k] for k in extra}}, [row["assembly"]])
-        unavailable = schema in (2, 3) and row["measurement_status"] == "unavailable"
+        if schema >= 2:
+            _validate_availability({row["assembly"]: {k: row[k] for k in ("measurement_status", "unavailable_reason")}}, [row["assembly"]])
+        unavailable = schema >= 2 and row["measurement_status"] == "unavailable"
         if unavailable:
-            if any(row[k] is not None for k in COUNT_FIELDS):
+            if any(row[k] is not None for k in COUNT_FIELDS) or (reasons and row["withheld_reasons"] is not None):
                 raise ValueError("Unavailable assembly cannot carry counted methods")
         else:
             if any(type(row[k]) is not int or not 0 <= row[k] <= 1000000 for k in COUNT_FIELDS):
@@ -344,16 +421,23 @@ def _count_groups(measurement):
             if (row["original_native_bodies"] != sum(row[k] for k in ("implemented_source_bodies", "unresolved_identities", "withheld_bodies", "not_implemented")) or
                     row["original_native_bodies"] > row["original_declarations"]):
                 raise ValueError("Public method counts do not account for original bodies")
-            if schema in (2, 3) and row["measurement_status"] == "no_recovered_source" and any(row[k] for k in
+            if schema >= 2 and row["measurement_status"] == "no_recovered_source" and any(row[k] for k in
                     ("implemented_source_bodies", "withheld_bodies")):
                 raise ValueError("Unrecovered assembly cannot have compiled source credit")
+            if reasons: row = {**row, "withheld_reasons": _reasons(row["withheld_reasons"], row["withheld_bodies"])}
         result.append({key: row[key] for key in sorted(COUNT_FIELDS | {"assembly"} | extra)})
     if names != sorted(set(names)) or any(type(totals.get(k)) is not int or totals[k] != sum(row[k] for row in result if row[k] is not None) for k in COUNT_FIELDS):
         raise ValueError("Public group totals differ")
-    return result, {key: totals[key] for key in sorted(COUNT_FIELDS)}
+    summary = {key: totals[key] for key in sorted(COUNT_FIELDS)}
+    if reasons:
+        summary["withheld_reasons"] = _reasons(totals["withheld_reasons"], totals["withheld_bodies"])
+        if any(summary["withheld_reasons"][reason] != sum(row["withheld_reasons"][reason] for row in result if row["withheld_reasons"] is not None)
+               for reason in WITHHELD_REASONS):
+            raise ValueError("Public withheld reason totals differ")
+    return result, summary
 
 
-def public_counts(measurement, *, source, input_binary, input_metadata, scope_sha256, compiler_receipt_sha256):
+def public_counts(measurement, *, source, input_binary, input_metadata, scope_sha256, compiler_receipt_sha256, shaders=None):
     """Return only fixed public count/hash fields; method/source paths stay local."""
     identities = {"source_fingerprint": source, "input_binary_sha256": input_binary, "input_metadata_sha256": input_metadata,
                   "scope_sha256": scope_sha256, "compiler_receipt_sha256": compiler_receipt_sha256}
@@ -362,24 +446,71 @@ def public_counts(measurement, *, source, input_binary, input_metadata, scope_sh
     # Publish progress only for a declared code/metadata variant qualified for progress measurement.
     inputvariants.require_code_variant(input_binary, input_metadata, inputvariants.CODE_PROGRESS)
     groups, totals = _count_groups(measurement)
-    return {"schema_version": measurement["schema_version"], "generated_by": "ProjectLucid.code_progress", "measure": measurement["measure"], **identities,
-            "assemblies": groups, "totals": totals, "behavior_parity_verified": False, "native_byte_matching_verified": False}
+    report = {"schema_version": measurement["schema_version"], "generated_by": "ProjectLucid.code_progress", "measure": measurement["measure"], **identities,
+              "assemblies": groups, "totals": totals, "behavior_parity_verified": False, "native_byte_matching_verified": False}
+    if (measurement["schema_version"] == 4) != (shaders is not None): raise ValueError("Shader progress belongs to schema 4 only")
+    if shaders is not None:
+        report["shaders"] = shaderprogress.validate_public(shaders)
+        compilation = report["shaders"]["compilation"]
+        if compilation["status"] == "sealed" and compilation["source_fingerprint"] != source:
+            raise ValueError("Shader compilation evidence is stale for this source")
+    return report
 
 
 def validate_public_counts(report, repo_root=None):
     """Check a sanitized snapshot offline; freshness requires the source tree."""
     keys = {"schema_version", "generated_by", "measure", "source_fingerprint", "input_binary_sha256", "input_metadata_sha256",
             "scope_sha256", "compiler_receipt_sha256", "assemblies", "totals", "behavior_parity_verified", "native_byte_matching_verified"}
+    if isinstance(report, dict) and report.get("schema_version") == 4: keys = keys | {"shaders"}
     if not isinstance(report, dict) or set(report) != keys or report.get("generated_by") != "ProjectLucid.code_progress":
         raise ValueError("Unsupported public code-work snapshot")
     rebuilt = public_counts(report, source=report["source_fingerprint"], input_binary=report["input_binary_sha256"],
-                            input_metadata=report["input_metadata_sha256"], scope_sha256=report["scope_sha256"], compiler_receipt_sha256=report["compiler_receipt_sha256"])
+                            input_metadata=report["input_metadata_sha256"], scope_sha256=report["scope_sha256"], compiler_receipt_sha256=report["compiler_receipt_sha256"],
+                            shaders=report.get("shaders"))
     if rebuilt != report: raise ValueError("Public code-work snapshot differs from sanitized counts")
     if repo_root is not None:
         names, _, scope_hash = _scope(repo_root)
         if report["source_fingerprint"] != artifact_fingerprint(repo_root) or report["scope_sha256"] != scope_hash or names != [g["assembly"] for g in report["assemblies"]]:
             raise ValueError("Public code-work snapshot is stale for this source/scope")
+        if "shaders" in report:
+            inventory, _ = shaderprogress.load_inventory(repo_root)
+            current = shaderprogress.measure(inventory, shaderprogress.maintained_shader_guids(repo_root))
+            if {k: v for k, v in report["shaders"].items() if k != "compilation"} != {k: v for k, v in current.items() if k != "compilation"}:
+                raise ValueError("Public shader progress is stale for this source")
     return report
+
+
+def _withheld_table(report):
+    total = report["totals"]
+    rows = [("Credited: maintained source with a verified body", total["implemented_source_bodies"]),
+            ("No maintained method with this signature", total["not_implemented"]),
+            ("Signature unresolved or ambiguous", total["unresolved_identities"])]
+    # Withheld reasons grouped by meaning: genuine placeholders first, then generated or trivial bodies, then source-status reasons.
+    withheld = [(WITHHELD_LABELS[reason], total["withheld_reasons"][reason]) for reason in WITHHELD_ORDER]
+    out = ["", "Every original method with a native body falls in exactly one row:", "", "| Outcome | Methods |", "|---|---:|"]
+    out += ["| " + label + " | " + format(count, ",") + " |" for label, count in rows]
+    out.append("| **Withheld, not credited (of which:)** | **" + format(total["withheld_bodies"], ",") + "** |")
+    out += ["| " + label + " | " + format(count, ",") + " |" for label, count in withheld]
+    out.append("| **Original methods** | **" + format(total["original_native_bodies"], ",") + "** |")
+    return out
+
+
+def _shader_table(shaders):
+    game = shaders["game_authored"]
+    def line(label, row): return "| " + label + " | " + format(row["source_present"], ",") + " | " + format(row["original"], ",") + " |"
+    def total_line(row): return "| **Total** | **" + format(row["source_present"], ",") + "** | **" + format(row["original"], ",") + "** |"
+    out = ["", "### Shaders", "",
+           "**" + format(game["source_present"], ",") + " of " + format(game["original"], ",") + " original game shaders have maintained source, matched by shipped GUID.**", "",
+           "| Category | Shaders with source | Original shaders |", "|---|---:|---:|"]
+    out += [line(name, row) for name, row in game["folder"]["categories"].items()]
+    out += [line("Outside the game shader folder", game["outside_folder"]), total_line(game)]
+    compiled = shaders["compilation"]
+    out += ["", "Source presence only: it does not show that a shader compiles for any target or looks like the original. " +
+            ("Compilation is not measured. " if compiled["status"] == "not_measured" else
+             format(compiled["compiled"], ",") + " compile for " + compiled["target"] + " at this source revision. ") +
+            "Visual fidelity is not measured. " + format(shaders["not_game_scope"]["third_party"], ",") + " third-party and " +
+            format(shaders["not_game_scope"]["engine"], ",") + " engine shaders are tracked separately."]
+    return out
 
 
 def render_readme_section(report):
@@ -394,7 +525,7 @@ def render_readme_section(report):
            " original methods have maintained source implementations (" + percentage(total) + ").**", "",
            "| Assembly | Methods with source | Original methods | Progress |", "|---|---:|---:|---:|"]
     for group in report["assemblies"]:
-        label = group["assembly"] + ({"Assembly-CSharp": " (game code)", "Assembly-CSharp-firstpass": " (studio code)"}.get(group["assembly"], ""))
+        label = group["assembly"] + ({"Assembly-CSharp": " (game code and vendored AmplifyColor)" if report["schema_version"] == 4 else " (game code)", "Assembly-CSharp-firstpass": " (studio code)"}.get(group["assembly"], ""))
         if group.get("measurement_status") == "unavailable":
             out.append("| " + label + " | — | — | Unavailable / not counted: " + AVAILABILITY_REASONS[group["unavailable_reason"]] + " |")
             continue
@@ -405,8 +536,15 @@ def render_readme_section(report):
             "Generated from original method signatures and compiled source. Counts are conservative: ambiguous signatures and recognized trivial or placeholder patterns are excluded, including some genuine trivial methods. These counts cover methods with original native bodies; the game is not yet playable.", "<!-- LUCID_CODE_PROGRESS:END -->"]
     if report["schema_version"] == 2:
         out.insert(-1, "Unavailable assemblies are excluded from both totals. Assemblies with no recovered source remain counted with zero source implementations.")
-    elif report["schema_version"] == 3 and any(group["measurement_status"] == "unavailable" for group in report["assemblies"]):
+    elif report["schema_version"] >= 3 and any(group["measurement_status"] == "unavailable" for group in report["assemblies"]):
         out.insert(-1, "Unavailable assemblies are excluded from both totals.")
+    if report["schema_version"] == 4:
+        extra = _withheld_table(report)
+        extra += ["", "A withheld method is not credited and stays in the total. A matching name and signature, a compiler-generated marker or a source line only show that source exists, "
+                  "and a generated, empty, forwarding or constant body can be a declaration shell that compiles to the same code as a genuine one, so none of them proves the original's behavior. "
+                  "Crediting any of these classes needs a separate proof against the original; some withheld methods are genuine."]
+        extra += _shader_table(report["shaders"])
+        out[-1:-1] = extra
     return "\n".join(out) + "\n"
 
 
@@ -509,7 +647,8 @@ def run_code_progress(repo_root, work_dir, input_path, target="macos"):
     """Generate source-sealed code-work evidence in a nonce-owned cache run."""
     if target not in playercode.TARGETS: raise ValueError("Unsupported desktop compilation target")
     root = Path(repo_root).resolve(strict=True); work = validate_work_dir(work_dir)
-    source = artifact_fingerprint(root); scope, namespace_filters, scope_digest = _scope(root)
+    source = artifact_fingerprint(root); config, scope_digest = _scope_config(root)
+    scope, namespace_filters = config["assemblies"], config["namespace_filters"]
     engine = playercode._engine_identity(find_editor())
     evidence = playerschema._player_evidence(root, work, target, source, engine)
     app, binary, metadata, version = recovery._resolve_input(input_path)
@@ -526,7 +665,8 @@ def run_code_progress(repo_root, work_dir, input_path, target="macos"):
         reader = _build_reader(root, work, run, engine)
         context = {"schema_version": 1, "kind": "project-lucid-code-progress-v1", "identity_nonce": nonce,
                    "source_fingerprint": source, "source_root": str(root), "work_root": str(work), "run": str(run), "binary": str(thin), "metadata": str(metadata),
-                   "scope": scope, "namespace_filters": namespace_filters,
+                   "scope": scope, "namespace_filters": namespace_filters, "type_filters": config["type_filters"],
+                   "excluded_assemblies": config["excluded_assemblies"],
                    "player_modules": [row["path"] for row in evidence["staged"]["modules"] if row["assembly_name"] in scope]}
         context_raw = (json.dumps(context, sort_keys=True, separators=(",", ":")) + "\n").encode()
         context_path = run / "context.json"
@@ -547,10 +687,12 @@ def run_code_progress(repo_root, work_dir, input_path, target="macos"):
         if original.get("cpp2il_pin") != native._PIN: raise ValueError("Original reader dependency pin differs")
         if original.get("modules") != [thin_seal, metadata_seal]: raise ValueError("Original reader input seals differ")
         validate_native_bytes(original, thin)
+        # The reader lists every original assembly itself; classify it here against the scope and the evidenced exclusions.
+        classify_original_assemblies(original.get("assemblies"), scope)
         seen = _validate_player_inventory(maintained, evidence, root)
         if seen != {Path(p).stem for p in context["player_modules"]}: raise ValueError("Reader omitted a maintained proprietary module")
         measurement = measure_code_work(original, maintained, scope, namespace_filters,
-                                        _assembly_availability(root, evidence, scope, target))
+                                        _assembly_availability(root, evidence, scope, target), config["type_filters"])
         # Genuine input, compiler outputs, reader binaries and source must remain
         # identical immediately before the only authoritative cache publication.
         for seal in (binary_seal, metadata_seal, thin_seal):
@@ -569,7 +711,8 @@ def run_code_progress(repo_root, work_dir, input_path, target="macos"):
             raise ValueError("Reader host/source changed before publication")
         _validate_player_inventory(maintained, final, root)
         public = public_counts(measurement, source=source, input_binary=binary_seal["sha256"], input_metadata=metadata_seal["sha256"],
-                               scope_sha256=scope_digest, compiler_receipt_sha256=evidence["receipt_sha256"])
+                               scope_sha256=scope_digest, compiler_receipt_sha256=evidence["receipt_sha256"],
+                               shaders=shaderprogress.measure(shaderprogress.load_inventory(root)[0], shaderprogress.maintained_shader_guids(root)))
         result = {"schema_version": 1, "status": "ready", "generated_by": "ProjectLucid.run_code_progress", "source_fingerprint": source,
                   "target": target, "identity_nonce": nonce, "run": str(run), "context_sha256": hashlib.sha256(context_raw).hexdigest(),
                   "original_input": [binary_seal, metadata_seal, thin_seal], "reader": reader,
